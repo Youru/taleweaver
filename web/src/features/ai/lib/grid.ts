@@ -1,14 +1,25 @@
 import type { Cell } from '@/features/games'
 
 /**
- * The board as the AI helper sees it: the squares of the tiles in view and the figures on them.
- * Tiles carry no terrain yet, so walls, Obstructing Terrain and Line of Sight are ignored: every
- * answer is a suggestion the GM checks on the table.
+ * The board as the AI helper sees it: the squares of the tiles in view, the Terrain tokens laid on
+ * them, and the figures. The terrain printed on the tiles (red lines…) and Elevation are not known:
+ * every answer stays a suggestion the GM checks on the table.
  */
 export interface Board {
   /** "x,y" of every square of a revealed tile. */
   squares: Set<string>
   figures: BoardFigure[]
+  /** Terrain tokens on the board, by "x,y". */
+  terrain?: Map<string, Terrain>
+}
+
+/** The Terrain types that change movement or Line of Sight (rulebook p. 21). */
+export type Terrain = 'obstructing' | 'hindering' | 'water' | 'muck' | 'dangerous'
+
+/** The Terrain of a token, from its key ("terrain/obstructing-long" → obstructing). */
+export function terrainOf(tokenKey: string): Terrain | undefined {
+  if (!tokenKey.startsWith('terrain/')) return undefined
+  return (['obstructing', 'hindering', 'water', 'muck', 'dangerous'] as const).find((t) => tokenKey.includes(t))
 }
 
 export type Side = 'combatant' | 'adventurer'
@@ -61,13 +72,21 @@ export function reachable(board: Board, mover: BoardFigure, movement: number): R
   for (const f of board.figures)
     if (f.id !== mover.id) for (const c of footprint(f.position, f.size)) owner.set(key(c), f)
 
-  const fits = (at: Cell) => footprint(at, mover.size).every((c) => board.squares.has(key(c)))
+  const terrain = (c: Cell) => board.terrain?.get(key(c))
+  // Never into Obstructing Terrain; never into Dangerous Terrain either (ending there, or leaving it, defeats).
+  const fits = (at: Cell) =>
+    footprint(at, mover.size).every((c) => {
+      const t = terrain(c)
+      return board.squares.has(key(c)) && t !== 'obstructing' && t !== 'dangerous'
+    })
   const blocked = (at: Cell) =>
     footprint(at, mover.size).some((c) => {
       const f = owner.get(key(c))
       return !!f && f.side !== mover.side
     })
   const occupied = (at: Cell) => footprint(at, mover.size).some((c) => owner.has(key(c)))
+  /** Leaving Hindering or Water Terrain, or an ally's space, costs 2 (these do not stack). */
+  const slow = (at: Cell) => footprint(at, mover.size).some((c) => terrain(c) === 'hindering' || terrain(c) === 'water')
 
   const best = new Map<string, number>([[key(mover.position), 0]])
   const queue: Reach[] = [{ at: mover.position, cost: 0 }]
@@ -75,7 +94,7 @@ export function reachable(board: Board, mover: BoardFigure, movement: number): R
     queue.sort((a, b) => a.cost - b.cost)
     const { at, cost } = queue.shift()!
     if (cost > (best.get(key(at)) ?? Infinity)) continue
-    const leaving = occupied(at) ? 2 : 1
+    const leaving = occupied(at) || slow(at) ? 2 : 1
     for (const [dx, dy] of [
       [1, 0],
       [-1, 0],
@@ -96,4 +115,101 @@ export function reachable(board: Board, mover: BoardFigure, movement: number): R
       return { at: { x, y }, cost }
     })
     .filter((r) => r.cost === 0 || !occupied(r.at))
+}
+
+/** Line of Sight between two figures, and the penalty to the Attack roll it carries. */
+export interface Sight {
+  clear: boolean
+  /** -1 through (or into) Hindering Terrain, -1 through allies; never more than -2 (rulebook p. 43). */
+  penalty: number
+}
+
+/**
+ * The squares a line from the centre of `a` to the centre of `b` crosses, in order, `b` excluded.
+ * Where it passes exactly through a corner, both squares beside it are given: the players choose
+ * which one counts (rulebook p. 42).
+ */
+export function lineCells(a: Cell, b: Cell): Cell[][] {
+  const dx = b.x - a.x
+  const dy = b.y - a.y
+  const stepX = Math.sign(dx)
+  const stepY = Math.sign(dy)
+  const deltaX = dx ? 1 / Math.abs(dx) : Infinity
+  const deltaY = dy ? 1 / Math.abs(dy) : Infinity
+  let nextX = dx ? 0.5 / Math.abs(dx) : Infinity
+  let nextY = dy ? 0.5 / Math.abs(dy) : Infinity
+  let x = a.x
+  let y = a.y
+  const steps: Cell[][] = []
+  while (x !== b.x || y !== b.y) {
+    if (Math.abs(nextX - nextY) < 1e-9) {
+      steps.push([
+        { x: x + stepX, y },
+        { x, y: y + stepY },
+      ])
+      x += stepX
+      y += stepY
+      nextX += deltaX
+      nextY += deltaY
+    } else if (nextX < nextY) {
+      x += stepX
+      nextX += deltaX
+    } else {
+      y += stepY
+      nextY += deltaY
+    }
+    if (x !== b.x || y !== b.y) steps.push([{ x, y }])
+  }
+  return steps
+}
+
+/**
+ * Line of Sight from `viewer` to `target` (rulebook p. 43): blocked by Obstructing Terrain, by the
+ * edges of the tiles and by opponents; allies and Hindering Terrain only give -1 to the Attack roll.
+ * With `soi` (Spells), only Obstructing Terrain and the tiles' edges count. For large bases, any
+ * pair of squares will do.
+ */
+export function sight(board: Board, viewer: BoardFigure, target: BoardFigure, soi = false): Sight {
+  const owner = new Map<string, BoardFigure>()
+  for (const f of board.figures)
+    if (f.id !== viewer.id && f.id !== target.id) for (const c of footprint(f.position, f.size)) owner.set(key(c), f)
+  const terrain = (c: Cell) => board.terrain?.get(key(c))
+  const own = new Set(footprint(viewer.position, viewer.size).map(key))
+
+  /** What a square does to the line: blocks it, or the penalties it adds. */
+  const effect = (c: Cell) => {
+    if (own.has(key(c))) return { blocks: false, hindering: false, ally: false }
+    const f = owner.get(key(c))
+    const blocks = !board.squares.has(key(c)) || terrain(c) === 'obstructing' || (!soi && !!f && f.side !== viewer.side)
+    return {
+      blocks,
+      hindering: !soi && terrain(c) === 'hindering',
+      ally: !soi && !!f && f.side === viewer.side,
+    }
+  }
+
+  let bestSight: Sight | undefined
+  for (const from of footprint(viewer.position, viewer.size))
+    for (const to of footprint(target.position, target.size)) {
+      let hindering = !soi && terrain(to) === 'hindering'
+      let ally = false
+      let clear = true
+      for (const choices of lineCells(from, to)) {
+        // The players pick the square that suits them best.
+        const options = choices.map(effect).filter((e) => !e.blocks)
+        if (!options.length) {
+          clear = false
+          break
+        }
+        const chosen = options.sort(
+          (p, q) => Number(p.hindering) + Number(p.ally) - Number(q.hindering) - Number(q.ally),
+        )[0]!
+        hindering ||= chosen.hindering
+        ally ||= chosen.ally
+      }
+      if (!clear) continue
+      const penalty = 0 - Number(hindering) - Number(ally)
+      if (!bestSight || penalty > bestSight.penalty) bestSight = { clear: true, penalty }
+    }
+  return bestSight ?? { clear: false, penalty: 0 }
 }

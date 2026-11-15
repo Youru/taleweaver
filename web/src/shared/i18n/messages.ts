@@ -510,9 +510,11 @@ export const messages = {
       specialRules: 'Règles spéciales',
     },
     ai: {
+      penalty: '{n} au jet d’attaque (terrain gênant ou allié sur la ligne)',
       advice: 'Suggestions du plateau',
       suggestion: 'Suggestion : {answer}',
-      caveat: 'Calculé sans murs ni ligne de vue : vérifiez sur la table.',
+      caveat:
+        'Ligne de vue et terrain d’après les jetons posés ; les murs imprimés sur les tuiles et l’élévation ne sont pas connus : vérifiez sur la table.',
       reason: {
         damage: '{n} dégâts subis',
         noOpponent: 'aucun adversaire sur la table',
@@ -1096,9 +1098,11 @@ export const messages = {
       specialRules: 'Special rules',
     },
     ai: {
+      penalty: '{n} to the Attack roll (Hindering Terrain or ally in the way)',
       advice: 'Board suggestions',
       suggestion: 'Suggestion: {answer}',
-      caveat: 'Worked out without walls nor Line of Sight: check on the table.',
+      caveat:
+        'Line of Sight and terrain from the tokens laid; the walls printed on the tiles and Elevation are not known: check on the table.',
       reason: {
         damage: '{n} Damage taken',
         noOpponent: 'no opponent on the table',

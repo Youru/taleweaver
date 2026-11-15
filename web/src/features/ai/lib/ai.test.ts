@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { parseCondition, suggest } from './conditions'
-import { range, reachable, type Board, type BoardFigure } from './grid'
+import { lineCells, range, reachable, sight, type Board, type BoardFigure, type Terrain } from './grid'
 import { parseInstruction, planTurn } from './instructions'
 
 /** A 12×6 board (two tiles) with nothing on it. */
@@ -157,5 +157,72 @@ describe('instructions', () => {
       movement: 4,
     })[0]?.[0]
     expect(attack).toMatchObject({ target: { id: 'adventurer:Zeke' } })
+  })
+})
+
+/** The same board with Terrain tokens on some squares. */
+function withTerrain(b: Board, cells: Record<string, Terrain>): Board {
+  return { ...b, terrain: new Map(Object.entries(cells)) }
+}
+
+describe('terrain', () => {
+  it('goes around Obstructing and Dangerous Terrain, and pays 2 to leave Hindering Terrain', () => {
+    const sickle = fig('sickle-1', 'combatant', 0, 0)
+    const b = withTerrain(board(sickle), { '1,0': 'obstructing', '0,1': 'hindering', '2,1': 'dangerous' })
+    const cost = new Map(reachable(b, sickle, 4).map((s) => [`${s.at.x},${s.at.y}`, s.cost]))
+    expect(cost.has('1,0')).toBe(false)
+    expect(cost.has('2,1')).toBe(false)
+    expect(cost.get('0,1')).toBe(1)
+    // Out of the Hindering square: 1 to get in, 2 to leave
+    expect(cost.get('1,1')).toBe(3)
+  })
+})
+
+describe('line of sight', () => {
+  it('crosses the squares between the centres, offering both squares at a corner', () => {
+    expect(lineCells({ x: 0, y: 0 }, { x: 3, y: 0 })).toEqual([[{ x: 1, y: 0 }], [{ x: 2, y: 0 }]])
+    expect(lineCells({ x: 0, y: 0 }, { x: 2, y: 2 })).toEqual([
+      [
+        { x: 1, y: 0 },
+        { x: 0, y: 1 },
+      ],
+      [{ x: 1, y: 1 }],
+      [
+        { x: 2, y: 1 },
+        { x: 1, y: 2 },
+      ],
+    ])
+  })
+
+  it('stops at Obstructing Terrain, the edge of the tiles and opponents, not at allies', () => {
+    const sickle = fig('sickle-1', 'combatant', 0, 2)
+    const rook = fig('adventurer:Rook', 'adventurer', 4, 2)
+    expect(sight(board(sickle, rook), sickle, rook)).toEqual({ clear: true, penalty: 0 })
+    expect(sight(withTerrain(board(sickle, rook), { '2,2': 'obstructing' }), sickle, rook).clear).toBe(false)
+    const blocker = fig('adventurer:Remi', 'adventurer', 2, 2)
+    expect(sight(board(sickle, rook, blocker), sickle, rook).clear).toBe(false)
+    // A Spell's SOI sees past figures
+    expect(sight(board(sickle, rook, blocker), sickle, rook, true).clear).toBe(true)
+    const ally = fig('sickle-2', 'combatant', 2, 2)
+    expect(sight(board(sickle, rook, ally), sickle, rook)).toEqual({ clear: true, penalty: -1 })
+    expect(sight(withTerrain(board(sickle, rook, ally), { '3,2': 'hindering' }), sickle, rook).penalty).toBe(-2)
+    // Off the tiles: no Line of Sight
+    const far = fig('adventurer:Zeke', 'adventurer', 0, 5)
+    const holed = board(sickle, far)
+    holed.squares.delete('0,4')
+    expect(sight(holed, sickle, far).clear).toBe(false)
+  })
+
+  it('does not suggest a target hidden behind Obstructing Terrain', () => {
+    const sickle = fig('sickle-1', 'combatant', 0, 2)
+    const hidden = fig('adventurer:Rook', 'adventurer', 2, 2)
+    const seen = fig('adventurer:Remi', 'adventurer', 0, 5)
+    const b = withTerrain(board(sickle, hidden, seen), { '1,2': 'obstructing' })
+    const [advice] = planTurn(['[Ranged] 4 ATK the nearest opponent.'], { board: b, acting: sickle })
+    expect(advice?.[0]).toMatchObject({ kind: 'attack', target: { id: 'adventurer:Remi' } })
+    const condition = parseCondition('Is there an opponent within Line of Sight?')!
+    expect(suggest(condition, withTerrain(board(sickle, hidden), { '1,2': 'obstructing' }), sickle, 4)?.answer).toBe(
+      false,
+    )
   })
 })

@@ -1,6 +1,6 @@
 import type { Cell } from '@/features/games'
 import { byDistance, opponentsOf, SOI } from './conditions'
-import { between, reachable, type Board, type BoardFigure, type Reach } from './grid'
+import { between, reachable, sight, type Board, type BoardFigure, type Reach } from './grid'
 
 /** Who an Attack or a Spell goes to, as the AI step words it. */
 export type TargetRule =
@@ -92,6 +92,8 @@ export interface Candidate {
   id: string
   name: string
   range: number
+  /** Penalty to the Attack roll from Hindering Terrain or allies in the way (0 or less). */
+  penalty?: number
 }
 
 export type Advice =
@@ -129,7 +131,12 @@ function attackAdvice(
   acting: BoardFigure,
   previous: Candidate | undefined,
 ): Extract<Advice, { kind: 'attack' }> {
-  const eligible = byDistance(acting, opponentsOf(board, acting)).filter((o) => o.range <= action.range)
+  // Within range and in Line of Sight (a Spell's SOI only stops at Obstructing Terrain)
+  const soi = action.spell && action.range === SOI
+  const seen = new Map(opponentsOf(board, acting).map((o) => [o.id, sight(board, acting, o, soi)]))
+  const eligible = byDistance(acting, opponentsOf(board, acting)).filter(
+    (o) => o.range <= action.range && seen.get(o.figure.id)?.clear,
+  )
   // Ties, and any target the card leaves open, go to the figure closer to the front of the Initiative Track.
   const byInitiative = [...eligible].sort((a, b) => a.figure.initiative - b.figure.initiative)
   const rule = action.target
@@ -141,7 +148,7 @@ function attackAdvice(
     const same = eligible.find((o) => o.figure.id === previous.id)
     ordered = same ? [same, ...byInitiative.filter((o) => o !== same)] : byInitiative
   }
-  const candidates = ordered.map(candidate)
+  const candidates = ordered.map((o) => ({ ...candidate(o), penalty: seen.get(o.figure.id)?.penalty || undefined }))
   const decided = rule.kind !== 'criterion' && rule.kind !== 'each'
   return {
     kind: 'attack',
@@ -216,7 +223,9 @@ function moveAdvice(
       else
         chosen = best(squares, (c) => {
           const d = between(at(c), target)
-          return d <= rule.n ? 1000 + (rule.upTo ? d : 0) : -d
+          // In range and in Line of Sight first: a square behind a wall does not help the attack after
+          const seen = sight(board, at(c), target).clear ? 500 : 0
+          return d <= rule.n ? 1000 + seen + (rule.upTo ? d : 0) : -d
         })
       break
     }

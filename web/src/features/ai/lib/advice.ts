@@ -3,7 +3,7 @@ import type { Combatant } from '@/features/catalog'
 import type { Cell, EncounterState, LogEntry, Prompt } from '@/features/games'
 import type { BoardLayout } from '@/features/table'
 import { parseCondition, suggest, type Suggestion } from './conditions'
-import { key, type Board, type BoardFigure } from './grid'
+import { key, terrainOf, type Board, type BoardFigure, type Terrain } from './grid'
 import { planTurn, type Advice } from './instructions'
 
 /** What the table shows of the AI's plan: where the acting figure should go, and whom it targets. */
@@ -38,7 +38,15 @@ export function readBoard(layout: BoardLayout, encounter: EncounterState): Board
         initiative: places.length ? Math.min(...places) : track.length,
       }
     })
-  return { squares, figures }
+  // Terrain tokens: what they cover changes movement and Line of Sight
+  const terrain = new Map<string, Terrain>()
+  for (const token of layout.tokens) {
+    const type = terrainOf(token.key)
+    if (type)
+      for (let x = token.x; x < token.x + token.w; x++)
+        for (let y = token.y; y < token.y + token.h; y++) terrain.set(key({ x, y }), type)
+  }
+  return { squares, figures, terrain }
 }
 
 /**
@@ -49,8 +57,9 @@ const starts = new Map<string, Cell>()
 
 /**
  * The AI helper: answers the pending AI condition from the positions on the table, and works out the
- * targets and moves of the instructions given this turn. Without walls nor Line of Sight, it only
- * suggests: the GM still answers and moves the figures.
+ * targets and moves of the instructions given this turn, with the Terrain tokens and Line of Sight
+ * (not the walls printed on the tiles, nor Elevation). It only suggests: the GM still answers and
+ * moves the figures.
  */
 export function useAiAdvice(
   game: MaybeRefOrGetter<string>,

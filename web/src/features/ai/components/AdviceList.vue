@@ -29,7 +29,10 @@ function choices(a: Extract<Advice, { kind: 'attack' }>): Candidate[] {
       <template v-if="a.kind === 'attack'">
         <i class="pi" :class="a.spell ? 'pi-sparkles' : 'pi-bolt'" aria-hidden="true" />
         <span v-if="!a.candidates.length">{{ t('ai.noTarget', { range: a.range }) }}</span>
-        <span v-else-if="a.target">{{ t('ai.target', { name: a.target.name, n: a.target.range }) }}</span>
+        <span v-else-if="a.target">
+          {{ t('ai.target', { name: a.target.name, n: a.target.range }) }}
+          <strong v-if="a.target.penalty" class="penalty">{{ t('ai.penalty', { n: a.target.penalty }) }}</strong>
+        </span>
         <span v-else-if="a.criterion">
           {{ t('ai.targetCriterion', { criterion: a.criterion, list: list(a.candidates) }) }}
         </span>
@@ -90,5 +93,9 @@ function choices(a: Extract<Advice, { kind: 'attack' }>): Candidate[] {
 }
 .done {
   color: var(--p-green-600);
+}
+.penalty {
+  margin-left: 0.3rem;
+  color: #b45309;
 }
 </style>

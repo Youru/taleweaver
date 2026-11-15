@@ -1,4 +1,4 @@
-import { between, reachable, type Board, type BoardFigure } from './grid'
+import { between, reachable, sight, type Board, type BoardFigure } from './grid'
 
 /** SOI has a base Range of 4 (rulebook p. 43). */
 export const SOI = 4
@@ -8,8 +8,8 @@ const ANYWHERE = 999
 /** An AI condition the helper can answer from the positions on the board. */
 export type Condition =
   | { kind: 'always' }
-  /** At least `count` opponents within `max` squares (and at least `min` away). */
-  | { kind: 'opponentsWithin'; max: number; min: number; count: number }
+  /** At least `count` opponents within `max` squares (and at least `min` away), seen when `sight` says so. */
+  | { kind: 'opponentsWithin'; max: number; min: number; count: number; sight?: 'attack' | 'soi' }
   /** An opponent within `range` after a move of the figure's Movement. */
   | { kind: 'moveAndAttack'; range: number }
   | { kind: 'moveTowardsAlly' }
@@ -40,8 +40,8 @@ export function parseCondition(text: string): Condition | undefined {
   if (/adjacent\??$/.test(t)) return { kind: 'opponentsWithin', max: 1, min, count }
   const m = word.exec(t)
   if (m) return { kind: 'opponentsWithin', max: Number(m[1]), min, count }
-  if (/within soi/.test(t)) return { kind: 'opponentsWithin', max: SOI, min, count }
-  if (/line of sight/.test(t)) return { kind: 'opponentsWithin', max: ANYWHERE, min, count }
+  if (/within soi/.test(t)) return { kind: 'opponentsWithin', max: SOI, min, count, sight: 'soi' }
+  if (/line of sight/.test(t)) return { kind: 'opponentsWithin', max: ANYWHERE, min, count, sight: 'attack' }
   return undefined
 }
 
@@ -85,7 +85,8 @@ export function suggest(
     case 'opponentsWithin': {
       const all = byDistance(acting, opponentsOf(board, acting))
       if (!all.length) return { answer: false, reason: { key: 'noOpponent', args: {} } }
-      const within = all.filter((o) => o.range <= condition.max && o.range >= condition.min)
+      const seen = (o: BoardFigure) => !condition.sight || sight(board, acting, o, condition.sight === 'soi').clear
+      const within = all.filter((o) => o.range <= condition.max && o.range >= condition.min && seen(o.figure))
       if (within.length >= condition.count)
         return { answer: true, reason: { key: 'within', args: { list: listed(within) } } }
       const nearest = all[0]!
@@ -96,8 +97,12 @@ export function suggest(
       const opponents = opponentsOf(board, acting)
       if (!opponents.length) return { answer: false, reason: { key: 'noOpponent', args: {} } }
       const squares = reachable(board, acting, movement)
+      // From a square it can reach, within range and in Line of Sight
       const reached = byDistance(acting, opponents).filter((o) =>
-        squares.some((s) => between({ ...acting, position: s.at }, o.figure) <= condition.range),
+        squares.some((s) => {
+          const there = { ...acting, position: s.at }
+          return between(there, o.figure) <= condition.range && sight(board, there, o.figure).clear
+        }),
       )
       if (reached.length)
         return {
