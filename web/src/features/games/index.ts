@@ -5,6 +5,8 @@ export type {
   CombatantState,
   EncounterCommand,
   EncounterState,
+  LogEntry,
+  Prompt,
   GameSummary,
   GameView,
 } from './api/types'

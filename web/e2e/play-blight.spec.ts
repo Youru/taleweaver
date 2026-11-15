@@ -38,6 +38,53 @@ test('a GM starts Blight of Rhamsted, reads the intro and plays the first AI tur
   await expect(page.getByText('Réponse : Oui')).toBeVisible()
 })
 
+test('the AI helper answers from the table, then shows the target or the move', async ({ page }) => {
+  await startBlight(page)
+  await page.getByRole('button', { name: 'Continuer' }).click()
+  await page.getByRole('button', { name: 'Commencer le round 1' }).click()
+  const yes = page.getByRole('button', { name: 'Oui' })
+  const next = page.getByRole('button', { name: 'Tour suivant' })
+  for (let turn = 0; turn < 8; turn++) {
+    await expect(async () => expect((await yes.isVisible()) || (await next.isEnabled())).toBe(true)).toPass()
+    if (await yes.isVisible()) break
+    await next.click()
+  }
+
+  // Questions read from the table come with the board's answer: follow it, turn after turn, until a
+  // suggested answer led to a move (a condition the board cannot tell gets "Non").
+  const turn = page.getByRole('region', { name: 'Tour en cours' })
+  const advice = turn.getByRole('list', { name: 'Suggestions du plateau' })
+  const suggestion = turn.getByText(/Suggestion : (Oui|Non) — /)
+  const move = advice.getByRole('button', { name: /^Déplacer / })
+  let suggested = false
+  /** Clicks, then waits for the game the API sends back (the card is redrawn from it). */
+  const play = (button: ReturnType<Page['getByRole']>) =>
+    Promise.all([
+      page.waitForResponse((r) => r.request().method() === 'POST' && r.url().includes('/api/games/')),
+      button.click(),
+    ])
+  for (let step = 0; step < 40; step++) {
+    await expect(async () => expect((await yes.isVisible()) || (await next.isEnabled())).toBe(true)).toPass()
+    if (await yes.isVisible()) {
+      const hint = (await suggestion.isVisible()) ? await suggestion.textContent() : null
+      suggested ||= !!hint
+      const answer = /Suggestion : (Oui|Non)/.exec(hint ?? '')?.[1] ?? 'Non'
+      await play(page.getByRole('button', { name: answer, exact: true }))
+      continue
+    }
+    if (suggested && (await move.first().isVisible())) break
+    await play(next)
+  }
+  expect(suggested).toBe(true)
+  await expect(move.first()).toBeVisible()
+  await expect(turn.getByText('Calculé sans murs ni ligne de vue : vérifiez sur la table.')).toBeVisible()
+
+  // A suggested move is drawn on the table and played in one click
+  await expect(page.locator('g.hint rect').first()).toBeVisible()
+  await move.first().click()
+  await expect(advice.getByText('Déplacé').first()).toBeVisible()
+})
+
 test('a GM deals damage, then undoes it', async ({ page }) => {
   await startBlight(page)
   await page.getByRole('button', { name: 'Continuer' }).click()

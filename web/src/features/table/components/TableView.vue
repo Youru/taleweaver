@@ -6,6 +6,7 @@ import Button from 'primevue/button'
 import Message from 'primevue/message'
 import Skeleton from 'primevue/skeleton'
 import Tag from 'primevue/tag'
+import type { TableHint } from '@/features/ai'
 import type { Combatant } from '@/features/catalog'
 import type { Cell, EncounterCommand, EncounterState } from '@/features/games'
 import type { ScenarioNode } from '@/features/scenarios'
@@ -26,6 +27,8 @@ const props = defineProps<{
   cards: Map<string, Combatant>
   /** Reports are refused right now (a question other than an AI step is pending). Moves are always allowed. */
   locked: boolean
+  /** The AI's plan for the acting figure, drawn on the board. */
+  hint?: TableHint
 }>()
 const emit = defineEmits<{ command: [command: EncounterCommand]; duel: [figure: string] }>()
 
@@ -118,6 +121,7 @@ function tap(cell: Cell) {
         class="board"
         :layout="layout"
         :selected="selected"
+        :hint="hint"
         :label="t('table.title', { name: pick(node?.name, language) })"
         @select="selected = $event"
         @move="move"

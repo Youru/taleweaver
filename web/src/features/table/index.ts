@@ -1,4 +1,4 @@
 export type { BoardPieces, FigurePiece } from './api/types'
 export { useBoardPieces } from './api/queries'
-export { boardLayout, type Selection } from './lib/layout'
+export { boardLayout, type BoardLayout, type Selection } from './lib/layout'
 export { default as TableView } from './components/TableView.vue'

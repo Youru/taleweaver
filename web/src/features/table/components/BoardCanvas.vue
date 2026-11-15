@@ -3,6 +3,7 @@ import { computed, ref, useId, useTemplateRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 import Button from 'primevue/button'
+import type { TableHint } from '@/features/ai'
 import type { Cell } from '@/features/games'
 import { pick } from '@/shared/lib/localized'
 import { usePreferences } from '@/shared/lib/preferences'
@@ -17,6 +18,8 @@ const props = defineProps<{
   layout: BoardLayout
   selected: Selection | null
   label: string
+  /** The AI's plan for the acting figure: where it should go, whom it targets. */
+  hint?: TableHint
 }>()
 const emit = defineEmits<{
   select: [selection: Selection | null]
@@ -346,6 +349,16 @@ function select(selection: Selection) {
         />
       </g>
 
+      <g v-for="(m, index) in hint?.moves ?? []" :key="`hint-${index}`" class="hint" aria-hidden="true">
+        <line
+          :x1="(m.from.x + m.size / 2) * S"
+          :y1="(m.from.y + m.size / 2) * S"
+          :x2="(m.to.x + m.size / 2) * S"
+          :y2="(m.to.y + m.size / 2) * S"
+        />
+        <rect :x="m.to.x * S + 6" :y="m.to.y * S + 6" :width="m.size * S - 12" :height="m.size * S - 12" rx="12" />
+      </g>
+
       <g
         v-for="figure in layout.figures"
         :key="figure.id"
@@ -353,6 +366,7 @@ function select(selection: Selection) {
         :class="[
           figure.kind,
           {
+            targeted: hint?.targets.includes(figure.id),
             acting: figure.acting,
             aggro: figure.aggro,
             selected: isSelected('figure', figure.id),
@@ -527,6 +541,26 @@ svg {
   stroke: #f59e0b;
   stroke-width: 12;
   animation: pulse 1.2s ease-in-out infinite;
+}
+.hint {
+  pointer-events: none;
+}
+.hint line {
+  stroke: #f59e0b;
+  stroke-width: 8;
+  stroke-dasharray: 16 12;
+  stroke-linecap: round;
+}
+.hint rect {
+  fill: rgb(245 158 11 / 0.25);
+  stroke: #f59e0b;
+  stroke-width: 8;
+  stroke-dasharray: 16 10;
+}
+.figure.targeted .ring {
+  stroke: #f43f5e;
+  stroke-width: 14;
+  stroke-dasharray: 10 8;
 }
 .figure.selected .ring,
 .figure:focus-visible .ring {

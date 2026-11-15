@@ -3,10 +3,11 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 import Button from 'primevue/button'
+import { AdviceList, type Advice, type Suggestion } from '@/features/ai'
 import type { Combatant } from '@/features/catalog'
 import { pick } from '@/shared/lib/localized'
 import { usePreferences } from '@/shared/lib/preferences'
-import type { Answer, EncounterState, LogEntry, Prompt } from '../../api/types'
+import type { Answer, Cell, EncounterState, LogEntry, Prompt } from '../../api/types'
 import { currentTurn } from '../../lib/currentTurn'
 import { formatLog } from '../../lib/formatLog'
 import { shortId } from '../../lib/ids'
@@ -22,8 +23,16 @@ const props = defineProps<{
   prompt: Prompt | undefined
   cards: Map<string, Combatant>
   pending: boolean
+  /** The board's answer to the pending AI condition. */
+  suggestion?: Suggestion
+  /** What the board suggests for each AI instruction (targets, moves). */
+  advice?: Map<LogEntry, Advice[]>
 }>()
-const emit = defineEmits<{ answer: [answer: Answer]; duel: [figure: string] }>()
+const emit = defineEmits<{
+  answer: [answer: Answer]
+  duel: [figure: string, target?: string, spell?: boolean]
+  move: [figure: string, to: Cell]
+}>()
 
 const { t, te } = useI18n()
 const { language } = storeToRefs(usePreferences())
@@ -55,6 +64,17 @@ const attacks = computed(
     !!turn.value.acting &&
     turn.value.entries.some((e) => e.code === 'aiInstruction' && /\bATK\b|SPELL/.test(e.text?.en ?? '')),
 )
+const promptSuggestion = computed(() => {
+  const s = props.suggestion
+  return s ? { option: s.answer ? 'yes' : 'no', reason: t(`ai.reason.${s.reason.key}`, s.reason.args) } : undefined
+})
+const hasAdvice = computed(
+  () => !!promptSuggestion.value || turn.value.entries.some((e) => props.advice?.get(e)?.length),
+)
+function positionOf(instance: string | undefined) {
+  return props.encounter.combatants.find((c) => c.instance === instance)?.position
+}
+
 const lines = computed(() =>
   turn.value.entries.map((entry) =>
     formatLog(
@@ -74,6 +94,14 @@ const lines = computed(() =>
       <li v-for="(line, index) in lines" :key="index" :class="line.tone">
         <strong v-if="line.title">{{ line.title }}</strong>
         <span v-if="line.text">{{ line.text }}</span>
+        <AdviceList
+          v-if="advice?.get(turn.entries[index]!)?.length"
+          :advice="advice.get(turn.entries[index]!)!"
+          :name="turn.entries[index]!.args?.instance ?? ''"
+          :position="positionOf(turn.entries[index]!.args?.instance)"
+          @duel="(target, spell) => emit('duel', turn.entries[index]!.args?.instance ?? '', target, spell)"
+          @move="(to) => emit('move', turn.entries[index]!.args?.instance ?? '', to)"
+        />
       </li>
     </ol>
     <Button
@@ -86,7 +114,15 @@ const lines = computed(() =>
       outlined
       @click="emit('duel', turn.acting)"
     />
-    <PromptPanel v-if="prompt" :key="log.length" :prompt="prompt" :pending="pending" @answer="emit('answer', $event)" />
+    <PromptPanel
+      v-if="prompt"
+      :key="log.length"
+      :prompt="prompt"
+      :pending="pending"
+      :suggestion="promptSuggestion"
+      @answer="emit('answer', $event)"
+    />
+    <p v-if="hasAdvice" class="caveat">{{ t('ai.caveat') }}</p>
   </section>
 </template>
 
@@ -139,7 +175,12 @@ const lines = computed(() =>
 .lines li.reward {
   border-color: var(--p-green-500);
 }
-.lines li span {
+.caveat {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--p-text-muted-color);
+}
+.lines li > span {
   white-space: pre-line;
 }
 </style>

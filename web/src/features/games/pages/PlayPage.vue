@@ -10,15 +10,16 @@ import TabList from 'primevue/tablist'
 import TabPanel from 'primevue/tabpanel'
 import TabPanels from 'primevue/tabpanels'
 import Tabs from 'primevue/tabs'
+import { useAiAdvice } from '@/features/ai'
 import { useCombatants } from '@/features/catalog'
 import { DuelDialog } from '@/features/duel'
 import { useScenario } from '@/features/scenarios'
-import { TableView, type Selection } from '@/features/table'
+import { boardLayout, TableView, useBoardPieces, type Selection } from '@/features/table'
 import { ApiError } from '@/shared/api/http'
 import { pick } from '@/shared/lib/localized'
 import { usePreferences } from '@/shared/lib/preferences'
 import { useGame, useGameCommand } from '../api/queries'
-import type { Answer, EncounterCommand } from '../api/types'
+import type { Answer, Cell, EncounterCommand } from '../api/types'
 import CombatantList from '../components/encounter/CombatantList.vue'
 import EncounterBar from '../components/encounter/EncounterBar.vue'
 import EncounterGoals from '../components/encounter/EncounterGoals.vue'
@@ -43,6 +44,20 @@ const node = computed(() => scenario.data.value?.nodes.find((n) => n.id === enco
 const cards = useCombatants(() => encounter.value?.combatants.map((c) => c.card) ?? [])
 
 const command = useGameCommand(() => props.id)
+
+// The AI helper reads the board as the table draws it.
+const pieces = useBoardPieces()
+const layout = computed(() =>
+  encounter.value ? boardLayout(node.value, encounter.value, pieces.data.value) : undefined,
+)
+const ai = useAiAdvice(
+  () => props.id,
+  layout,
+  encounter,
+  cards,
+  () => state.value?.log ?? [],
+  () => state.value?.prompt,
+)
 const commandError = computed(() => {
   const error = command.error.value
   return error instanceof ApiError ? error.message : error ? String(error) : null
@@ -63,13 +78,21 @@ const reportsLocked = computed(
 
 const selected = ref<Selection | null>(null)
 const tab = ref('combatants')
-/** The duel window, and the figure it opened with. */
+/** The duel window, the figure it opened with, and the target the AI picked if any. */
 const duel = ref<string | null>(null)
+const duelTarget = ref<string | null>(null)
+const duelSpell = ref(false)
 const dueling = ref(false)
 
-function openDuel(figure: string) {
+function openDuel(figure: string, target?: string, spell = false) {
   duel.value = figure
+  duelTarget.value = target ?? null
+  duelSpell.value = spell
   dueling.value = true
+}
+
+function moveFigure(figure: string, to: Cell) {
+  encounterCommand({ type: 'move', figure, to })
 }
 </script>
 
@@ -118,6 +141,7 @@ function openDuel(figure: string) {
             :encounter="encounter"
             :cards="cards"
             :locked="reportsLocked"
+            :hint="ai.hint.value"
             @command="encounterCommand"
             @duel="openDuel"
           />
@@ -129,8 +153,11 @@ function openDuel(figure: string) {
               :prompt="state.prompt"
               :cards="cards"
               :pending="command.isPending.value"
+              :suggestion="ai.condition.value"
+              :advice="ai.advice.value"
               @answer="answer"
               @duel="openDuel"
+              @move="moveFigure"
             />
             <Tabs v-model:value="tab" class="tabs">
               <TabList>
@@ -168,6 +195,8 @@ function openDuel(figure: string) {
           :encounter="encounter"
           :cards="cards"
           :from="duel"
+          :to="duelTarget"
+          :spell="duelSpell"
           :locked="reportsLocked"
           @command="encounterCommand"
         />

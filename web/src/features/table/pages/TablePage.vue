@@ -5,6 +5,7 @@ import { storeToRefs } from 'pinia'
 import Button from 'primevue/button'
 import Message from 'primevue/message'
 import ProgressSpinner from 'primevue/progressspinner'
+import { useAiAdvice } from '@/features/ai'
 import { useCombatants } from '@/features/catalog'
 import { DuelDialog } from '@/features/duel'
 import { EncounterBar, useGame, useGameCommand, type EncounterCommand } from '@/features/games'
@@ -12,7 +13,9 @@ import { useScenario } from '@/features/scenarios'
 import { ApiError } from '@/shared/api/http'
 import { pick } from '@/shared/lib/localized'
 import { usePreferences } from '@/shared/lib/preferences'
+import { useBoardPieces } from '../api/queries'
 import TableView from '../components/TableView.vue'
+import { boardLayout } from '../lib/layout'
 
 /** The table alone, e.g. on a tablet in the middle of the game: it follows the game played from the GM's screen. */
 const props = defineProps<{ id: string }>()
@@ -26,6 +29,16 @@ const scenario = useScenario(() => game.data.value?.scenario)
 const node = computed(() => scenario.data.value?.nodes.find((n) => n.id === encounter.value?.node))
 const cards = useCombatants(() => encounter.value?.combatants.map((c) => c.card) ?? [])
 const command = useGameCommand(() => props.id)
+// The AI's plan for the acting figure, drawn on the board as on the GM's screen.
+const pieces = useBoardPieces()
+const ai = useAiAdvice(
+  () => props.id,
+  () => (encounter.value ? boardLayout(node.value, encounter.value, pieces.data.value) : undefined),
+  encounter,
+  cards,
+  () => state.value?.log ?? [],
+  () => state.value?.prompt,
+)
 const locked = computed(
   () => command.isPending.value || (!!state.value?.prompt && state.value.prompt.kind !== 'aiCondition'),
 )
@@ -72,6 +85,7 @@ function run(value: EncounterCommand) {
         :encounter="encounter"
         :cards="cards"
         :locked="locked"
+        :hint="ai.hint.value"
         @command="run"
         @duel="openDuel"
       />
@@ -84,6 +98,7 @@ function run(value: EncounterCommand) {
         :cards="cards"
         :from="duel"
         :locked="locked"
+        :hint="ai.hint.value"
         @command="run"
       />
     </template>

@@ -8,7 +8,12 @@ import { pick } from '@/shared/lib/localized'
 import { usePreferences } from '@/shared/lib/preferences'
 import type { Answer, Prompt } from '../api/types'
 
-const props = defineProps<{ prompt: Prompt; pending: boolean }>()
+const props = defineProps<{
+  prompt: Prompt
+  pending: boolean
+  /** What the board suggests for a yes/no question, and why. */
+  suggestion?: { option: string; reason: string }
+}>()
 const emit = defineEmits<{ answer: [answer: Answer] }>()
 
 const { t } = useI18n()
@@ -31,12 +36,26 @@ function label(option: Prompt['options'][number]): string {
 }
 
 const value = ref<number | null>(0)
+
+/** The suggested option stands out; without a suggestion, the first one gets the focus. */
+const focused = computed(() => {
+  const index = props.prompt.options.findIndex((o) => o.id === props.suggestion?.option)
+  return index < 0 ? 0 : index
+})
+function severity(option: Prompt['options'][number]) {
+  if (props.suggestion) return option.id === props.suggestion.option ? undefined : 'secondary'
+  return option.id === 'no' || option.id === 'fail' ? 'secondary' : undefined
+}
 </script>
 
 <template>
   <section class="prompt" role="region" :aria-label="t(`prompt.${prompt.kind}`)">
     <p v-if="heading" class="heading">{{ heading }}</p>
     <p v-if="question" class="question">{{ question }}</p>
+    <p v-if="suggestion" class="suggestion">
+      <i class="pi pi-lightbulb" aria-hidden="true" />
+      {{ t('ai.suggestion', { answer: label({ id: suggestion.option }) }) }} — {{ suggestion.reason }}
+    </p>
     <form v-if="prompt.kind === 'number'" class="options" @submit.prevent="emit('answer', { value: value ?? 0 })">
       <InputNumber v-model="value" :min="0" :max="999" input-id="prompt-number" :aria-label="question" />
       <Button type="submit" :label="t('prompt.number')" :loading="pending" />
@@ -46,8 +65,9 @@ const value = ref<number | null>(0)
         v-for="(option, index) in prompt.options"
         :key="option.id"
         :label="label(option)"
-        :severity="option.id === 'no' || option.id === 'fail' ? 'secondary' : undefined"
-        :autofocus="index === 0"
+        :severity="severity(option)"
+        :outlined="!!suggestion && option.id !== suggestion.option"
+        :autofocus="index === focused"
         :disabled="pending"
         @click="emit('answer', { option: option.id })"
       />
@@ -71,6 +91,11 @@ const value = ref<number | null>(0)
   margin: 0.25rem 0 0.75rem;
   font-size: 1.15rem;
   font-weight: 600;
+}
+.suggestion {
+  margin: -0.4rem 0 0.75rem;
+  font-size: 0.9rem;
+  color: var(--p-text-muted-color);
 }
 .options {
   display: flex;

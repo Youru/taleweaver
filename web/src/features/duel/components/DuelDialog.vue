@@ -30,6 +30,10 @@ const props = defineProps<{
   cards: Map<string, Combatant>
   /** The figure the duel opened with (combatant instance or "adventurer:<name>"). */
   from: string | null
+  /** The target the AI picked, if any. */
+  to?: string | null
+  /** The AI casts a Spell: open on the Spell side. */
+  spell?: boolean
   locked: boolean
 }>()
 const emit = defineEmits<{ command: [command: EncounterCommand] }>()
@@ -75,6 +79,13 @@ watch(
   { immediate: true },
 )
 watch(
+  () => [open.value, props.to] as const,
+  ([isOpen, to]) => {
+    if (isOpen && to && all.value.some((f) => f.id === to)) targetId.value = to
+  },
+  { immediate: true, flush: 'post' },
+)
+watch(
   [attackerId, () => all.value.length > 0],
   () => {
     if (!targets.value.some((o) => o.id === targetId.value) || attacker.value?.kind === target.value?.kind)
@@ -90,6 +101,7 @@ function swap() {
 }
 
 const mode = ref<'attack' | 'spell'>('attack')
+watch(open, (isOpen) => isOpen && (mode.value = props.spell ? 'spell' : 'attack'), { immediate: true })
 const modes = computed(() => [
   { value: 'attack', label: t('duel.attack'), icon: 'pi pi-bolt' },
   { value: 'spell', label: t('duel.spell'), icon: 'pi pi-sparkles' },
