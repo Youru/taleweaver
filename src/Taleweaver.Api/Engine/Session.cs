@@ -32,6 +32,12 @@ internal sealed partial class Session(GameState state, GameContext context)
             return GameEngine.Errors.NotInEncounter;
         }
 
+        // Moving a figure changes nothing in the rules: allowed at any time, without disturbing the question.
+        if (command.Type == GameCommands.Move)
+        {
+            return Move(command.Instance, command.To);
+        }
+
         // While a figure goes through its AI steps, the GM may still report what happens on the board.
         // The AI question is set aside: its consequences run first, then the same step is asked again.
         var reportsAllowed = State.Prompt is null || State.Prompt.Kind == PromptKinds.AiCondition;
@@ -48,7 +54,8 @@ internal sealed partial class Session(GameState state, GameContext context)
             GameCommands.Defeat when reportsAllowed => Defeat(command.Instance),
             GameCommands.ActivateToken when reportsAllowed => ActivateTokenCommand(command.Token),
             GameCommands.ReachEndCondition when reportsAllowed => ReachEndCondition(command.EndCondition),
-            GameCommands.Damage or GameCommands.SetEffect or GameCommands.Defeat or GameCommands.ActivateToken or GameCommands.ReachEndCondition
+            GameCommands.RevealArea when reportsAllowed => RevealAreaCommand(command.Area),
+            GameCommands.Damage or GameCommands.SetEffect or GameCommands.Defeat or GameCommands.ActivateToken or GameCommands.ReachEndCondition or GameCommands.RevealArea
                 => GameEngine.Errors.AwaitingAnswer,
             _ => GameEngine.Errors.UnknownCommand(command.Type),
         };

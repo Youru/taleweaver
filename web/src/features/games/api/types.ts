@@ -41,6 +41,9 @@ export interface EncounterState {
   combatants: CombatantState[]
   tokens: BoardToken[]
   placedDiagrams: string[]
+  /** Fog areas revealed so far. */
+  revealedAreas: string[]
+  adventurers: AdventurerFigure[]
   activeEndConditions: string[]
   activation?: { initiativeCard: string; figures: string[]; step: number }
 }
@@ -97,6 +100,9 @@ export type EncounterCommand =
   | { type: 'defeat'; instance: string }
   | { type: 'activateToken'; token: string }
   | { type: 'endCondition'; endCondition: string }
+  /** figure: a combatant's instance, or "adventurer:<name>". */
+  | { type: 'move'; figure: string; to: Cell }
+  | { type: 'revealArea'; area: string }
 
 export interface Cell {
   x: number
@@ -118,4 +124,9 @@ export interface BoardToken {
   /** Squares covered, when the scenario gives them. */
   area?: Rect
   removed: boolean
+}
+
+export interface AdventurerFigure {
+  name: string
+  position?: Cell
 }

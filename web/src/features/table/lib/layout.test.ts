@@ -28,7 +28,7 @@ const pieces: BoardPieces = {
   },
 }
 
-const emptyMap = { tiles: [], tokens: [], zones: [], currents: [], elevation: [] }
+const emptyMap = { tiles: [], tokens: [], zones: [], currents: [], elevation: [], areas: [] }
 
 const node: ScenarioNode = {
   id: 'lair',
@@ -55,6 +55,8 @@ function encounter(overrides: Partial<EncounterState> = {}): EncounterState {
     combatants: [],
     tokens: [],
     placedDiagrams: [],
+    revealedAreas: [],
+    adventurers: [],
     activeEndConditions: [],
     ...overrides,
   }
@@ -158,11 +160,61 @@ describe('boardLayout', () => {
       pieces,
     )
 
-    expect(layout.figures.map((f) => [f.instance, f.label, f.size, f.acting])).toEqual([
+    expect(layout.figures.map((f) => [f.id, f.label, f.size, f.acting])).toEqual([
       ['fragor-1', '1', 1, true],
       ['terror', 'T', 2, false],
     ])
     expect(layout.figures[1]?.href).toBe('/api/assets/act1/standees/male-blighted-guardian-lowres.png')
-    expect(layout.unplacedFigures.map((c) => c.instance)).toEqual(['fragor-3'])
+    expect(layout.unplacedFigures.map((c) => c.id)).toEqual(['fragor-3'])
+  })
+
+  it('draws the adventurers, and lists those without a square first', () => {
+    const layout = boardLayout(
+      node,
+      encounter({ adventurers: [{ name: 'Nightingale', position: { x: 5, y: 1 } }, { name: 'Rook' }] }),
+      {
+        ...pieces,
+        figures: { ...pieces.figures, nightingale: { image: 'assets/act1/standees/nightingale-lowres.png' } },
+      },
+    )
+
+    expect(layout.figures).toEqual([
+      expect.objectContaining({
+        id: 'adventurer:Nightingale',
+        kind: 'adventurer',
+        label: 'N',
+        href: '/api/assets/act1/standees/nightingale-lowres.png',
+      }),
+    ])
+    expect(layout.unplacedFigures).toEqual([{ id: 'adventurer:Rook', kind: 'adventurer', name: 'Rook' }])
+  })
+
+  it('hides the tiles of an area under the fog, and what stands on them, until it is revealed', () => {
+    const foggy: ScenarioNode = {
+      ...node,
+      map: {
+        ...emptyMap,
+        tiles: [
+          { ref: 'um1:tile/um47', x: 0, y: 0, rotation: 0 },
+          { ref: 'um1:tile/um15', x: 6, y: 0, rotation: 0, area: 'crypt' },
+        ],
+        areas: [{ id: 'crypt', revealedAtStart: false, name: { en: 'The Crypt' } }],
+      },
+    }
+    const state = encounter({
+      combatants: [
+        { ...combatant, instance: 'fragor-1', number: 1, position: { x: 2, y: 1 } },
+        { ...combatant, instance: 'fragor-2', number: 2, position: { x: 8, y: 1 } },
+      ],
+    })
+
+    const hidden = boardLayout(foggy, state, pieces)
+    const revealed = boardLayout(foggy, { ...state, revealedAreas: ['crypt'] }, pieces)
+
+    expect(hidden.tiles.map((t) => t.hidden?.id)).toEqual([undefined, 'crypt'])
+    expect(hidden.figures.map((f) => f.id)).toEqual(['fragor-1'])
+    expect(hidden.unplacedFigures).toEqual([])
+    expect(revealed.tiles.every((t) => !t.hidden)).toBe(true)
+    expect(revealed.figures.map((f) => f.id)).toEqual(['fragor-1', 'fragor-2'])
   })
 })

@@ -21,7 +21,12 @@ public sealed record PackManifest
     public string? AdventureSheet { get; init; }
 
     public IReadOnlyDictionary<string, int> Counts { get; init; } = new Dictionary<string, int>();
+
+    /// <summary>Every figure (standee) of the pack, by name ("rook", "enslaved-spirit-3").</summary>
+    public IReadOnlyDictionary<string, PackFigure> Figures { get; init; } = new Dictionary<string, PackFigure>();
 }
+
+public sealed record PackFigure(string Image, string? BaseSize);
 
 /// <summary>A loaded pack: its header and the content of its catalogue files.</summary>
 public sealed record Pack

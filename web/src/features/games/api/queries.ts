@@ -13,10 +13,12 @@ export function useGames() {
   return useQuery({ queryKey: gameKeys.list(), queryFn: ({ signal }) => gamesApi.list(signal) })
 }
 
-export function useGame(id: MaybeRefOrGetter<string>) {
+/** refreshEvery (ms): reload regularly, for a view that follows a game played from another screen. */
+export function useGame(id: MaybeRefOrGetter<string>, options: { refreshEvery?: number } = {}) {
   return useQuery({
     queryKey: computed(() => gameKeys.detail(toValue(id))),
     queryFn: ({ signal }) => gamesApi.get(toValue(id), signal),
+    refetchInterval: options.refreshEvery ?? false,
   })
 }
 

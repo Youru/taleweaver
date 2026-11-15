@@ -1,9 +1,9 @@
 import type { BoardToken, CombatantState, EncounterState } from '@/features/games'
-import type { BoardMap, ScenarioNode } from '@/features/scenarios'
+import type { BoardMap, FogArea, ScenarioNode } from '@/features/scenarios'
 import { assetUrl } from '@/shared/api/assets'
 import type { BoardPieces } from '../api/types'
 
-/** Everything the map view draws, in squares (x to the east, y to the south). */
+/** Everything the table draws, in squares (x to the east, y to the south). */
 export interface BoardLayout {
   width: number
   height: number
@@ -13,8 +13,8 @@ export interface BoardLayout {
   currents: CurrentShape[]
   tokens: TokenShape[]
   figures: FigureShape[]
-  /** On the board but without a square given by the scenario: the GM places them. */
-  unplacedFigures: CombatantState[]
+  /** On the board but without a square: the GM places them (drag, or select then tap a square). */
+  unplacedFigures: UnplacedFigure[]
   unplacedTokens: BoardToken[]
 }
 
@@ -29,6 +29,8 @@ export interface TileShape {
   h: number
   /** Degrees clockwise; 0 when unknown. */
   rotation: number
+  /** Under the fog of war: drawn as fog, everything on it is hidden. */
+  hidden?: FogArea
 }
 
 export interface AreaShape {
@@ -65,9 +67,15 @@ export interface TokenShape {
   round: boolean
 }
 
+export type FigureKind = 'combatant' | 'adventurer'
+
 export interface FigureShape {
-  instance: string
-  card: string
+  /** What the move command names: the combatant's instance, or "adventurer:<name>". */
+  id: string
+  kind: FigureKind
+  /** Combatant instance, or adventurer name. */
+  name: string
+  card?: string
   label: string
   href?: string
   x: number
@@ -75,8 +83,15 @@ export interface FigureShape {
   size: number
   acting: boolean
   aggro: boolean
-  damaged: boolean
 }
+
+export interface UnplacedFigure {
+  id: string
+  kind: FigureKind
+  name: string
+}
+
+export const adventurerId = (name: string) => `adventurer:${name}`
 
 const DIRECTIONS: Record<string, number> = { east: 0, south: 90, west: 180, north: 270 }
 
@@ -86,16 +101,23 @@ export function mapsOnTable(node: ScenarioNode | undefined, encounter: Encounter
   return [node?.map, ...diagrams.map((d) => d.map)].filter((m): m is BoardMap => !!m)
 }
 
+const covers = (r: { x: number; y: number; w: number; h: number }, x: number, y: number) =>
+  x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h
+
 export function boardLayout(
   node: ScenarioNode | undefined,
   encounter: EncounterState,
   pieces: BoardPieces | undefined,
 ): BoardLayout {
   const maps = mapsOnTable(node, encounter)
+  const areas = new Map(maps.flatMap((m) => m.areas ?? []).map((a) => [a.id, a]))
+  const revealed = new Set(encounter.revealedAreas ?? [])
+
   const tiles = new Map<string, TileShape>()
   for (const tile of maps.flatMap((m) => m.tiles)) {
     const piece = pieces?.tiles[tile.ref]
     const key = `${tile.ref}@${tile.x},${tile.y}`
+    const area = tile.area ? areas.get(tile.area) : undefined
     tiles.set(key, {
       key,
       ref: tile.ref,
@@ -106,8 +128,11 @@ export function boardLayout(
       w: piece?.w ?? 6,
       h: piece?.h ?? 6,
       rotation: tile.rotation ?? 0,
+      hidden: area && !revealed.has(area.id) ? area : undefined,
     })
   }
+  const fog = [...tiles.values()].filter((t) => t.hidden)
+  const underFog = (x: number, y: number) => fog.some((t) => covers(t, x, y))
 
   const zones = maps.flatMap((m) => m.zones).map((z) => ({ key: z.id, kind: z.kind ?? 'zone', ...z.rect }))
   const elevation = maps
@@ -118,7 +143,7 @@ export function boardLayout(
     .flatMap((current, i): CurrentShape[] => {
       const angle = DIRECTIONS[current.direction ?? '']
       const area = current.rect ?? [...tiles.values()].find((t) => t.ref === current.tile)
-      if (angle === undefined || !area) return []
+      if (angle === undefined || !area || underFog(area.x, area.y)) return []
       return [
         { key: `current-${i}`, x: area.x + area.w / 2, y: area.y + area.h / 2, angle, strength: current.strength },
       ]
@@ -126,7 +151,7 @@ export function boardLayout(
 
   const onBoard = encounter.tokens.filter((t) => !t.removed)
   const tokens = onBoard.flatMap((token): TokenShape[] => {
-    if (!token.area) return []
+    if (!token.area || underFog(token.area.x, token.area.y)) return []
     const piece = token.type ? pieces?.tokens[token.type] : undefined
     const image = (token.color && piece?.colors?.[token.color]) || piece?.image
     return [
@@ -143,12 +168,17 @@ export function boardLayout(
 
   const alive = encounter.combatants.filter((c) => !c.defeated)
   const acting = encounter.activation?.figures[0]
-  const figures = alive.flatMap((c): FigureShape[] => {
-    if (!c.position) return []
-    const piece = (c.figure && pieces?.figures[c.figure]) || pieces?.figures[c.family]
+  const figurePiece = (...families: (string | undefined)[]) =>
+    families.map((f) => (f ? pieces?.figures[f] : undefined)).find((p) => !!p)
+
+  const combatants = alive.flatMap((c): FigureShape[] => {
+    if (!c.position || underFog(c.position.x, c.position.y)) return []
+    const piece = figurePiece(c.figure, c.family)
     return [
       {
-        instance: c.instance,
+        id: c.instance,
+        kind: 'combatant',
+        name: c.instance,
         card: c.card,
         label: c.number > 0 ? String(c.number) : (c.instance[0] ?? '?').toUpperCase(),
         href: assetUrl(piece?.image),
@@ -157,11 +187,38 @@ export function boardLayout(
         size: piece?.baseSize === '2x2' ? 2 : 1,
         acting: c.instance === acting,
         aggro: c.aggro,
-        damaged: c.damage > 0,
+      },
+    ]
+  })
+  const adventurers = (encounter.adventurers ?? []).flatMap((a): FigureShape[] => {
+    if (!a.position) return []
+    const piece = figurePiece(a.name.toLowerCase())
+    return [
+      {
+        id: adventurerId(a.name),
+        kind: 'adventurer',
+        name: a.name,
+        label: (a.name[0] ?? '?').toUpperCase(),
+        href: assetUrl(piece?.image),
+        x: a.position.x,
+        y: a.position.y,
+        size: 1,
+        acting: false,
+        aggro: false,
       },
     ]
   })
 
+  const unplacedFigures: UnplacedFigure[] = [
+    ...(encounter.adventurers ?? [])
+      .filter((a) => !a.position)
+      .map((a) => ({ id: adventurerId(a.name), kind: 'adventurer' as const, name: a.name })),
+    ...alive
+      .filter((c: CombatantState) => !c.position)
+      .map((c) => ({ id: c.instance, kind: 'combatant' as const, name: c.instance })),
+  ]
+
+  const figures = [...combatants, ...adventurers]
   const extents = [
     ...tiles.values(),
     ...zones,
@@ -172,12 +229,15 @@ export function boardLayout(
     width: Math.max(1, ...extents.map((e) => e.x + e.w)),
     height: Math.max(1, ...extents.map((e) => e.y + e.h)),
     tiles: [...tiles.values()],
-    zones,
-    elevation,
+    zones: zones.filter((z) => !underFog(z.x, z.y)),
+    elevation: elevation.filter((e) => !underFog(e.x, e.y)),
     currents,
     tokens,
     figures,
-    unplacedFigures: alive.filter((c) => !c.position),
+    unplacedFigures,
     unplacedTokens: onBoard.filter((t) => !t.area),
   }
 }
+
+/** What the GM selected on the table. */
+export type Selection = { kind: 'figure'; id: string } | { kind: 'token'; id: string } | { kind: 'area'; id: string }

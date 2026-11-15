@@ -12,6 +12,8 @@ public static class EncountersEndpoints
         DefeatCombatant.Map(group);
         ActivateToken.Map(group);
         ReachEndCondition.Map(group);
+        MoveFigure.Map(group);
+        RevealArea.Map(group);
         return app;
     }
 }

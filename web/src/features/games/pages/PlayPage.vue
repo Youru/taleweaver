@@ -5,9 +5,9 @@ import { storeToRefs } from 'pinia'
 import Button from 'primevue/button'
 import Message from 'primevue/message'
 import ProgressSpinner from 'primevue/progressspinner'
-import { BoardMap } from '@/features/board'
 import { useCombatants } from '@/features/catalog'
 import { useScenario } from '@/features/scenarios'
+import { TableView } from '@/features/table'
 import { ApiError } from '@/shared/api/http'
 import { pick } from '@/shared/lib/localized'
 import { usePreferences } from '@/shared/lib/preferences'
@@ -62,6 +62,9 @@ const reportsLocked = computed(
         <span v-for="adventurer in state.campaign.party" :key="adventurer.name">
           {{ adventurer.name }} · {{ t('play.xp', { xp: adventurer.xp }) }}
         </span>
+        <RouterLink v-if="state.encounter" :to="{ name: 'table', params: { id } }" target="_blank">
+          <Button icon="pi pi-external-link" :label="t('table.openTable')" severity="secondary" text />
+        </RouterLink>
         <Button
           icon="pi pi-undo"
           :label="t('play.undo')"
@@ -75,13 +78,14 @@ const reportsLocked = computed(
 
       <div class="columns">
         <div class="left">
-          <BoardMap
+          <TableView
             v-if="state.encounter"
+            class="table"
             :node="node"
             :encounter="state.encounter"
             :cards="cards"
             :locked="reportsLocked"
-            @activate-token="(token) => encounterCommand({ type: 'activateToken', token })"
+            @command="encounterCommand"
           />
           <GameJournal :log="state.log" class="journal" />
         </div>
@@ -152,6 +156,10 @@ const reportsLocked = computed(
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+}
+.table {
+  flex: 0 0 auto;
+  height: 58vh;
 }
 .journal {
   flex: 1 0 14rem;

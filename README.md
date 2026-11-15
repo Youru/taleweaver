@@ -29,7 +29,12 @@ cd taleweaver/web && npm install && npm run dev
 - Pages :
   - accueil : scénarios et parties sauvegardées ;
   - partie : carte, journal, question en cours, rencontre (piste d'initiative, combattants, jetons, conditions de fin).
-- **Carte** (`src/features/board/`) : la mise en place dessinée en SVG à partir des images locales (`/api/assets/…`) : tuiles tournées, schémas posés en cours de rencontre, terrain, jetons (un clic active un jeton du scénario), zone de départ, courants, élévation, figurines numérotées (celle qui agit clignote). Les positions sont celles de la mise en place : l'appli ne suit pas les déplacements. Ce que le scénario place sans case précise est listé « à placer par le MJ ».
+- **Table** (`src/features/table/`), la carte, utilisable seule sur `/games/{id}/table` (bouton « Table seule » ; elle se recharge toutes les 2 s pour suivre la partie jouée depuis la vue MJ) :
+  - `BoardCanvas` dessine (images locales `/api/assets/…`) et traduit les gestes : sélectionner, glisser une figurine, déplacer la vue, zoomer (molette, boutons) ;
+  - `TableSelection` propose les actions de ce qui est sélectionné : dégâts, effets, Vaincre ; Activer un jeton ; Révéler une zone cachée ;
+  - `TableView` assemble les deux et ne parle qu'en commandes de rencontre ; `lib/layout.ts` calcule ce qu'on voit (fonction pure, testée), `lib/viewport.ts` le zoom ;
+  - déplacements facultatifs : glisser la figurine, ou la sélectionner puis toucher une case (pratique sur tablette) ; ce qui n'a pas de case est listé « À placer » ;
+  - brouillard : les tuiles d'une zone cachée sont grisées, et ce qui s'y trouve est masqué jusqu'à « Révéler la zone ».
 - ⚠️ Les images appartiennent à Succubus Publishing : l'API les lit sur le disque local et ne doit jamais être exposée en ligne avec elles.
 - Les textes de l'interface et la mise en forme du journal sont dans `src/shared/i18n/messages.ts`. Le contenu du jeu garde ses propres textes `{ en, fr }`.
 - Vérifications :

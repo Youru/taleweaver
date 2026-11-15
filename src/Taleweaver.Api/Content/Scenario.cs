@@ -108,10 +108,16 @@ public sealed record BoardMap
     public IReadOnlyList<Current> Currents { get; init; } = [];
 
     public IReadOnlyList<ElevationArea> Elevation { get; init; } = [];
+
+    /// <summary>Areas of the fog of war: their tiles, and what stands on them, stay hidden until revealed.</summary>
+    public IReadOnlyList<FogArea> Areas { get; init; } = [];
 }
 
-/// <summary>A tile placed with its top-left corner at (X, Y). Rotation in degrees, null when unknown.</summary>
-public sealed record MapTile(string Ref, int X, int Y, int? Rotation);
+/// <summary>A tile placed with its top-left corner at (X, Y). Rotation in degrees, null when unknown. <see cref="Area"/>: fog area.</summary>
+public sealed record MapTile(string Ref, int X, int Y, int? Rotation, string? Area = null);
+
+/// <summary>An area of the fog of war (§3.4); hidden at the start when <see cref="RevealedAtStart"/> is false.</summary>
+public sealed record FogArea(string Id, bool? RevealedAtStart = null, LocalizedText? Name = null);
 
 public sealed record MapToken
 {
@@ -130,8 +136,11 @@ public sealed record MapToken
 
     public int? H { get; init; }
 
+    /// <summary>Fog area of the token (it is hidden with it).</summary>
+    public string? Area { get; init; }
+
     [JsonIgnore]
-    public Rect Area => new(X, Y, W ?? 1, H ?? 1);
+    public Rect Footprint => new(X, Y, W ?? 1, H ?? 1);
 }
 
 public sealed record Rect(int X, int Y, int W = 1, int H = 1)
@@ -269,6 +278,9 @@ public sealed record EventTrigger
 
     /// <summary>hiddenRuleRead: only that rule.</summary>
     public string? Rule { get; init; }
+
+    /// <summary>areaRevealed: only that area.</summary>
+    public string? Area { get; init; }
 }
 
 /// <summary>A condition of an event: a variable test, an end-condition test, or a negation.</summary>

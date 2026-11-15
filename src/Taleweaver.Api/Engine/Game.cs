@@ -8,6 +8,9 @@ public sealed record Game
 {
     public int SchemaVersion { get; init; } = 1;
 
+    /// <summary>Version of the engine that computed <see cref="State"/> (0 in files saved before it was recorded).</summary>
+    public int EngineVersion { get; init; }
+
     public required string Id { get; init; }
 
     public required string Scenario { get; init; }

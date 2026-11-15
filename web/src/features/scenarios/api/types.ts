@@ -52,6 +52,14 @@ export interface BoardMap {
   zones: Zone[]
   currents: Current[]
   elevation: ElevationArea[]
+  /** Fog of war: areas hidden until revealed. */
+  areas: FogArea[]
+}
+
+export interface FogArea {
+  id: string
+  revealedAtStart?: boolean
+  name?: LocalizedText
 }
 
 /** Rotation: degrees clockwise from the tile's own orientation (number at the bottom right). */
@@ -60,6 +68,8 @@ export interface MapTile {
   x: number
   y: number
   rotation?: number | null
+  /** Fog area of the tile. */
+  area?: string
 }
 
 export interface MapToken {
@@ -70,6 +80,7 @@ export interface MapToken {
   y: number
   w?: number
   h?: number
+  area?: string
 }
 
 export interface Zone {

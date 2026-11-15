@@ -1,9 +1,12 @@
 using System.Net;
 using System.Net.Http.Json;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.DependencyInjection;
 using Taleweaver.Api.Common;
+using Taleweaver.Api.Content;
 using Taleweaver.Api.Engine;
 using Taleweaver.Api.Features.Games;
+using Taleweaver.Api.Storage;
 
 namespace Taleweaver.IntegrationTests;
 
@@ -138,6 +141,47 @@ public class GamesEndpointsTests(HomebrewFactory factory) : IClassFixture<Homebr
         var games = await _client.GetFromJsonAsync<List<ListGames.GameSummary>>("/api/games", JsonDefaults.Options, Token);
         games.Should().NotContain(g => g.Id == game.Id);
         (await _client.GetAsync($"/api/games/{game.Id}", Token)).StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task MoveFigure_CombatantAndAdventurer_SavesTheirSquares()
+    {
+        var game = await StartAsync();
+        await PostAsync($"/api/games/{game.Id}/answer", new AnswerQuestion.Request("continue", null));
+
+        await _client.PutAsJsonAsync($"/api/games/{game.Id}/encounter/figures/brute-1/position", new { x = 4, y = 3 }, Token);
+        var response = await _client.PutAsJsonAsync($"/api/games/{game.Id}/encounter/figures/adventurer:Rook/position", new { x = 1, y = 5 }, Token);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var state = (await Read(response)).State.Encounter!;
+        state.Combatants.Single(c => c.Instance == "brute-1").Position.Should().Be(new Cell(4, 3));
+        state.Adventurers.Single(a => a.Name == "Rook").Position.Should().Be(new Cell(1, 5));
+    }
+
+    [Fact]
+    public async Task MoveFigure_OutsideTheBoard_ReturnsValidationProblem()
+    {
+        var game = await StartAsync();
+
+        var response = await _client.PutAsJsonAsync($"/api/games/{game.Id}/encounter/figures/brute-1/position", new { x = -1, y = 3 }, Token);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task GetGame_SavedByAnOlderEngine_IsReplayedUpToDate()
+    {
+        var game = await StartAsync();
+        await PostAsync($"/api/games/{game.Id}/answer", new AnswerQuestion.Request("continue", null));
+        var store = factory.Services.GetRequiredService<IGameStore>();
+        var saved = (await store.GetAsync(game.Id, Token))!;
+        saved.State.Encounter!.Combatants.ForEach(c => c.Position = null);
+        await store.SaveAsync(saved with { EngineVersion = 0 }, Token);
+
+        var loaded = await _client.GetFromJsonAsync<GameView>($"/api/games/{game.Id}", JsonDefaults.Options, Token);
+
+        loaded!.State.Encounter!.Combatants.Single().Position.Should().Be(new Cell(2, 2));
+        (await store.GetAsync(game.Id, Token))!.EngineVersion.Should().Be(GameEngine.Version);
     }
 
     private async Task<GameView> StartAsync() =>

@@ -82,6 +82,9 @@ internal sealed partial class Session
                 steps.Add(action.Step);
                 Log("appendAiStep", action.Step.Condition.Text, Args(("family", action.Family)));
                 break;
+            case "revealArea" when State.Encounter is not null:
+                RevealArea(ExtraString(action, "area"));
+                break;
             case "placeDiagram" when State.Encounter is not null:
                 PlaceDiagram(action.Diagram);
                 break;
@@ -248,6 +251,7 @@ internal sealed partial class Session
         Encounter.PlacedDiagrams.Add(diagram.Id);
         Log("placeDiagram", diagram.Label, Args(("diagram", diagram.Id), ("page", Number(diagram.Page))));
         AddTokens(diagram.Map);
+        RevealAtStart(diagram.Map);
         foreach (var rule in diagram.SpecialRules)
         {
             Log("specialRule", rule.Text, Args(("rule", rule.Id), ("name", rule.Name.GetValueOrDefault("en"))));
@@ -270,7 +274,7 @@ internal sealed partial class Session
                 Key = token.Color is null ? type : $"{type}:{token.Color}",
                 Type = token.Type,
                 Color = token.Color,
-                Area = token.Area,
+                Area = token.Footprint,
             });
         }
     }

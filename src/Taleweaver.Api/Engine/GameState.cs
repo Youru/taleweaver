@@ -101,6 +101,12 @@ public sealed class EncounterState
 
     public List<string> ActivatedTokens { get; set; } = [];
 
+    /// <summary>Fog areas revealed so far (those revealed at the start included).</summary>
+    public List<string> RevealedAreas { get; set; } = [];
+
+    /// <summary>The adventurers' figures, placed in the starting zone, then moved by the GM.</summary>
+    public List<AdventurerFigure> Adventurers { get; set; } = [];
+
     /// <summary>AI steps added by the scenario, by family (appendAiStep).</summary>
     public Dictionary<string, List<AiStep>> ExtraAiSteps { get; set; } = [];
 
@@ -127,7 +133,7 @@ public sealed class CombatantState
 
     public string? Figure { get; set; }
 
-    /// <summary>Square where the scenario placed the figure, when it says so; the app does not follow it afterwards.</summary>
+    /// <summary>Square of the figure: where the scenario placed it, then where the GM moved it (optional).</summary>
     public Cell? Position { get; set; }
 
     public int Damage { get; set; }
@@ -140,6 +146,13 @@ public sealed class CombatantState
     public bool Attacked { get; set; }
 
     public bool Defeated { get; set; }
+}
+
+public sealed class AdventurerFigure
+{
+    public required string Name { get; set; }
+
+    public Cell? Position { get; set; }
 }
 
 public sealed class BoardToken

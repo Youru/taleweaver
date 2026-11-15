@@ -42,6 +42,12 @@ public static class GetBoardPieces
                 {
                     figures.TryAdd(combatant.Family, new FigurePiece(combatant.Miniature!, combatant.BaseSize));
                 }
+
+                // Every other figure by its name: the adventurers ("rook") are found this way.
+                foreach (var (name, figure) in pack.Manifest.Figures)
+                {
+                    figures.TryAdd(name, new FigurePiece(figure.Image, figure.BaseSize));
+                }
             }
 
             return new Response(tiles, tokens, figures);

@@ -175,6 +175,62 @@ public class GameEngineTests
         game.State.Prompt.Instance.Should().Be("brute-1");
     }
 
+    [Fact]
+    public void EnterEncounter_StartingZone_PlacesTheAdventurersRowByRow()
+    {
+        var game = Game().Continue();
+
+        game.Encounter.Adventurers.Select(a => (a.Name, a.Position)).Should().Equal(("Nightingale", new Cell(0, 4)), ("Rook", new Cell(1, 4)));
+        game.Combatant("brute-1").Position.Should().Be(new Cell(1, 1));
+    }
+
+    [Fact]
+    public void Move_DuringAnAiQuestion_MovesTheFigureAndKeepsTheQuestion()
+    {
+        var game = Game().Continue();
+        StartBruteTurn(game);
+        var question = game.State.Prompt!.Question;
+
+        game.Do(GameCommand.Move("brute-1", new Cell(3, 2))).Do(GameCommand.Move("adventurer:Rook", new Cell(2, 2)));
+
+        game.Combatant("brute-1").Position.Should().Be(new Cell(3, 2));
+        game.Encounter.Adventurers.Single(a => a.Name == "Rook").Position.Should().Be(new Cell(2, 2));
+        game.State.Prompt!.Question.Should().BeEquivalentTo(question);
+        game.State.Prompt.Kind.Should().Be(PromptKinds.AiCondition);
+    }
+
+    [Fact]
+    public void Move_UnknownFigure_IsRefused()
+    {
+        var game = Game().Continue();
+
+        var result = GameEngine.Apply(game.State, GameCommand.Move("adventurer:Zeke", new Cell(0, 0)), game.Context);
+
+        result.Error.Should().Be(GameEngine.Errors.UnknownFigure("adventurer:Zeke"));
+    }
+
+    [Fact]
+    public void RevealArea_HiddenArea_LiftsTheFogAndFiresItsEvent()
+    {
+        var game = Game().Continue();
+        game.Encounter.RevealedAreas.Should().Equal("hall");
+
+        game.Do(GameCommand.RevealArea("crypt"));
+
+        game.Encounter.RevealedAreas.Should().Equal("hall", "crypt");
+        game.State.Log.Should().Contain(l => l.Code == "revealArea" && l.Args!["area"] == "crypt");
+        game.State.Log.Should().Contain(l => l.Code == "text" && l.Text!["en"] == "Bones everywhere.");
+    }
+
+    [Fact]
+    public void RevealArea_AlreadyRevealedOrUnknown_IsRefused()
+    {
+        var game = Game().Continue();
+
+        GameEngine.Apply(game.State, GameCommand.RevealArea("hall"), game.Context).Error.Should().Be(GameEngine.Errors.UnknownArea("hall"));
+        GameEngine.Apply(game.State, GameCommand.RevealArea("cellar"), game.Context).Error.Should().Be(GameEngine.Errors.UnknownArea("cellar"));
+    }
+
     private static EngineDriver Game(ScenarioAction? spawn = null)
     {
         var scenario = new Scenario
@@ -190,8 +246,14 @@ public class GameEngineTests
                     Id = "fight",
                     Type = Node.EncounterType,
                     LootLevel = "common",
-                    Setup = new Setup { Combatants = [new CombatantPlacement { Family = "brute", At = new Cell(1, 1) }] },
-                    Map = new BoardMap { Tokens = [new MapToken { Id = "t", Type = "hb:token/totem", Color = "red" }] },
+                    Setup = new Setup { Combatants = [new CombatantPlacement { Family = "brute", At = new Cell(1, 1) }], AdventurersStart = "start" },
+                    Map = new BoardMap
+                    {
+                        Tiles = [new MapTile("hb:tile/meadow", 0, 0, 0, "hall"), new MapTile("hb:tile/meadow", 6, 0, 0, "crypt")],
+                        Areas = [new FogArea("hall"), new FogArea("crypt", RevealedAtStart: false, Name: En("The Crypt"))],
+                        Zones = [new Zone("start", "startingZone", new Rect(0, 4, 2, 2))],
+                        Tokens = [new MapToken { Id = "t", Type = "hb:token/totem", Color = "red" }],
+                    },
                     Tokens = new Dictionary<string, TokenRule> { ["totem:red"] = new() { Events = ["totem"] } },
                     Events =
                     [
@@ -200,6 +262,12 @@ public class GameEngineTests
                             Id = "totem",
                             Trigger = new EventTrigger { On = "tokenActivated", Token = ["totem:red"] },
                             Actions = spawn is null ? [] : [spawn],
+                        },
+                        new ScenarioEvent
+                        {
+                            Id = "crypt-opened",
+                            Trigger = new EventTrigger { On = "areaRevealed", Area = "crypt" },
+                            Actions = [new ScenarioAction { Do = "showText", Text = En("Bones everywhere.") }],
                         },
                     ],
                     EndConditions =

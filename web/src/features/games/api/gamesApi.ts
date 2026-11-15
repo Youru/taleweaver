@@ -32,6 +32,10 @@ export const gamesApi = {
         return http<GameView>(`${base}/tokens/${e(command.token)}/activation`, { method: 'POST' })
       case 'endCondition':
         return http<GameView>(`${base}/end-conditions/${e(command.endCondition)}`, { method: 'POST' })
+      case 'move':
+        return http<GameView>(`${base}/figures/${e(command.figure)}/position`, { method: 'PUT', body: command.to })
+      case 'revealArea':
+        return http<GameView>(`${base}/areas/${e(command.area)}/reveal`, { method: 'POST' })
     }
   },
 }

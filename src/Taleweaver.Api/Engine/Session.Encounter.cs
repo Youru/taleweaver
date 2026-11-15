@@ -46,6 +46,8 @@ internal sealed partial class Session
         }
 
         AddTokens(node.Map);
+        RevealAtStart(node.Map);
+        PlaceAdventurers(node);
         foreach (var placement in node.Setup?.Combatants ?? [])
         {
             Spawn(SpawnOf(placement), fromSetup: true, placement.InitiativeCard);

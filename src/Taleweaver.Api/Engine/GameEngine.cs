@@ -8,6 +8,12 @@ namespace Taleweaver.Api.Engine;
 /// </summary>
 public static class GameEngine
 {
+    /// <summary>
+    /// Raised when the engine computes a different state from the same history (new fields, rule fixes).
+    /// A game saved by an older engine is replayed when loaded. 2: positions; 3: moves, adventurers on the board, fog.
+    /// </summary>
+    public const int Version = 3;
+
     public static class Errors
     {
         public static readonly Error Finished = Error.Conflict("Games.Finished", "The scenario is over.");
@@ -22,6 +28,10 @@ public static class GameEngine
         public static Error UnknownToken(string? token) => Error.NotFound("Encounters.UnknownToken", $"Token '{token}' is not part of this encounter.");
 
         public static Error InactiveEndCondition(string? id) => Error.Conflict("Encounters.InactiveEndCondition", $"End condition '{id}' is not active.");
+
+        public static Error UnknownFigure(string? figure) => Error.NotFound("Encounters.UnknownFigure", $"No figure '{figure}' on the board.");
+
+        public static Error UnknownArea(string? area) => Error.NotFound("Encounters.UnknownArea", $"No hidden area '{area}' on the board.");
 
         public static Error UnknownCommand(string type) => Error.Validation("Games.UnknownCommand", $"Unknown command '{type}'.");
     }

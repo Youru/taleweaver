@@ -89,6 +89,7 @@ internal sealed partial class Session
             "gold" => State.Campaign.Gold,
             "placed" => Encounter.PlacedDiagrams.Contains(rest),
             "activated" => Encounter.ActivatedTokens.Contains(rest),
+            "revealed" => Encounter.RevealedAreas.Contains(rest),
             "defeated" => Encounter.Combatants.Count(c => c.Defeated && c.Family == rest),
             "alive" => Alive().Count(c => c.Family == rest),
             _ => null,

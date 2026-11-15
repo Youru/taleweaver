@@ -47,19 +47,42 @@ public sealed class GameRunner(IGameStore games, IContentStore content, CatalogP
             Seed = seed,
             CreatedAt = now,
             UpdatedAt = now,
+            EngineVersion = GameEngine.Version,
             State = GameEngine.Start(context.Value, party),
         };
         await games.SaveAsync(game, cancellationToken);
         return game;
     }
 
-    public async Task<Result<Game>> ExecuteAsync(string id, GameCommand command, CancellationToken cancellationToken)
+    /// <summary>
+    /// A saved game, brought up to date: a state computed by an older engine is rebuilt from the history.
+    /// If the history no longer applies (scenario changed since), the saved state is kept as it is.
+    /// </summary>
+    public async Task<Result<Game>> LoadAsync(string id, CancellationToken cancellationToken)
     {
         if (await games.GetAsync(id, cancellationToken) is not { } game)
         {
             return Errors.NotFound(id);
         }
 
+        if (game.EngineVersion >= GameEngine.Version)
+        {
+            return game;
+        }
+
+        var replayed = await ReplayAsync(game, cancellationToken, touch: false);
+        return replayed.IsSuccess ? replayed.Value : game;
+    }
+
+    public async Task<Result<Game>> ExecuteAsync(string id, GameCommand command, CancellationToken cancellationToken)
+    {
+        var loaded = await LoadAsync(id, cancellationToken);
+        if (!loaded.IsSuccess)
+        {
+            return loaded.Error!;
+        }
+
+        var game = loaded.Value;
         var context = await ContextAsync(game.Scenario, game.Seed, cancellationToken);
         if (!context.IsSuccess)
         {
@@ -92,7 +115,7 @@ public sealed class GameRunner(IGameStore games, IContentStore content, CatalogP
     }
 
     /// <summary>Rebuilds the state from the history (import of an exported game, undo).</summary>
-    public async Task<Result<Game>> ReplayAsync(Game game, CancellationToken cancellationToken)
+    public async Task<Result<Game>> ReplayAsync(Game game, CancellationToken cancellationToken, bool touch = true)
     {
         var context = await ContextAsync(game.Scenario, game.Seed, cancellationToken);
         if (!context.IsSuccess)
@@ -106,12 +129,12 @@ public sealed class GameRunner(IGameStore games, IContentStore content, CatalogP
             return state.Error!;
         }
 
-        return await SaveAsync(game with { State = state.Value }, cancellationToken);
+        return await SaveAsync(game with { State = state.Value }, cancellationToken, touch);
     }
 
-    private async Task<Game> SaveAsync(Game game, CancellationToken cancellationToken)
+    private async Task<Game> SaveAsync(Game game, CancellationToken cancellationToken, bool touch = true)
     {
-        var saved = game with { UpdatedAt = time.GetUtcNow() };
+        var saved = game with { EngineVersion = GameEngine.Version, UpdatedAt = touch ? time.GetUtcNow() : game.UpdatedAt };
         await games.SaveAsync(saved, cancellationToken);
         return saved;
     }

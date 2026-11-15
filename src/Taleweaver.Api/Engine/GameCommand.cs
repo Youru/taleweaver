@@ -1,3 +1,5 @@
+using Taleweaver.Api.Content;
+
 namespace Taleweaver.Api.Engine;
 
 /// <summary>
@@ -25,6 +27,12 @@ public sealed record GameCommand
 
     public string? EndCondition { get; init; }
 
+    /// <summary>Move: destination square.</summary>
+    public Cell? To { get; init; }
+
+    /// <summary>RevealArea: fog area.</summary>
+    public string? Area { get; init; }
+
     public static GameCommand Answer(string option) => new() { Type = GameCommands.Answer, Option = option };
 
     public static GameCommand AnswerNumber(int value) => new() { Type = GameCommands.Answer, Value = value };
@@ -40,6 +48,11 @@ public sealed record GameCommand
 
     public static GameCommand ActivateToken(string token) => new() { Type = GameCommands.ActivateToken, Token = token };
 
+    /// <summary>Moves a figure: a combatant's instance, or "adventurer:&lt;name&gt;".</summary>
+    public static GameCommand Move(string figure, Cell to) => new() { Type = GameCommands.Move, Instance = figure, To = to };
+
+    public static GameCommand RevealArea(string area) => new() { Type = GameCommands.RevealArea, Area = area };
+
     public static GameCommand ReachEndCondition(string endCondition) => new() { Type = GameCommands.ReachEndCondition, EndCondition = endCondition };
 }
 
@@ -52,4 +65,6 @@ public static class GameCommands
     public const string Defeat = "defeat";
     public const string ActivateToken = "activateToken";
     public const string ReachEndCondition = "reachEndCondition";
+    public const string Move = "move";
+    public const string RevealArea = "revealArea";
 }

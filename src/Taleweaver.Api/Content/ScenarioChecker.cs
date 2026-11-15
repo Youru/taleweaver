@@ -249,7 +249,7 @@ public static class ScenarioChecker
                 var where = $"{id}/{name}";
                 foreach (var token in map.Tokens)
                 {
-                    var cells = token.Area.Cells().ToList();
+                    var cells = token.Footprint.Cells().ToList();
                     var outside = cells.Where(c => !board.Contains(c)).Order().ToList();
                     if (outside.Count > 0)
                     {

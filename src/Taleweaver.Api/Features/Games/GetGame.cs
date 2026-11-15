@@ -7,10 +7,10 @@ namespace Taleweaver.Api.Features.Games;
 
 public static class GetGame
 {
-    public sealed class Handler(IGameStore games)
+    /// <summary>Loads through the runner, so that a game saved by an older engine comes back up to date.</summary>
+    public sealed class Handler(GameRunner runner)
     {
-        public async Task<Result<Game>> Handle(string id, CancellationToken cancellationToken) =>
-            await games.GetAsync(id, cancellationToken) is { } game ? game : GameRunner.Errors.NotFound(id);
+        public Task<Result<Game>> Handle(string id, CancellationToken cancellationToken) => runner.LoadAsync(id, cancellationToken);
     }
 
     public static void Map(RouteGroupBuilder group) =>
