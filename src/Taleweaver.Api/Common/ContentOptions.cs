@@ -15,4 +15,7 @@ public sealed class ContentOptions
     public string AssetsDirectory { get; set; } = "assets";
 
     public string[] EnabledPacks { get; set; } = [];
+
+    /// <summary>Folder of the saved games; empty → %APPDATA%/Middara/saves (outside the repository).</summary>
+    public string SavesPath { get; set; } = "";
 }

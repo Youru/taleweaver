@@ -1,6 +1,8 @@
 using System.Net.Http.Json;
 using Taleweaver.Api.Common;
 using Taleweaver.Api.Content;
+using Taleweaver.Api.Engine;
+using Taleweaver.Api.Features.Games;
 
 namespace Taleweaver.IntegrationTests;
 
@@ -20,5 +22,19 @@ public class RepositoryContentTests(RepositoryFactory factory) : IClassFixture<R
         report!.Errors.Should().BeEmpty();
         report.Warnings.Should().ContainSingle().Which.Code.Should().Be("Scenarios.TokenNeverPlaced");
         report.Cards.Should().HaveCount(9);
+    }
+
+    [Fact]
+    public async Task StartGame_BlightOfRhamsted_EntersTheFirstEncounterAfterTheIntro()
+    {
+        var token = TestContext.Current.CancellationToken;
+        var start = await _client.PostAsJsonAsync("/api/games", new StartGame.Request("um1:scenario/blight-of-rhamsted", ["Nightingale", "Rook"]), JsonDefaults.Options, token);
+        var game = (await start.Content.ReadFromJsonAsync<GameView>(JsonDefaults.Options, token))!;
+
+        var response = await _client.PostAsJsonAsync($"/api/games/{game.Id}/answer", new AnswerQuestion.Request("continue", null), JsonDefaults.Options, token);
+
+        var state = (await response.Content.ReadFromJsonAsync<GameView>(JsonDefaults.Options, token))!.State;
+        state.Encounter!.Node.Should().Be("search-for-the-lair");
+        state.Encounter.Combatants.Should().HaveCount(6);
     }
 }

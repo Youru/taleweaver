@@ -1,0 +1,271 @@
+using System.Text.Json;
+using Taleweaver.Api.Content;
+
+namespace Taleweaver.Api.Engine;
+
+/// <summary>Scenario actions (data model §3.6 to §3.8).</summary>
+internal sealed partial class Session
+{
+    private void Do(ScenarioAction action)
+    {
+        switch (action.Do)
+        {
+            case InternalActions.AwaitContinue:
+                Ask(PromptKinds.Continue, null, [new PromptOption("continue")]);
+                break;
+            case "goToNode":
+                GoToNode(action.Node);
+                break;
+            case "showText":
+                Log("text", action.Text);
+                break;
+            case "gainGold":
+                State.Campaign.Gold += action.Amount ?? 0;
+                Log("gainGold", args: Args(("amount", Number(action.Amount)), ("gold", Number(State.Campaign.Gold))));
+                break;
+            case "gainXp":
+                GainXp(action);
+                break;
+            case "gainItem":
+                GainItem(action);
+                break;
+            case "restore":
+                Log("restoreAdventurers");
+                break;
+            case "revealHiddenCard":
+                State.Campaign.RevealedHiddenCards.Add($"{action.Size}:{action.Code}");
+                Log("revealHiddenCard", args: Args(("size", action.Size), ("code", action.Code)));
+                break;
+            case "setFlag":
+                SetVariable(ExtraString(action, "flag"), JsonSerializer.SerializeToElement(true));
+                break;
+            case "setVar":
+                SetVariable(ExtraString(action, "var"), action.Extra?.TryGetValue("value", out var value) == true ? value : JsonSerializer.SerializeToElement(true));
+                break;
+            case "askChoice":
+                Ask(PromptKinds.Choice, action.Question,
+                    (action.Options ?? []).Select((o, i) => new PromptOption(i.ToString(System.Globalization.CultureInfo.InvariantCulture), o.Label)), action);
+                break;
+            case "askSkillCheck":
+                AskSkillCheck(action);
+                break;
+            case "readHiddenRule" when State.Encounter is not null:
+                ReadHiddenRule(action.Rule);
+                break;
+            case "placeToken" when State.Encounter is not null:
+                PlaceToken(action);
+                break;
+            case "removeToken" when State.Encounter is not null:
+                RemoveToken(action.Token);
+                break;
+            case "activateToken" when State.Encounter is not null:
+                ActivateToken(action.Token!);
+                break;
+            case "spawn" when State.Encounter is not null:
+                if (action.Fallback is { Count: > 0 })
+                {
+                    // The app does not see the board: the GM says whether the figures fit.
+                    Ask(PromptKinds.SpawnPossible, null, [new PromptOption("yes"), new PromptOption("no")], action);
+                }
+                else
+                {
+                    Spawn(action, fromSetup: false);
+                }
+
+                break;
+            case "appendAiStep" when State.Encounter is not null && action.Family is not null && action.Step is not null:
+                if (!Encounter.ExtraAiSteps.TryGetValue(action.Family, out var steps))
+                {
+                    Encounter.ExtraAiSteps[action.Family] = steps = [];
+                }
+
+                steps.Add(action.Step);
+                Log("appendAiStep", action.Step.Condition.Text, Args(("family", action.Family)));
+                break;
+            case "placeDiagram" when State.Encounter is not null:
+                PlaceDiagram(action.Diagram);
+                break;
+            case "addEndCondition" when State.Encounter is not null && action.EndCondition is not null:
+                if (!Encounter.ActiveEndConditions.Contains(action.EndCondition))
+                {
+                    Encounter.ActiveEndConditions.Add(action.EndCondition);
+                }
+
+                Log("addEndCondition", EncounterNode.EndConditions.FirstOrDefault(e => e.Id == action.EndCondition)?.Text, Args(("endCondition", action.EndCondition)));
+                break;
+            case "endEncounter" when State.Encounter is not null && action.EndCondition is not null:
+                EndEncounter(action.EndCondition);
+                break;
+            case "addUrgency" when State.Encounter is not null:
+                AddUrgency(action.Amount ?? 1);
+                break;
+            case "restoreCombatant" when State.Encounter is not null:
+                if (action.Damage is { ValueKind: JsonValueKind.Number } damage)
+                {
+                    RestoreCombatant(action, damage.GetInt32());
+                }
+                else
+                {
+                    Ask(PromptKinds.Number, Text($"How much Damage does {action.Instance} have?", $"Combien de dégâts a {action.Instance} ?"), [], action, action.Instance);
+                }
+
+                break;
+            case "replaceInitiativeCard" when State.Encounter is not null && action.From is not null && action.To is not null:
+                ReplaceInitiativeCard(action.From, action.To);
+                break;
+            case "defeatAdventurer":
+                if (action.Who is { ValueKind: JsonValueKind.String } who && who.GetString() == "askAdventurer")
+                {
+                    Ask(PromptKinds.Adventurer, Text("Which Adventurer is Defeated?", "Quel aventurier est vaincu ?"),
+                        State.Campaign.Party.Select(a => new PromptOption(a.Name)));
+                }
+                else
+                {
+                    Log("adventurerDefeated", args: Args(("who", Json(action.Who))));
+                    Fire(e => e.Trigger.On == "adventurerDefeated");
+                }
+
+                break;
+            default:
+                // Not handled yet: shown to the GM, who applies it by hand.
+                Log("manualAction", action.Text, Args(("do", action.Do), ("action", JsonSerializer.Serialize(action, Common.JsonDefaults.Options))));
+                break;
+        }
+    }
+
+    private void GainXp(ScenarioAction action)
+    {
+        var amount = action.Amount ?? 0;
+        if (action.Each == true)
+        {
+            State.Campaign.Party.ForEach(a => a.Xp += amount);
+        }
+
+        Log("gainXp", args: Args(("amount", Number(amount)), ("each", action.Each == true ? "true" : null)));
+    }
+
+    private void GainItem(ScenarioAction action)
+    {
+        var description = action.Ref
+                          ?? $"{action.Count ?? 1} {string.Join("/", action.Tiers ?? [])} {action.Type}".Trim();
+        State.Campaign.Items.Add(description);
+        Log("gainItem", args: Args(("item", action.Ref), ("count", Number(action.Count)), ("tiers", action.Tiers is null ? null : string.Join("/", action.Tiers)), ("type", action.Type)));
+    }
+
+    private void SetVariable(string? name, JsonElement value)
+    {
+        if (name is not null)
+        {
+            State.Campaign.Variables[name] = value;
+            Log("setVariable", args: Args(("name", name), ("value", value.GetRawText())));
+        }
+    }
+
+    private void AskSkillCheck(ScenarioAction action)
+    {
+        var options = (action.Options ?? [])
+            .Select((o, i) => new PromptOption($"pass-{i}", Text($"{o.Skill} {o.Difficulty}: passed", $"{o.Skill} {o.Difficulty} : réussi")))
+            .Append(new PromptOption("fail", Text("Failed", "Raté")));
+        var who = action.Who is { ValueKind: JsonValueKind.Object } w ? w.Deserialize<Dictionary<string, string>>() : null;
+        Ask(PromptKinds.SkillCheck, who, options, action);
+    }
+
+    private void AnswerSkillCheck(ScenarioAction action, string option)
+    {
+        if (option == "fail")
+        {
+            Push(action.Fail ?? []);
+            return;
+        }
+
+        var chosen = action.Options![int.Parse(option["pass-".Length..], System.Globalization.CultureInfo.InvariantCulture)];
+        Push(chosen.Pass ?? action.Pass ?? []);
+    }
+
+    private void ReadHiddenRule(string? id)
+    {
+        var rule = EncounterNode.HiddenRules.FirstOrDefault(r => r.Id == id);
+        if (rule is null)
+        {
+            Log("unknownHiddenRule", args: Args(("rule", id)));
+            return;
+        }
+
+        Encounter.ReadHiddenRules.Add(rule.Id);
+        Log("hiddenRule", rule.Text, Args(("rule", rule.Id), ("name", rule.Name?.GetValueOrDefault("en"))));
+        Push(rule.Actions);
+        Fire(e => e.Trigger.On == "hiddenRuleRead" && (e.Trigger.Rule is null || e.Trigger.Rule == rule.Id));
+    }
+
+    private void PlaceToken(ScenarioAction action)
+    {
+        var type = TokenType(action.Type ?? "token");
+        var color = action.Color;
+        if (color == "random")
+        {
+            // A random loot token among those the encounter describes and that are not on the board yet.
+            var onBoard = Encounter.Tokens.Where(t => !t.Removed).Select(t => t.Key).ToHashSet();
+            var candidates = EncounterNode.Tokens.Keys.Where(k => k.StartsWith($"{type}:", StringComparison.Ordinal) && !onBoard.Contains(k)).ToList();
+            if (candidates.Count == 0)
+            {
+                Log("noTokenLeft", args: Args(("type", type)));
+                return;
+            }
+
+            color = candidates[NextRandom(candidates.Count)][(type.Length + 1)..];
+        }
+
+        var key = color is null ? type : $"{type}:{color}";
+        var token = new BoardToken { Id = $"placed-{Encounter.Tokens.Count + 1}", Key = key };
+        Encounter.Tokens.Add(token);
+        Log("placeToken", args: Args(("token", key), ("id", token.Id), ("at", Json(action.At))));
+    }
+
+    private void RemoveToken(string? id)
+    {
+        foreach (var token in Encounter.Tokens.Where(t => t.Id == id && !t.Removed))
+        {
+            token.Removed = true;
+            Log("removeToken", args: Args(("id", token.Id), ("token", token.Key)));
+        }
+    }
+
+    private void PlaceDiagram(string? id)
+    {
+        var diagram = EncounterNode.Diagrams.FirstOrDefault(d => d.Id == id);
+        if (diagram is null || Encounter.PlacedDiagrams.Contains(diagram.Id))
+        {
+            return;
+        }
+
+        Encounter.PlacedDiagrams.Add(diagram.Id);
+        Log("placeDiagram", diagram.Label, Args(("diagram", diagram.Id), ("page", Number(diagram.Page))));
+        AddTokens(diagram.Map);
+        foreach (var rule in diagram.SpecialRules)
+        {
+            Log("specialRule", rule.Text, Args(("rule", rule.Id), ("name", rule.Name.GetValueOrDefault("en"))));
+        }
+
+        foreach (var placement in diagram.Setup?.Combatants ?? [])
+        {
+            Spawn(SpawnOf(placement), fromSetup: false, placement.InitiativeCard);
+        }
+    }
+
+    private void AddTokens(BoardMap? map)
+    {
+        foreach (var token in map?.Tokens ?? [])
+        {
+            var type = TokenType(token.Type);
+            Encounter.Tokens.Add(new BoardToken { Id = token.Id, Key = token.Color is null ? type : $"{type}:{token.Color}" });
+        }
+    }
+
+    /// <summary>"um1:token/objective" → "objective".</summary>
+    private static string TokenType(string type) => type[(type.LastIndexOf('/') + 1)..];
+
+    private static string? ExtraString(ScenarioAction action, string key) =>
+        action.Extra?.TryGetValue(key, out var value) == true && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
+
+    private static string? Number(int? value) => value?.ToString(System.Globalization.CultureInfo.InvariantCulture);
+}

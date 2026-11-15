@@ -261,6 +261,14 @@ public sealed record EventTrigger
     public IReadOnlyList<string>? Token { get; init; }
 
     public string? Instance { get; init; }
+
+    public string? Family { get; init; }
+
+    /// <summary>roundStart / roundEnd: only that round.</summary>
+    public int? Round { get; init; }
+
+    /// <summary>hiddenRuleRead: only that rule.</summary>
+    public string? Rule { get; init; }
 }
 
 /// <summary>A condition of an event: a variable test, an end-condition test, or a negation.</summary>
@@ -275,6 +283,10 @@ public sealed record EventCondition
     public string? EndConditionActive { get; init; }
 
     public EventCondition? Not { get; init; }
+
+    public IReadOnlyList<EventCondition>? All { get; init; }
+
+    public IReadOnlyList<EventCondition>? Any { get; init; }
 }
 
 public sealed record HiddenRule
@@ -339,11 +351,51 @@ public sealed record ScenarioAction
 
     public string? Ref { get; init; }
 
+    /// <summary>Name of a combatant in the encounter (spawn, restoreCombatant).</summary>
+    public string? Instance { get; init; }
+
+    public string? Figure { get; init; }
+
     public int? Count { get; init; }
 
     public int? Amount { get; init; }
 
+    /// <summary>gainXp: every party member gains it.</summary>
+    public bool? Each { get; init; }
+
     public LocalizedText? Text { get; init; }
+
+    public LocalizedText? Question { get; init; }
+
+    /// <summary>Who acts: a text shown to the GM, or "askAdventurer".</summary>
+    public JsonElement? Who { get; init; }
+
+    /// <summary>restoreCombatant: damage kept, or "ask".</summary>
+    public JsonElement? Damage { get; init; }
+
+    /// <summary>appendAiStep: the step added.</summary>
+    public AiStep? Step { get; init; }
+
+    /// <summary>gainItem: loot tiers to choose from.</summary>
+    public IReadOnlyList<string>? Tiers { get; init; }
+
+    /// <summary>revealHiddenCard: small, medium or large, and the code printed on the card.</summary>
+    public string? Size { get; init; }
+
+    public string? Code { get; init; }
+
+    /// <summary>replaceInitiativeCard: card replaced and its replacement.</summary>
+    public string? From { get; init; }
+
+    public string? To { get; init; }
+
+    /// <summary>Where a spawned figure may go (normalUnoccupied…).</summary>
+    public string? Constraint { get; init; }
+
+    /// <summary>goToNode: the node.</summary>
+    public string? Node { get; init; }
+
+    public LocalizedText? Note { get; init; }
 
     /// <summary>Where the action happens: a token id, or an object (on, adjacentTo, tile, where).</summary>
     public JsonElement? At { get; init; }

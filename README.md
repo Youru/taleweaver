@@ -22,19 +22,25 @@ cd taleweaver && dotnet test
 
 - Lancer `dotnet test` depuis `taleweaver/`. C'est là que `global.json` active Microsoft Testing Platform : avec le SDK .NET 10, le mode VSTest refuse xUnit v3.
 - **Tests unitaires** : ils lisent le vrai contenu du dépôt (packs et Blight of Rhamsted).
+  - `BlightPlaythroughTests` joue Blight de bout en bout par les commandes du MJ, avec les deux fins et le rejeu de l'historique.
+  - `GameEngineTests` vérifie les règles sur un mini-pack : IA, Aggro, groupes, Urgence, piste d'initiative.
   - `ScenarioCheckerTests.Check_BlightOfRhamsted_SameResultAsCheckScenarioPy` garantit la parité avec `tools/check_scenario.py`.
   - `GetScenarioAsync_Blight_KeepsEveryFieldOfTheFile` vérifie que le modèle ne perd aucun champ du fichier.
 - **Tests d'intégration** : ils tournent sur un mini-pack maison (`tests/Taleweaver.IntegrationTests/Fixtures/`), plus un test sur le vrai contenu.
 
-## API (premier incrément)
+## API
 
-| Méthode | Route | Usage |
-|---|---|---|
-| GET | `/api/packs` | packs disponibles, activés ou non |
-| GET | `/api/packs/{pack}/combatants/{name}` | carte de combattant (`um1` / `cave-sickle-1-3-common`) |
-| GET | `/api/catalog?kind=&q=&pack=&limit=` | recherche dans le catalogue des packs activés |
-| GET | `/api/scenarios` · `/api/scenarios/{pack}/{name}` | liste, contenu (`um1` / `blight-of-rhamsted`) |
-| POST | `/api/scenarios/validate` | rapport du vérificateur : `errors`, `warnings`, `cards` |
+Routes, commandes et fonctionnement du moteur : [docs/design/backend-architecture.md](../docs/design/backend-architecture.md) §4 et §5.
+
+Les parties sont enregistrées dans `%APPDATA%/Middara/saves`, un fichier par partie. Le dossier se change avec `Content:SavesPath`.
+
+Jouer une partie, côté MJ :
+1. `POST /api/games` avec `{ "scenario": "um1:scenario/blight-of-rhamsted", "party": ["Nightingale", "Rook"] }` ;
+2. répondre à chaque question par `POST /api/games/{id}/answer` (`{ "option": "continue" }`, `"yes"`, `"0"`, ou `{ "value": 12 }`) ;
+3. en rencontre :
+   - avancer avec `POST …/encounter/next-turn` ;
+   - signaler ce qui se passe sur le plateau : dégâts, effets, défaite, jeton activé, condition de fin ;
+4. `POST /api/games/{id}/undo` en cas d'erreur.
 
 ## Faire évoluer le format
 
