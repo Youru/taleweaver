@@ -85,6 +85,8 @@ internal sealed partial class Session(GameState state, GameContext context)
 
     public void GoToNode(string? target)
     {
+        // Leaving a node drops what was left of it (e.g. a scene's "next" after a choice that branched).
+        State.PendingActions.Clear();
         State.Encounter = null;
         if (target is null || target.StartsWith('@'))
         {

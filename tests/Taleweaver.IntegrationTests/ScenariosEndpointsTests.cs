@@ -15,7 +15,52 @@ public class ScenariosEndpointsTests(HomebrewFactory factory) : IClassFixture<Ho
     {
         var scenarios = await _client.GetFromJsonAsync<List<ScenarioSummary>>("/api/scenarios", JsonDefaults.Options, TestContext.Current.CancellationToken);
 
-        scenarios.Should().ContainSingle().Which.Id.Should().Be("hb:scenario/meadow-ambush");
+        scenarios.Should().Contain(s => s.Id == "hb:scenario/meadow-ambush");
+    }
+
+    [Fact]
+    public async Task SaveScenario_NewHomebrewScenario_IsListedAsEditableThenDeleted()
+    {
+        var scenario = (await FixtureScenarioAsync()) with
+        {
+            Id = "homebrew:scenario/my-bounty",
+            Title = new Dictionary<string, string> { ["fr"] = "Ma prime" },
+            Editor = System.Text.Json.JsonDocument.Parse("{\"positions\":{\"intro\":{\"x\":0,\"y\":0}}}").RootElement,
+        };
+
+        var saved = await _client.PutAsJsonAsync("/api/scenarios/homebrew/my-bounty", scenario, JsonDefaults.Options, TestContext.Current.CancellationToken);
+
+        saved.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await saved.Content.ReadFromJsonAsync<ScenarioReport>(JsonDefaults.Options, TestContext.Current.CancellationToken))!.IsValid.Should().BeTrue();
+        var list = await _client.GetFromJsonAsync<List<ScenarioSummary>>("/api/scenarios", JsonDefaults.Options, TestContext.Current.CancellationToken);
+        list.Should().ContainSingle(s => s.Id == "homebrew:scenario/my-bounty").Which.Editable.Should().BeTrue();
+        list.Should().ContainSingle(s => s.Id == "hb:scenario/meadow-ambush").Which.Editable.Should().BeFalse();
+        var read = await _client.GetFromJsonAsync<Scenario>("/api/scenarios/homebrew/my-bounty", JsonDefaults.Options, TestContext.Current.CancellationToken);
+        read!.Editor!.Value.GetProperty("positions").GetProperty("intro").GetProperty("x").GetInt32().Should().Be(0);
+
+        var deleted = await _client.DeleteAsync("/api/scenarios/homebrew/my-bounty", TestContext.Current.CancellationToken);
+
+        deleted.StatusCode.Should().Be(HttpStatusCode.NoContent);
+        (await _client.GetAsync("/api/scenarios/homebrew/my-bounty", TestContext.Current.CancellationToken)).StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task SaveScenario_IdOfAnotherScenario_ReturnsBadRequest()
+    {
+        var scenario = await FixtureScenarioAsync();
+
+        var response = await _client.PutAsJsonAsync("/api/scenarios/homebrew/meadow-ambush", scenario, JsonDefaults.Options, TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task DeleteScenario_OfficialScenario_IsNotFoundAmongHomebrew()
+    {
+        var response = await _client.DeleteAsync("/api/scenarios/homebrew/meadow-ambush", TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        (await _client.GetAsync("/api/scenarios/hb/meadow-ambush", TestContext.Current.CancellationToken)).StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
     [Fact]

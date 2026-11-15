@@ -62,7 +62,13 @@ public static class ScenarioChecker
 
             foreach (var node in scenario.Nodes)
             {
-                var targets = node.EndConditions.Select(e => e.Next).Prepend(node.Next);
+                // next, the end conditions, and every goToNode of the node (choices, skill checks, events)
+                var jumps = ScenarioAction.Flatten(node.Mechanics
+                        .Concat(node.EndConditions.SelectMany(e => e.Mechanics))
+                        .Concat(node.Events.SelectMany(e => e.Actions)))
+                    .Where(a => a.Do == "goToNode")
+                    .Select(a => a.Node);
+                var targets = node.EndConditions.Select(e => e.Next).Prepend(node.Next).Concat(jumps);
                 foreach (var target in targets.OfType<string>().Where(t => t.Length > 0 && !t.StartsWith('@') && !ids.Contains(t)))
                 {
                     Error("UnknownNext", node.Id, $"unknown next node '{target}'");

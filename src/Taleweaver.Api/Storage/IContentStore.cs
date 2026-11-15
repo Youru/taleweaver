@@ -17,6 +17,10 @@ public interface IContentStore
 
     /// <summary>Creates or replaces the scenario with the same id.</summary>
     Task SaveScenarioAsync(Scenario scenario, CancellationToken cancellationToken);
+
+    /// <summary>Deletes a scenario of the workshop (homebrew); false when there is none with this id.</summary>
+    Task<bool> DeleteScenarioAsync(string id, CancellationToken cancellationToken);
 }
 
-public sealed record ScenarioSummary(string Id, LocalizedText Title, string? Kind, IReadOnlyList<string> Packs);
+/// <param name="Editable">Made in the workshop (homebrew): it may be changed or deleted; official scenarios are read only.</param>
+public sealed record ScenarioSummary(string Id, LocalizedText Title, string? Kind, IReadOnlyList<string> Packs, bool Editable = false);

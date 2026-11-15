@@ -7,6 +7,7 @@ namespace Taleweaver.IntegrationTests;
 public sealed class HomebrewFactory : WebApplicationFactory<Program>
 {
     private readonly string _saves = Directory.CreateTempSubdirectory("taleweaver-saves-").FullName;
+    private readonly string _homebrew = Directory.CreateTempSubdirectory("taleweaver-homebrew-").FullName;
 
     public static string FixturesPath => Path.Combine(AppContext.BaseDirectory, "Fixtures");
 
@@ -16,12 +17,14 @@ public sealed class HomebrewFactory : WebApplicationFactory<Program>
         builder.UseSetting("Content:RootPath", FixturesPath);
         builder.UseSetting("Content:EnabledPacks:0", "hb");
         builder.UseSetting("Content:SavesPath", _saves);
+        builder.UseSetting("Content:HomebrewDirectory", _homebrew);
     }
 
     protected override void Dispose(bool disposing)
     {
         base.Dispose(disposing);
         Directory.Delete(_saves, recursive: true);
+        Directory.Delete(_homebrew, recursive: true);
     }
 }
 

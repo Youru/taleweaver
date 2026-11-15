@@ -9,7 +9,8 @@ import SelectButton from 'primevue/selectbutton'
 import ToggleSwitch from 'primevue/toggleswitch'
 import type { Combatant } from '@/features/catalog'
 import type { EncounterCommand, EncounterState } from '@/features/games'
-import { useBoardPieces } from '@/features/table'
+import type { ScenarioNode } from '@/features/scenarios'
+import { BoardCanvas, boardLayout, useBoardPieces, type Selection } from '@/features/table'
 import { usePreferences } from '@/shared/lib/preferences'
 import { useDice } from '../api/queries'
 import { distance, fighters, type AdventurerSheet, type Fighter } from '../lib/fighters'
@@ -27,6 +28,8 @@ const open = defineModel<boolean>('open', { required: true })
 const props = defineProps<{
   game: string
   encounter: EncounterState
+  /** The encounter's scenario node, to draw the board. */
+  node: ScenarioNode | undefined
   cards: Map<string, Combatant>
   /** The figure the duel opened with (combatant instance or "adventurer:<name>"). */
   from: string | null
@@ -44,7 +47,21 @@ const dice = useDice()
 const pieces = useBoardPieces()
 const { sheets, remember } = useAdventurerSheets(() => props.game)
 
-const all = computed(() => fighters(props.encounter, props.cards, sheets.value, language.value, pieces.data.value))
+// The board as the table draws it: what lies under the fog is not on the table yet.
+const layout = computed(() => boardLayout(props.node, props.encounter, pieces.data.value))
+/** Figures standing on a revealed tile: not those under the fog, still to place, or dropped off the tiles. */
+const onTable = computed(() => {
+  const tiles = layout.value.tiles.filter((tile) => !tile.hidden)
+  if (!layout.value.tiles.length) return undefined // no map (scenario not loaded): every figure
+  const onTile = (x: number, y: number) =>
+    tiles.some((tile) => x >= tile.x && x < tile.x + tile.w && y >= tile.y && y < tile.y + tile.h)
+  return new Set(layout.value.figures.filter((f) => onTile(f.x, f.y)).map((f) => f.id))
+})
+const all = computed(() =>
+  fighters(props.encounter, props.cards, sheets.value, language.value, pieces.data.value).filter(
+    (f) => !onTable.value || onTable.value.has(f.id) || f.id === props.from,
+  ),
+)
 const attackerId = ref<string | undefined>(props.from ?? undefined)
 const targetId = ref<string>()
 const attacker = computed(() => all.value.find((f) => f.id === attackerId.value))
@@ -93,6 +110,26 @@ watch(
   },
   { immediate: true },
 )
+
+// The board, around the attacker and its target: the window hides the table, not what is attacked.
+const focus = computed(() => {
+  const shapes = layout.value.figures.filter((f) => f.id === attackerId.value || f.id === targetId.value)
+  if (!shapes.length) return undefined
+  const x = Math.min(...shapes.map((f) => f.x))
+  const y = Math.min(...shapes.map((f) => f.y))
+  const right = Math.max(...shapes.map((f) => f.x + f.size))
+  const bottom = Math.max(...shapes.map((f) => f.y + f.size))
+  // At least 8 × 5 squares, centred on the two figures.
+  const w = Math.max(right - x, 8)
+  const h = Math.max(bottom - y, 5)
+  return { x: x - (w - (right - x)) / 2, y: y - (h - (bottom - y)) / 2, w, h }
+})
+const marks = computed(() => ({ attacker: attackerId.value, target: targetId.value }))
+
+/** A figure tapped on the board becomes the target (the attacker itself is ignored). */
+function pick(selection: Selection | null) {
+  if (selection?.kind === 'figure' && selection.id !== attackerId.value) targetId.value = selection.id
+}
 
 function swap() {
   const [a, b] = [targetId.value, attackerId.value]
@@ -173,6 +210,17 @@ function keep(fighter: Fighter, patch: Partial<AdventurerSheet>) {
       </template>
       <template #target>
         <FighterHead v-model="targetId" :fighter="target" :options="targets" :role="t('duel.target')" side="right" />
+        <BoardCanvas
+          class="minimap"
+          :layout="layout"
+          :selected="null"
+          :focus="focus"
+          :marks="marks"
+          readonly
+          :label="t('duel.board', { name: target.name })"
+          @select="pick"
+        />
+        <p class="map-hint">{{ t('duel.boardHint') }}</p>
         <Button
           class="swap"
           icon="pi pi-arrow-right-arrow-left"
@@ -205,6 +253,15 @@ h2 {
   gap: 0.4rem;
   font-size: 0.9rem;
   margin: 0 0.75rem 0 auto;
+}
+.minimap {
+  height: 15rem;
+  flex: none;
+}
+.map-hint {
+  margin: -0.3rem 0 0;
+  font-size: 0.8rem;
+  color: var(--p-text-muted-color);
 }
 .swap {
   align-self: flex-end;

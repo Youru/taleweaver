@@ -124,7 +124,12 @@ test('a GM sees the setup on the table and activates a totem from it', async ({ 
   // The Earth Loa spawns on the totem; the 2 Gevaudan are for the GM to place
   await expect(page.getByText('earth-loa-2', { exact: true })).toBeVisible()
   await expect(board.locator('g.figure.combatant')).toHaveCount(7)
-  await expect(page.getByRole('button', { name: 'gevaudan-1', exact: true })).toBeVisible()
+  // Combatants still to place are not named (nor listed) until the GM asks for them
+  const gevaudan = page.getByRole('button', { name: 'gevaudan-1', exact: true })
+  await expect(gevaudan).toHaveCount(0)
+  await expect(page.getByRole('tabpanel', { name: 'Combattants' })).not.toContainText('gevaudan')
+  await page.getByRole('button', { name: 'Combattants à placer' }).click()
+  await expect(gevaudan).toBeVisible()
   await expect(board.getByRole('button', { name: 'Jeton totem:blue' })).toHaveCount(0)
 })
 
@@ -172,6 +177,7 @@ test('a GM drags a figure from "to place" onto the board', async ({ page }) => {
   const board = page.getByRole('img', { name: 'Plateau : Search for the Lair' })
   await board.getByRole('button', { name: 'Jeton totem:blue' }).click()
   await page.getByRole('button', { name: 'Activer' }).click()
+  await page.getByRole('button', { name: 'Combattants à placer' }).click()
   const toPlace = page.getByRole('button', { name: 'gevaudan-1', exact: true })
   await expect(toPlace).toBeVisible()
 
@@ -191,13 +197,34 @@ test('a GM resolves an attack in the duel window by tapping the dice faces, then
   await page.getByRole('button', { name: 'Continuer' }).click()
   const board = page.getByRole('img', { name: 'Plateau : Search for the Lair' })
 
+  // fragor-3 is dropped off the tiles (the empty corner of the board): it is no longer a target
+  const tile = (await board.locator('g.tile image').first().boundingBox())!
+  const square = tile.width / 6
+  await board.getByRole('button', { name: 'Figurine fragor-3' }).click()
+  await page.mouse.click(tile.x + square * 15.5, tile.y + square * 9.5)
+
   // Rook attacks from the table: unarmed (2 purple dice) against the nearest fragor (Defense 11)
   await board.getByRole('button', { name: 'Figurine Rook' }).click()
   await page.getByRole('button', { name: 'Attaquer', exact: true }).click()
   const duel = page.getByRole('dialog')
   await expect(duel.getByRole('combobox', { name: 'Attaquant' })).toHaveText('Rook')
   await expect(duel.getByRole('combobox', { name: 'Cible' })).toHaveText(/^fragor-2 · Fragor/)
+  await duel.getByRole('combobox', { name: 'Cible' }).click()
+  await expect(page.getByRole('option', { name: /^fragor-1/ })).toBeVisible()
+  await expect(page.getByRole('option', { name: /^fragor-3/ })).toHaveCount(0)
+  await page.getByRole('option', { name: /^fragor-2/ }).click()
   await expect(duel.getByRole('status', { name: 'Chances' })).toContainText('22')
+
+  // The window hides the table, so it shows the board around the duel: a figure tapped there is the new target
+  const minimap = duel.getByRole('img', { name: /^Plateau autour de l’affrontement, cible : fragor-2/ })
+  await expect(minimap).toBeVisible()
+  await minimap.getByRole('button', { name: 'Figurine fragor-1' }).click()
+  await expect(duel.getByRole('combobox', { name: 'Cible' })).toHaveText(/^fragor-1 · Fragor/)
+  await duel
+    .getByRole('img', { name: /cible : fragor-1/ })
+    .getByRole('button', { name: 'Figurine fragor-2' })
+    .click()
+  await expect(duel.getByRole('combobox', { name: 'Cible' })).toHaveText(/^fragor-2 · Fragor/)
 
   // The odds can be hidden for tables that prefer to roll blind
   await duel.getByRole('switch').click()

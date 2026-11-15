@@ -29,6 +29,8 @@ const props = defineProps<{
   locked: boolean
   /** The AI's plan for the acting figure, drawn on the board. */
   hint?: TableHint
+  /** The table the players see: combatants still to place are never named (they would tell what is coming). */
+  forPlayers?: boolean
 }>()
 const emit = defineEmits<{ command: [command: EncounterCommand]; duel: [figure: string] }>()
 
@@ -65,6 +67,20 @@ watch(layout, (now) => {
         : now.tiles.some((tile) => tile.hidden?.id === s.id)
   if (!still) selected.value = null
 })
+
+/**
+ * Figures to place shown under the board: the adventurers and the acting combatant; the other
+ * combatants only when the GM asks (never on the players' table), so as not to tell what is coming.
+ */
+const showHidden = ref(false)
+const hiddenUnplaced = computed(() =>
+  layout.value.unplacedFigures.filter((f) => f.kind === 'combatant' && f.id !== props.encounter.activation?.figures[0]),
+)
+const toPlace = computed(() =>
+  layout.value.unplacedFigures.filter(
+    (f) => !hiddenUnplaced.value.includes(f) || (showHidden.value && !props.forPlayers),
+  ),
+)
 
 const selectedUnplaced = computed(() =>
   selected.value?.kind === 'figure' ? layout.value.unplacedFigures.find((f) => f.id === selected.value?.id) : undefined,
@@ -158,10 +174,10 @@ function tap(cell: Cell) {
 
     <div class="below">
       <p v-if="selectedUnplaced" class="hint">{{ t('table.tapToPlace', { name: selectedUnplaced.name }) }}</p>
-      <div v-if="layout.unplacedFigures.length" class="unplaced">
-        <span>{{ t('table.unplacedFigures') }}</span>
+      <div v-if="toPlace.length || (hiddenUnplaced.length && !forPlayers)" class="unplaced">
+        <span v-if="toPlace.length">{{ t('table.unplacedFigures') }}</span>
         <Button
-          v-for="figure in layout.unplacedFigures"
+          v-for="figure in toPlace"
           :key="figure.id"
           :label="figure.name"
           size="small"
@@ -170,6 +186,15 @@ function tap(cell: Cell) {
           class="to-place"
           @pointerdown="startPlacing($event, figure)"
           @keydown.enter="selected = { kind: 'figure', id: figure.id }"
+        />
+        <Button
+          v-if="hiddenUnplaced.length && !forPlayers"
+          :label="showHidden ? t('table.hideHidden') : t('table.showHidden')"
+          :icon="showHidden ? 'pi pi-eye-slash' : 'pi pi-eye'"
+          size="small"
+          severity="secondary"
+          text
+          @click="showHidden = !showHidden"
         />
       </div>
       <div v-if="layout.unplacedTokens.length" class="unplaced">

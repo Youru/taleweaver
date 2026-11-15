@@ -12,6 +12,9 @@ public sealed class ContentOptions
 
     public string ScenariosDirectory { get; set; } = "scenarios";
 
+    /// <summary>Where the workshop keeps the scenarios made by the user (the only ones it may change).</summary>
+    public string HomebrewDirectory { get; set; } = "scenarios/homebrew";
+
     public string AssetsDirectory { get; set; } = "assets";
 
     public string[] EnabledPacks { get; set; } = [];

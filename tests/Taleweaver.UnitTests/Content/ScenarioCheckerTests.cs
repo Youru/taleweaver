@@ -121,6 +121,28 @@ public class ScenarioCheckerTests
     }
 
     [Fact]
+    public void Check_ChoiceGoingToAnUnknownNode_ReportsUnknownNext()
+    {
+        var scene = new Node
+        {
+            Id = "intro",
+            Type = "scene",
+            Mechanics =
+            [
+                new ScenarioAction
+                {
+                    Do = "askChoice",
+                    Options = [new ActionOption { Actions = [new ScenarioAction { Do = "goToNode", Node = "nowhere" }] }],
+                },
+            ],
+        };
+
+        var report = ScenarioChecker.Check(Scenario(Encounter(), scene), Catalog);
+
+        report.Errors.Should().ContainSingle().Which.Should().Be(new ScenarioIssue("Scenarios.UnknownNext", "intro", "unknown next node 'nowhere'"));
+    }
+
+    [Fact]
     public void Check_TokenOffTheTiles_ReportsError()
     {
         var encounter = Encounter() with

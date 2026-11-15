@@ -21,6 +21,11 @@ public sealed class JsonContentStore(IOptions<ContentOptions> options, IHostEnvi
 
     private string ScenariosPath => Path.Combine(_root, _options.ScenariosDirectory);
 
+    private string HomebrewPath => Path.GetFullPath(Path.Combine(_root, _options.HomebrewDirectory));
+
+    private bool IsHomebrew(string path) =>
+        Path.GetFullPath(path).StartsWith(HomebrewPath + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+
     public async Task<IReadOnlyList<Pack>> GetPacksAsync(CancellationToken cancellationToken)
     {
         if (_packs is not null)
@@ -54,7 +59,7 @@ public sealed class JsonContentStore(IOptions<ContentOptions> options, IHostEnvi
     {
         var index = await IndexScenariosAsync(cancellationToken);
         return index.Values
-            .Select(entry => new ScenarioSummary(entry.Scenario.Id, entry.Scenario.Title, entry.Scenario.Kind, entry.Scenario.Packs))
+            .Select(entry => new ScenarioSummary(entry.Scenario.Id, entry.Scenario.Title, entry.Scenario.Kind, entry.Scenario.Packs, IsHomebrew(entry.Path)))
             .OrderBy(s => s.Id, StringComparer.Ordinal)
             .ToList();
     }
@@ -80,11 +85,39 @@ public sealed class JsonContentStore(IOptions<ContentOptions> options, IHostEnvi
         }
     }
 
-    /// <summary>"um1:scenario/blight-of-rhamsted" → scenarios/um1/blight-of-rhamsted.json.</summary>
+    public async Task<bool> DeleteScenarioAsync(string id, CancellationToken cancellationToken)
+    {
+        await _scenariosLock.WaitAsync(cancellationToken);
+        try
+        {
+            var index = await IndexScenariosAsync(cancellationToken);
+            if (!index.TryGetValue(id, out var entry) || !IsHomebrew(entry.Path))
+            {
+                return false;
+            }
+
+            System.IO.File.Delete(entry.Path);
+            return true;
+        }
+        finally
+        {
+            _scenariosLock.Release();
+        }
+    }
+
+    /// <summary>
+    /// "um1:scenario/blight-of-rhamsted" → scenarios/um1/blight-of-rhamsted.json;
+    /// "homebrew:scenario/my-bounty" → the workshop folder (scenarios/homebrew/my-bounty.json).
+    /// </summary>
     private string NewScenarioPath(Scenario scenario)
     {
         var id = ContentId.Parse(scenario.Id);
-        var folder = id.Pack ?? scenario.Packs.FirstOrDefault() ?? "homebrew";
+        if (id.Pack == Scenario.HomebrewPack)
+        {
+            return Path.Combine(HomebrewPath, $"{id.Name}.json");
+        }
+
+        var folder = id.Pack ?? scenario.Packs.FirstOrDefault() ?? Scenario.HomebrewPack;
         return Path.Combine(ScenariosPath, folder, $"{id.Name}.json");
     }
 
@@ -122,12 +155,14 @@ public sealed class JsonContentStore(IOptions<ContentOptions> options, IHostEnvi
     private async Task<Dictionary<string, (Scenario Scenario, string Path)>> IndexScenariosAsync(CancellationToken cancellationToken)
     {
         var index = new Dictionary<string, (Scenario, string)>(StringComparer.Ordinal);
-        if (!Directory.Exists(ScenariosPath))
-        {
-            return index;
-        }
-
-        foreach (var path in Directory.EnumerateFiles(ScenariosPath, "*.json", SearchOption.AllDirectories).Order())
+        // The workshop folder may live outside the scenarios folder (e.g. a temporary one for tests).
+        var files = new[] { ScenariosPath, HomebrewPath }
+            .Where(Directory.Exists)
+            .SelectMany(folder => Directory.EnumerateFiles(folder, "*.json", SearchOption.AllDirectories))
+            .Select(Path.GetFullPath)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Order();
+        foreach (var path in files)
         {
             var scenario = await ReadAsync<Scenario>(path, cancellationToken);
             if (!index.TryAdd(scenario.Id, (scenario, path)))

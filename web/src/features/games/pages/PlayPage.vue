@@ -50,6 +50,8 @@ const pieces = useBoardPieces()
 const layout = computed(() =>
   encounter.value ? boardLayout(node.value, encounter.value, pieces.data.value) : undefined,
 )
+/** Figures on the table (placed, not under the fog). */
+const shownFigures = computed(() => (layout.value ? new Set(layout.value.figures.map((f) => f.id)) : undefined))
 const ai = useAiAdvice(
   () => props.id,
   layout,
@@ -89,6 +91,13 @@ function openDuel(figure: string, target?: string, spell = false) {
   duelTarget.value = target ?? null
   duelSpell.value = spell
   dueling.value = true
+}
+
+/** "@victory" and "@defeat", the workshop's endings, in words; any other ending as it is. */
+function endingLabel(ending: string | undefined) {
+  if (ending === '@victory') return t('play.endVictory')
+  if (ending === '@defeat') return t('play.endDefeat')
+  return ending ?? ''
 }
 
 function moveFigure(figure: string, to: Cell) {
@@ -170,6 +179,7 @@ function moveFigure(figure: string, to: Cell) {
                   <CombatantList
                     :encounter="encounter"
                     :cards="cards"
+                    :shown="shownFigures"
                     :selected="selected?.kind === 'figure' ? selected.id : undefined"
                     @select="selected = { kind: 'figure', id: $event }"
                   />
@@ -193,6 +203,7 @@ function moveFigure(figure: string, to: Cell) {
           v-model:open="dueling"
           :game="id"
           :encounter="encounter"
+          :node="node"
           :cards="cards"
           :from="duel"
           :to="duelTarget"
@@ -213,7 +224,7 @@ function moveFigure(figure: string, to: Cell) {
           @answer="answer"
         />
         <Message v-if="state.status === 'Finished'" severity="success">
-          {{ t('play.finished', { ending: state.ending ?? '' }) }}
+          {{ t('play.finished', { ending: endingLabel(state.ending) }) }}
         </Message>
       </div>
     </template>

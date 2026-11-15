@@ -20,21 +20,24 @@ export function readBoard(layout: BoardLayout, encounter: EncounterState): Board
       for (let x = tile.x; x < tile.x + tile.w; x++)
         for (let y = tile.y; y < tile.y + tile.h; y++) squares.add(key({ x, y }))
   const track = encounter.initiativeTrack
-  const figures = layout.figures.map((f): BoardFigure => {
-    const combatant = encounter.combatants.find((c) => c.instance === f.id)
-    const places = combatant
-      ? combatant.initiativeCards.map((card) => track.indexOf(card)).filter((i) => i >= 0)
-      : [track.indexOf(f.id)].filter((i) => i >= 0)
-    return {
-      id: f.id,
-      name: f.name,
-      side: f.kind,
-      position: { x: f.x, y: f.y },
-      size: f.size,
-      damage: combatant?.damage ?? 0,
-      initiative: places.length ? Math.min(...places) : track.length,
-    }
-  })
+  // Only figures standing on a revealed tile: not those dropped off the tiles.
+  const figures = layout.figures
+    .filter((f) => squares.has(key({ x: f.x, y: f.y })))
+    .map((f): BoardFigure => {
+      const combatant = encounter.combatants.find((c) => c.instance === f.id)
+      const places = combatant
+        ? combatant.initiativeCards.map((card) => track.indexOf(card)).filter((i) => i >= 0)
+        : [track.indexOf(f.id)].filter((i) => i >= 0)
+      return {
+        id: f.id,
+        name: f.name,
+        side: f.kind,
+        position: { x: f.x, y: f.y },
+        size: f.size,
+        damage: combatant?.damage ?? 0,
+        initiative: places.length ? Math.min(...places) : track.length,
+      }
+    })
   return { squares, figures }
 }
 

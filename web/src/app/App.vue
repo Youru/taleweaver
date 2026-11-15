@@ -25,6 +25,9 @@ const languages = [
 <template>
   <header class="top">
     <RouterLink to="/" class="brand">{{ t('app.title') }}</RouterLink>
+    <nav class="nav">
+      <RouterLink :to="{ name: 'workshop' }">{{ t('app.workshop') }}</RouterLink>
+    </nav>
     <SelectButton
       v-model="language"
       :options="languages"
@@ -44,6 +47,18 @@ const languages = [
   align-items: center;
   justify-content: space-between;
   padding: 0.75rem 1rem;
+}
+.nav {
+  flex: 1;
+  margin-left: 1.5rem;
+}
+.nav a {
+  color: var(--p-text-muted-color);
+  text-decoration: none;
+  font-weight: 600;
+}
+.nav a.router-link-active {
+  color: var(--p-primary-color);
 }
 .brand {
   font-family: Georgia, serif;

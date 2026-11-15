@@ -36,6 +36,44 @@ public class GameEngineTests
     }
 
     [Fact]
+    public void Answer_ChoiceThatGoesToAnotherScene_PlaysThatSceneAndDropsTheFirstOnesNext()
+    {
+        static ScenarioAction GoTo(string node) => new() { Do = "goToNode", Node = node };
+        var scenario = new Scenario
+        {
+            Id = "hb:scenario/branches",
+            Title = En("Branches"),
+            Start = "crossroads",
+            Nodes =
+            [
+                new Node
+                {
+                    Id = "crossroads",
+                    Type = "scene",
+                    Mechanics =
+                    [
+                        new ScenarioAction
+                        {
+                            Do = "askChoice",
+                            Question = En("Which way?"),
+                            Options = [new ActionOption { Label = En("Left"), Actions = [GoTo("left")] }, new ActionOption { Label = En("Right"), Actions = [GoTo("right")] }],
+                        },
+                    ],
+                },
+                new Node { Id = "left", Type = "scene", Narrative = En("The left path."), Next = "@lost" },
+                new Node { Id = "right", Type = "scene", Narrative = En("The right path."), Next = "@found" },
+            ],
+        };
+        var game = new EngineDriver(scenario, Catalog);
+
+        game.Answer("1").Continue();
+
+        game.State.Status.Should().Be(GameStatus.Finished);
+        game.State.Ending.Should().Be("@found");
+        game.State.Log.Should().Contain(l => l.Code == "scene" && l.Text != null && l.Text["en"] == "The right path.");
+    }
+
+    [Fact]
     public void AnswerAiCondition_TrueStepWithContinueDown_AsksTheNextStepToo()
     {
         var game = Game().Continue();

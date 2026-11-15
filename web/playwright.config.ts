@@ -8,6 +8,8 @@ import { defineConfig } from '@playwright/test'
 const apiPort = 5146
 const webPort = 5174
 const saves = mkdtempSync(join(tmpdir(), 'taleweaver-e2e-'))
+// Scenarios made in the workshop during the tests: never in the repository.
+const homebrew = mkdtempSync(join(tmpdir(), 'taleweaver-e2e-homebrew-'))
 const repositoryRoot = fileURLToPath(new URL('../..', import.meta.url))
 
 export default defineConfig({
@@ -17,9 +19,15 @@ export default defineConfig({
   use: { baseURL: `http://localhost:${webPort}`, channel: 'msedge', locale: 'fr-FR' },
   webServer: [
     {
-      command: `dotnet run --project ../src/Taleweaver.Api --no-launch-profile --urls http://localhost:${apiPort}`,
+      // Built apart (obj/e2e): an API already running from bin/ (the GM's own) keeps its files locked.
+      command: `dotnet run --project ../src/Taleweaver.Api --artifacts-path ../obj/e2e --no-launch-profile --urls http://localhost:${apiPort}`,
       url: `http://localhost:${apiPort}/api/packs`,
-      env: { ASPNETCORE_ENVIRONMENT: 'Development', Content__RootPath: repositoryRoot, Content__SavesPath: saves },
+      env: {
+        ASPNETCORE_ENVIRONMENT: 'Development',
+        Content__RootPath: repositoryRoot,
+        Content__SavesPath: saves,
+        Content__HomebrewDirectory: homebrew,
+      },
       timeout: 120_000,
       reuseExistingServer: false,
     },

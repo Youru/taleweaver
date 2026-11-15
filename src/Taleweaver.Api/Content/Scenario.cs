@@ -28,6 +28,12 @@ public sealed record Scenario
 
     public required string Start { get; init; }
 
+    /// <summary>The pack of the scenarios made in the workshop: "homebrew:scenario/&lt;name&gt;".</summary>
+    public const string HomebrewPack = "homebrew";
+
+    /// <summary>What only the workshop reads (where each node sits on the graph); the engine ignores it.</summary>
+    public JsonElement? Editor { get; init; }
+
     public IReadOnlyList<Node> Nodes { get; init; } = [];
 }
 

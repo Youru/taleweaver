@@ -20,6 +20,12 @@ const props = defineProps<{
   label: string
   /** The AI's plan for the acting figure: where it should go, whom it targets. */
   hint?: TableHint
+  /** Squares to show first (e.g. the attacker and its target), instead of the whole board. */
+  focus?: { x: number; y: number; w: number; h: number }
+  /** Figures stay put: dragging only pans (a board to look at, as in the duel window). */
+  readonly?: boolean
+  /** A duel: its attacker and target stand out, the other figures fade. */
+  marks?: { attacker?: string; target?: string }
 }>()
 const emit = defineEmits<{
   select: [selection: Selection | null]
@@ -38,11 +44,17 @@ const clipId = `figure-clip-${useId()}`
 const fogId = `fog-${useId()}`
 
 const full = computed(() => fitBox(props.layout.width * S, props.layout.height * S, S / 4))
-const box = ref<ViewBox>(full.value)
-// A new board (encounter, diagram placed): show it whole.
+/** The focus, in SVG units, with a square of margin. */
+const focused = computed(() => {
+  const f = props.focus
+  return f ? { x: (f.x - 1) * S, y: (f.y - 1) * S, w: (f.w + 2) * S, h: (f.h + 2) * S } : undefined
+})
+const home = computed(() => focused.value ?? full.value)
+const box = ref<ViewBox>(home.value)
+// A new board (encounter, diagram placed) or a new focus: show it.
 watch(
-  () => [props.layout.width, props.layout.height],
-  () => (box.value = full.value),
+  () => [props.layout.width, props.layout.height, JSON.stringify(props.focus)],
+  () => (box.value = home.value),
 )
 
 function toSvg(event: { clientX: number; clientY: number }) {
@@ -141,7 +153,7 @@ function onPointerMove(event: PointerEvent) {
   const dy = event.clientY - gesture.clientY
   if (!gesture.moved && Math.hypot(dx, dy) < 6) return
   gesture.moved = true
-  if (gesture.target?.kind === 'figure') {
+  if (gesture.target?.kind === 'figure' && !props.readonly) {
     drag.value = { id: gesture.target.id, ...toSvg(event) }
   } else {
     box.value = panBox(gesture.startBox, dx / gesture.scale, dy / gesture.scale)
@@ -220,7 +232,7 @@ function select(selection: Selection) {
         size="small"
         :aria-label="t('table.fit')"
         :title="t('table.fit')"
-        @click="box = full"
+        @click="box = home"
       />
       <!-- Tools of the container (full screen…) -->
       <slot name="tools" />
@@ -367,6 +379,9 @@ function select(selection: Selection) {
           figure.kind,
           {
             targeted: hint?.targets.includes(figure.id),
+            'duel-attacker': marks?.attacker === figure.id,
+            'duel-target': marks?.target === figure.id,
+            faded: !!marks && marks.attacker !== figure.id && marks.target !== figure.id,
             acting: figure.acting,
             aggro: figure.aggro,
             selected: isSelected('figure', figure.id),
@@ -380,6 +395,13 @@ function select(selection: Selection) {
         :aria-label="t('table.figure', { name: figure.name })"
         @keydown.enter="select({ kind: 'figure', id: figure.id })"
       >
+        <circle
+          v-if="marks?.target === figure.id"
+          class="halo"
+          :cx="(figure.x + figure.size / 2) * S"
+          :cy="(figure.y + figure.size / 2) * S"
+          :r="figure.size * S * 0.62"
+        />
         <circle
           class="base"
           :cx="(figure.x + figure.size / 2) * S"
@@ -557,6 +579,31 @@ svg {
   stroke-width: 8;
   stroke-dasharray: 16 10;
 }
+.figure.faded {
+  opacity: 0.45;
+}
+.figure .halo {
+  fill: rgb(244 63 94 / 0.25);
+  stroke: #f43f5e;
+  stroke-width: 8;
+  stroke-dasharray: 14 10;
+  animation: spin 6s linear infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.figure.duel-target .ring {
+  stroke: #f43f5e;
+  stroke-width: 14;
+}
+.figure.duel-attacker .ring {
+  stroke: #f59e0b;
+  stroke-width: 14;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 .figure.targeted .ring {
   stroke: #f43f5e;
   stroke-width: 14;
@@ -590,7 +637,8 @@ svg {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .figure.acting .ring {
+  .figure.acting .ring,
+  .figure .halo {
     animation: none;
   }
 }

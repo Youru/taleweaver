@@ -14,15 +14,26 @@ const props = defineProps<{
   cards: Map<string, Combatant>
   /** Selected figure id (combatant instance). */
   selected: string | undefined
+  /** Figures the table shows (not under the fog); when given, the others are left out. */
+  shown?: Set<string>
 }>()
 const emit = defineEmits<{ select: [instance: string] }>()
 
 const { t } = useI18n()
 const { language } = storeToRefs(usePreferences())
 
-const alive = computed(() => props.encounter.combatants.filter((c) => !c.defeated))
-const defeated = computed(() => props.encounter.combatants.filter((c) => c.defeated))
 const acting = computed(() => props.encounter.activation?.figures[0])
+/**
+ * Only the combatants already on the table: one still to place, or under the fog, would tell what is
+ * coming. The acting figure is always listed.
+ */
+const alive = computed(() =>
+  props.encounter.combatants.filter(
+    (c) =>
+      !c.defeated && (c.instance === acting.value || (!!c.position && (!props.shown || props.shown.has(c.instance)))),
+  ),
+)
+const defeated = computed(() => props.encounter.combatants.filter((c) => c.defeated))
 
 function health(figure: CombatantState): number | undefined {
   const value = props.cards.get(figure.card)?.stats?.health

@@ -86,6 +86,7 @@ function run(value: EncounterCommand) {
         :cards="cards"
         :locked="locked"
         :hint="ai.hint.value"
+        for-players
         @command="run"
         @duel="openDuel"
       />
@@ -95,6 +96,7 @@ function run(value: EncounterCommand) {
         v-model:open="dueling"
         :game="id"
         :encounter="encounter"
+        :node="node"
         :cards="cards"
         :from="duel"
         :locked="locked"
