@@ -28,7 +28,12 @@ public class ScenarioCheckerTests
                 new TokenType { Id = "hb:token/objective", Category = "objective", Name = new Dictionary<string, string> { ["en"] = "Objective" } },
                 new TokenType { Id = "hb:token/terrain/obstructing-long", Category = "terrain", Name = new Dictionary<string, string> { ["en"] = "Obstructing" } },
             ],
-            Tiles = [new Tile { Id = "hb:tile/t1", Name = "T1" }],
+            Tiles =
+            [
+                new Tile { Id = "hb:tile/t1", Name = "T1", Theme = "forest", PairedSide = "hb:tile/t2" },
+                new Tile { Id = "hb:tile/t2", Name = "T2", Theme = "crypt", PairedSide = "hb:tile/t1" },
+                new Tile { Id = "hb:tile/t3", Name = "T3", Theme = "marsh" },
+            ],
         },
     ]);
 
@@ -292,6 +297,50 @@ public class ScenarioCheckerTests
 
         report.Errors.Should().BeEmpty();
         report.Warnings.Select(w => w.Code).Should().BeEquivalentTo(["Scenarios.BeyondCards", "Scenarios.HiddenCard"]);
+    }
+
+    [Fact]
+    public void Check_BothSidesOfATileAndOneTileTwice_ReportsErrors()
+    {
+        var encounter = Encounter() with
+        {
+            Map = Board() with
+            {
+                Tiles = [new MapTile("hb:tile/t1", 0, 0, 0), new MapTile("hb:tile/t2", 6, 0, 0), new MapTile("hb:tile/t3", 0, 6, 0), new MapTile("hb:tile/t3", 6, 6, 0)],
+            },
+        };
+
+        var report = ScenarioChecker.Check(Scenario(encounter), Catalog);
+
+        report.Errors.Select(e => e.Code).Should().BeEquivalentTo(["Scenarios.BothSides", "Scenarios.TileTwice"]);
+    }
+
+    [Fact]
+    public void Check_SceneriesThatDoNotMeetAndATileApart_ReportsWarnings()
+    {
+        var encounter = Encounter() with
+        {
+            Map = Board() with { Tiles = [new MapTile("hb:tile/t2", 0, 0, 0), new MapTile("hb:tile/t3", 12, 0, 0)] },
+        };
+
+        var report = ScenarioChecker.Check(Scenario(encounter), Catalog);
+
+        report.Errors.Should().BeEmpty();
+        report.Warnings.Select(w => w.Code).Should().BeEquivalentTo(["Scenarios.ThemesApart", "Scenarios.TilesApart"]);
+    }
+
+    [Fact]
+    public void Check_SceneriesOfOneGroup_ReportsNothing()
+    {
+        // Forest and marsh meet naturally
+        var encounter = Encounter() with
+        {
+            Map = Board() with { Tiles = [new MapTile("hb:tile/t1", 0, 0, 0), new MapTile("hb:tile/t3", 6, 3, 0)] },
+        };
+
+        var report = ScenarioChecker.Check(Scenario(encounter), Catalog);
+
+        report.Warnings.Should().BeEmpty();
     }
 
     private static ScenarioAction Reveal(string area) => new()

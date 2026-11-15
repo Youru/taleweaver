@@ -70,6 +70,9 @@ public sealed record Tile
 
     public TileSize? Size { get; init; }
 
+    /// <summary>The scenery of this side (forest, crypt…): tiles of one encounter should match.</summary>
+    public string? Theme { get; init; }
+
     public string? Image { get; init; }
 
     public IReadOnlyList<JsonElement> Terrain { get; init; } = [];

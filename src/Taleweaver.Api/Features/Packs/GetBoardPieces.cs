@@ -13,7 +13,7 @@ public static class GetBoardPieces
         IReadOnlyDictionary<string, FigurePiece> Figures,
         IReadOnlyDictionary<string, FamilyPiece> Families);
 
-    public sealed record TilePiece(string Name, int W, int H, string? Image);
+    public sealed record TilePiece(string Name, int W, int H, string? Image, string? Theme = null, string? PairedSide = null);
 
     public sealed record TokenPiece(LocalizedText Name, string Category, string? Size, string? Image, IReadOnlyDictionary<string, string>? Colors);
 
@@ -35,7 +35,7 @@ public static class GetBoardPieces
             {
                 foreach (var tile in pack.Tiles)
                 {
-                    tiles[tile.Id] = new TilePiece(tile.Name, tile.Size?.W ?? 6, tile.Size?.H ?? 6, tile.Image);
+                    tiles[tile.Id] = new TilePiece(tile.Name, tile.Size?.W ?? 6, tile.Size?.H ?? 6, tile.Image, tile.Theme, tile.PairedSide);
                 }
 
                 foreach (var token in pack.Tokens)

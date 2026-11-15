@@ -17,7 +17,8 @@ const base = option('--base') ?? 'http://localhost:5173'
 const node = option('--node')
 const cards = flag('--cards')
 const clear = flag('--clear')
-const [scenario, out = `${scenario?.split('/').pop() ?? 'scenario'}${cards ? '-cards' : node ? `-${node}` : ''}.pdf`] = args
+const [scenario, out = `${scenario?.split('/').pop() ?? 'scenario'}${cards ? '-cards' : node ? `-${node}` : ''}.pdf`] =
+  args
 if (!scenario) {
   console.error('Usage: npm run pdf -- <scenario id> [out.pdf] [--node <id>] [--cards] [--clear] [--base <url>]')
   process.exit(1)

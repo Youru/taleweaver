@@ -15,6 +15,10 @@ export interface TilePiece {
   w: number
   h: number
   image?: string
+  /** Scenery of this side (forest, crypt…). */
+  theme?: string
+  /** The other side of the same tile. */
+  pairedSide?: string
 }
 
 export interface TokenPiece {

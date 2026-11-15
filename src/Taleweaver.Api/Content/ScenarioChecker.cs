@@ -48,6 +48,14 @@ public static class ScenarioChecker
         "enter", "adjacent", "onSpaceEncounterAction", "adjacentEncounterAction", "endTurnOn", "none", "adventure",
     };
 
+    /// <summary>Sceneries that meet naturally; tiles of two groups in one encounter need a transition thought out.</summary>
+    private static readonly Dictionary<string, string> ThemeGroups = new()
+    {
+        ["rocky-trail"] = "woods", ["forest"] = "woods", ["marsh"] = "woods", ["meadow"] = "meadow",
+        ["cave"] = "underground", ["dark-cave"] = "underground", ["mine"] = "underground",
+        ["crypt"] = "stone", ["ruins"] = "stone", ["tavern"] = "tavern",
+    };
+
     private static readonly HashSet<string> BuiltInVariables = ["round", "urgency", "gold"];
     private static readonly string[] BooleanPrefixes = ["placed.", "activated.", "revealed."];
     private static readonly string[] CountPrefixes = ["defeated.", "alive."];
@@ -335,6 +343,7 @@ public static class ScenarioChecker
                 }
             }
 
+            CheckTiles(id, boards.SelectMany(b => b.Map.Tiles).ToList());
             CheckGeometry(id, boards.Select(b => (b.Name, b.Map, b.Setup, b.ReplacesTerrain)).ToList());
         }
 
@@ -450,6 +459,62 @@ public static class ScenarioChecker
                 }
             }
         }
+
+        /// <summary>
+        /// The tiles of an encounter (map and diagrams): each one is in the box once, front or back; their
+        /// sceneries should meet; and they hold together, or some figures could never reach the others.
+        /// </summary>
+        private void CheckTiles(string id, List<MapTile> laid)
+        {
+            var tiles = catalog.Packs.SelectMany(p => p.Tiles).ToDictionary(t => t.Id);
+            foreach (var twice in laid.GroupBy(t => t.Ref).Where(g => g.Count() > 1))
+            {
+                Error("TileTwice", id, $"tile laid twice '{twice.Key}' (there is one in the box)");
+            }
+
+            var refs = laid.Select(t => t.Ref).ToHashSet();
+            foreach (var reference in refs.Order(StringComparer.Ordinal))
+            {
+                if (tiles.GetValueOrDefault(reference)?.PairedSide is { } other && refs.Contains(other)
+                    && string.CompareOrdinal(reference, other) < 0)
+                {
+                    Error("BothSides", id, $"'{reference}' and '{other}' are the two sides of one tile");
+                }
+            }
+
+            var sceneries = laid.Select(t => tiles.GetValueOrDefault(t.Ref)).OfType<Tile>().Where(t => t.Theme is not null).DistinctBy(t => t.Id).ToList();
+            if (sceneries.Select(t => ThemeGroups.GetValueOrDefault(t.Theme!, t.Theme!)).Distinct().Count() > 1)
+            {
+                Warn("ThemesApart", id, $"sceneries that do not meet ({string.Join(", ", sceneries.Select(t => $"{t.Name} {t.Theme}"))}): check them with npm run map-preview");
+            }
+
+            if (laid.Count > 0)
+            {
+                var corners = laid.Select(t => (t.X, t.Y)).Distinct().ToList();
+                var reached = new HashSet<(int X, int Y)> { corners[0] };
+                var queue = new Queue<(int X, int Y)>(reached);
+                while (queue.Count > 0)
+                {
+                    var current = queue.Dequeue();
+                    foreach (var next in corners.Where(c => !reached.Contains(c) && Touch(current, c)))
+                    {
+                        reached.Add(next);
+                        queue.Enqueue(next);
+                    }
+                }
+
+                var alone = corners.Where(c => !reached.Contains(c)).ToList();
+                if (alone.Count > 0)
+                {
+                    Warn("TilesApart", id, $"tiles apart from the rest of the board at {string.Join(", ", alone.Select(c => $"({c.X}, {c.Y})"))}: no way through");
+                }
+            }
+        }
+
+        /// <summary>Two tiles meet when they share part of an edge.</summary>
+        private static bool Touch((int X, int Y) a, (int X, int Y) b) =>
+            (Math.Abs(a.X - b.X) == Tile.SquaresPerSide && Math.Abs(a.Y - b.Y) < Tile.SquaresPerSide)
+            || (Math.Abs(a.Y - b.Y) == Tile.SquaresPerSide && Math.Abs(a.X - b.X) < Tile.SquaresPerSide);
 
         /// <summary>The map and every diagram add up on the board: pieces must be on a tile, figures not on blocking terrain.</summary>
         private void CheckGeometry(string id, List<(string Name, BoardMap Map, Setup Setup, bool ReplacesTerrain)> boards)

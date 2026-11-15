@@ -75,12 +75,21 @@ const shelves = computed(() =>
 const filter = ref('')
 const matches = (label: string) => label.toLowerCase().includes(filter.value.trim().toLowerCase())
 
-const tilePieces = computed(() =>
-  Object.entries(props.pieces?.tiles ?? {})
-    .map(([ref, piece]) => ({ ref, name: piece.name, href: assetUrl(piece.image) }))
-    .filter((p) => matches(p.name))
-    .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })),
-)
+/** Every tile, by scenery; a tile whose other side is already on the board cannot be laid. */
+const tilePieces = computed(() => {
+  const laid = new Set(map.value.tiles.map((t) => t.ref))
+  const themeOf = (theme: string | undefined) => (theme ? t(`workshop.map.theme.${theme}`, theme) : '')
+  return Object.entries(props.pieces?.tiles ?? {})
+    .map(([ref, piece]) => ({
+      ref,
+      name: piece.name,
+      theme: themeOf(piece.theme),
+      href: assetUrl(piece.image),
+      taken: laid.has(ref) || (!!piece.pairedSide && laid.has(piece.pairedSide)),
+    }))
+    .filter((p) => matches(`${p.name} ${p.theme}`))
+    .sort((a, b) => a.theme.localeCompare(b.theme) || a.name.localeCompare(b.name, undefined, { numeric: true }))
+})
 /** Pieces laid on the board by a scenario (not the trackers and effects kept beside it). */
 const BOARD_CATEGORIES = ['terrain', 'objective', 'totem', 'exit', 'loot', 'encounter', 'combatant']
 interface TokenChoice {
@@ -289,10 +298,13 @@ function newArea() {
           :class="{ active: sameTool(tool, { kind: 'tile', ref: p.ref }) }"
           :aria-pressed="sameTool(tool, { kind: 'tile', ref: p.ref })"
           :aria-label="t('workshop.map.layTile', { name: p.name })"
+          :disabled="p.taken"
+          :title="p.taken ? t('workshop.map.tileTaken') : p.theme"
           @click="pickTool({ kind: 'tile', ref: p.ref })"
         >
           <img v-if="p.href" :src="p.href" alt="" loading="lazy" />
           <span>{{ p.name }}</span>
+          <small>{{ p.theme }}</small>
         </button>
       </div>
 
@@ -692,6 +704,14 @@ function newArea() {
   object-position: left;
   display: grid;
   place-items: center;
+}
+.piece small {
+  font-size: 0.65rem;
+  color: var(--p-text-muted-color);
+}
+.piece:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
 }
 .piece.active {
   border-color: #fbbf24;
