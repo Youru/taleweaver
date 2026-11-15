@@ -1,0 +1,46 @@
+namespace Taleweaver.Api.Content;
+
+/// <summary>pack.json: header of a content pack (core box, expansion or homebrew).</summary>
+public sealed record PackManifest
+{
+    public int SchemaVersion { get; init; }
+
+    public required string Id { get; init; }
+
+    public required LocalizedText Name { get; init; }
+
+    public string Kind { get; init; } = "core";
+
+    public IReadOnlyList<string> DependsOn { get; init; } = [];
+
+    public IReadOnlyList<string> Overrides { get; init; } = [];
+
+    /// <summary>Catalogue files of the pack, by kind ("combatants" → "combatants.json").</summary>
+    public IReadOnlyDictionary<string, string> Files { get; init; } = new Dictionary<string, string>();
+
+    public string? AdventureSheet { get; init; }
+
+    public IReadOnlyDictionary<string, int> Counts { get; init; } = new Dictionary<string, int>();
+}
+
+/// <summary>A loaded pack: its header and the content of its catalogue files.</summary>
+public sealed record Pack
+{
+    public required PackManifest Manifest { get; init; }
+
+    public IReadOnlyList<Combatant> Combatants { get; init; } = [];
+
+    public IReadOnlyList<Item> Items { get; init; } = [];
+
+    public IReadOnlyList<ItemUpgrade> ItemUpgrades { get; init; } = [];
+
+    public IReadOnlyList<Tile> Tiles { get; init; } = [];
+
+    public IReadOnlyList<TokenType> Tokens { get; init; } = [];
+
+    public IReadOnlyList<InitiativeCard> InitiativeCards { get; init; } = [];
+
+    public PackRules? Rules { get; init; }
+
+    public string Id => Manifest.Id;
+}

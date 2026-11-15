@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "id": "hb:scenario/meadow-ambush",
+  "title": { "en": "Meadow ambush", "fr": "Embuscade dans la prairie" },
+  "kind": "homebrew",
+  "packs": ["hb"],
+  "start": "intro",
+  "nodes": [
+    { "id": "intro", "type": "scene", "narrative": { "en": "The grass moves." }, "next": "ambush" },
+    {
+      "id": "ambush", "type": "encounter", "lootLevel": "common",
+      "map": {
+        "tiles": [ { "ref": "hb:tile/meadow", "x": 0, "y": 0, "rotation": 0 } ],
+        "tokens": [ { "id": "o1", "type": "hb:token/objective", "color": "red", "x": 5, "y": 5 } ]
+      },
+      "setup": { "combatants": [ { "family": "brute", "at": { "x": 2, "y": 2 } } ] },
+      "tokens": { "objective:red": { "mode": "encounterAction", "events": ["take-red"] } },
+      "events": [
+        { "id": "take-red", "trigger": { "on": "tokenActivated", "token": "objective:red" },
+          "actions": [ { "do": "removeToken", "token": "o1" }, { "do": "endEncounter", "endCondition": "win" } ] }
+      ],
+      "endConditions": [ { "id": "win", "kind": "win", "text": { "en": "Take the red objective." }, "next": "@end" } ]
+    }
+  ]
+}

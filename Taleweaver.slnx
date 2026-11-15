@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Taleweaver.Api/Taleweaver.Api.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Taleweaver.IntegrationTests/Taleweaver.IntegrationTests.csproj" />
+    <Project Path="tests/Taleweaver.UnitTests/Taleweaver.UnitTests.csproj" />
+  </Folder>
+</Solution>

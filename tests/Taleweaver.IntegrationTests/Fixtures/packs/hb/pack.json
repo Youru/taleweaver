@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "id": "hb",
+  "name": { "en": "Homebrew test pack", "fr": "Pack maison de test" },
+  "kind": "homebrew",
+  "files": { "combatants": "combatants.json", "tiles": "tiles.json", "tokens": "tokens.json" },
+  "counts": { "combatant": 2, "tile": 1, "token": 1 }
+}

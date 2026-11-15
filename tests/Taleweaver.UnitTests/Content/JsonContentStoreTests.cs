@@ -1,0 +1,152 @@
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using Taleweaver.Api.Common;
+using Taleweaver.Api.Content;
+
+namespace Taleweaver.UnitTests.Content;
+
+public class JsonContentStoreTests
+{
+    [Fact]
+    public async Task GetPacksAsync_RepositoryContent_LoadsEveryCatalogueFileOfUm1()
+    {
+        var store = RepositoryContent.CreateStore();
+
+        var packs = await store.GetPacksAsync(TestContext.Current.CancellationToken);
+
+        var um1 = packs.Should().ContainSingle(p => p.Id == "um1").Subject;
+        var counts = um1.Manifest.Counts;
+        um1.Combatants.Should().HaveCount(counts["combatant"]);
+        um1.Items.Should().HaveCount(counts["item"]);
+        um1.ItemUpgrades.Should().HaveCount(counts["item-upgrade"]);
+        um1.Tiles.Should().HaveCount(counts["tile"]);
+        um1.Tokens.Should().HaveCount(counts["token"]);
+        um1.InitiativeCards.Should().HaveCount(counts["initiative"]);
+        um1.Rules!.LootDecks.Should().HaveCount(counts["lootDecks"]);
+    }
+
+    [Fact]
+    public async Task GetPacksAsync_CombatantWithVariableStats_ReadsStarAsVariable()
+    {
+        var catalog = await RepositoryContent.CatalogAsync();
+
+        var agares = catalog.FindCombatant("um1:combatant/agares-command");
+
+        agares!.Stats!.Health!.Value.IsVariable.Should().BeTrue();
+        agares.Stats.Movement.Should().Be(new StatValue(4));
+    }
+
+    [Fact]
+    public async Task ListScenariosAsync_RepositoryContent_ListsBlightOfRhamsted()
+    {
+        var store = RepositoryContent.CreateStore();
+
+        var scenarios = await store.ListScenariosAsync(TestContext.Current.CancellationToken);
+
+        scenarios.Should().Contain(s => s.Id == "um1:scenario/blight-of-rhamsted" && s.Kind == "bounty");
+    }
+
+    [Fact]
+    public async Task GetScenarioAsync_Blight_KeepsEveryFieldOfTheFile()
+    {
+        var path = Path.Combine(RepositoryContent.Root, "scenarios", "um1", "blight-of-rhamsted.json");
+        var original = Normalized(JsonNode.Parse(await File.ReadAllTextAsync(path, TestContext.Current.CancellationToken)));
+
+        var scenario = await RepositoryContent.BlightAsync();
+
+        var roundTrip = Normalized(JsonSerializer.SerializeToNode(scenario, JsonDefaults.FileOptions));
+        Differences(roundTrip, original, "$").Should().BeEmpty("the model must not lose anything the editor saves back");
+    }
+
+    [Fact]
+    public async Task SaveScenarioAsync_NewScenario_WritesItUnderItsPackAndReadsItBack()
+    {
+        var root = Directory.CreateTempSubdirectory("taleweaver-").FullName;
+        try
+        {
+            var store = RepositoryContent.CreateStore(root);
+            var scenario = new Scenario
+            {
+                Id = "hb:scenario/first-steps",
+                Title = new Dictionary<string, string> { ["en"] = "First steps" },
+                Start = "intro",
+                Nodes = [new Node { Id = "intro", Type = "scene", Next = "@end" }],
+            };
+
+            await store.SaveScenarioAsync(scenario, TestContext.Current.CancellationToken);
+
+            File.Exists(Path.Combine(root, "scenarios", "hb", "first-steps.json")).Should().BeTrue();
+            var read = await store.GetScenarioAsync(scenario.Id, TestContext.Current.CancellationToken);
+            read!.Nodes.Should().ContainSingle().Which.Next.Should().Be("@end");
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    private static IEnumerable<string> Differences(JsonNode? actual, JsonNode? expected, string path)
+    {
+        switch (actual, expected)
+        {
+            case (JsonObject a, JsonObject e):
+                foreach (var key in a.Select(p => p.Key).Union(e.Select(p => p.Key)))
+                {
+                    foreach (var difference in Differences(a[key], e[key], $"{path}.{key}"))
+                    {
+                        yield return difference;
+                    }
+                }
+
+                break;
+            case (JsonArray a, JsonArray e) when a.Count == e.Count:
+                for (var i = 0; i < a.Count; i++)
+                {
+                    foreach (var difference in Differences(a[i], e[i], $"{path}[{i}]"))
+                    {
+                        yield return difference;
+                    }
+                }
+
+                break;
+            default:
+                if (!JsonNode.DeepEquals(actual, expected))
+                {
+                    yield return $"{path}: {actual?.ToJsonString() ?? "missing"} instead of {expected?.ToJsonString() ?? "missing"}";
+                }
+
+                break;
+        }
+    }
+
+    /// <summary>A missing property, an explicit null and an empty list mean the same thing in the format.</summary>
+    private static JsonNode? Normalized(JsonNode? node)
+    {
+        switch (node)
+        {
+            case JsonObject obj:
+                foreach (var (key, value) in obj.ToList())
+                {
+                    if (value is null or JsonArray { Count: 0 })
+                    {
+                        obj.Remove(key);
+                    }
+                    else
+                    {
+                        Normalized(value);
+                    }
+                }
+
+                break;
+            case JsonArray array:
+                foreach (var item in array)
+                {
+                    Normalized(item);
+                }
+
+                break;
+        }
+
+        return node;
+    }
+}
