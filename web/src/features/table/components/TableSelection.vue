@@ -24,7 +24,7 @@ const props = defineProps<{
   /** Reports are refused right now (a question other than an AI step is pending). */
   locked: boolean
 }>()
-const emit = defineEmits<{ command: [command: EncounterCommand]; close: [] }>()
+const emit = defineEmits<{ command: [command: EncounterCommand]; close: []; duel: [figure: string] }>()
 
 const { t } = useI18n()
 const { language } = storeToRefs(usePreferences())
@@ -137,6 +137,15 @@ function addEffect() {
     </template>
 
     <template v-if="selection.kind === 'figure'">
+      <Button
+        v-if="adventurer || (combatant && !combatant.defeated)"
+        class="duel"
+        :label="t('duel.open')"
+        icon="pi pi-bolt"
+        size="small"
+        severity="contrast"
+        @click="emit('duel', selection.id)"
+      />
       <p class="hint">{{ t('table.moveHint') }}</p>
     </template>
 
@@ -189,6 +198,9 @@ header strong {
 }
 p {
   margin: 0;
+}
+.duel {
+  align-self: flex-start;
 }
 .hint {
   font-size: 0.85rem;

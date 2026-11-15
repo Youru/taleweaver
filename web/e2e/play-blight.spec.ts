@@ -30,8 +30,11 @@ test('a GM starts Blight of Rhamsted, reads the intro and plays the first AI tur
     if (await yes.isVisible()) break
     await next.click()
   }
-  await expect(page.getByText(/^IA de /)).toBeVisible()
+  // The current turn card shows whose AI it is, with its question
+  const turn = page.getByRole('region', { name: 'Tour en cours' })
+  await expect(turn.getByText(/^IA de /).first()).toBeVisible()
   await yes.click()
+  await page.getByRole('tab', { name: 'Journal' }).click()
   await expect(page.getByText('Réponse : Oui')).toBeVisible()
 })
 
@@ -39,9 +42,14 @@ test('a GM deals damage, then undoes it', async ({ page }) => {
   await startBlight(page)
   await page.getByRole('button', { name: 'Continuer' }).click()
 
+  // A combatant picked in the list opens its actions on the table
+  await page
+    .getByRole('button', { name: /fragor-1/ })
+    .first()
+    .click()
   await page.getByLabel('Dégâts fragor-1').fill('5')
-  await page.getByRole('button', { name: 'Infliger' }).first().click()
-  await expect(page.getByText('5 / 12 PV')).toBeVisible()
+  await page.getByRole('button', { name: 'Infliger' }).click()
+  await expect(page.getByText('5 / 12 PV').first()).toBeVisible()
 
   await page.getByRole('button', { name: 'Annuler la dernière action' }).click()
   await expect(page.getByText('0 / 12 PV').first()).toBeVisible()
@@ -69,7 +77,7 @@ test('a GM sees the setup on the table and activates a totem from it', async ({ 
   // The Earth Loa spawns on the totem; the 2 Gevaudan are for the GM to place
   await expect(page.getByText('earth-loa-2', { exact: true })).toBeVisible()
   await expect(board.locator('g.figure.combatant')).toHaveCount(7)
-  await expect(page.getByRole('button', { name: 'gevaudan-1' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'gevaudan-1', exact: true })).toBeVisible()
   await expect(board.getByRole('button', { name: 'Jeton totem:blue' })).toHaveCount(0)
 })
 
@@ -111,6 +119,67 @@ test('a GM moves figures on the table, by dragging or by tapping a square', asyn
   await expect.poll(async () => (await rook.boundingBox())!.x).toBeGreaterThan(tile.x + square * 6)
 })
 
+test('a GM drags a figure from "to place" onto the board', async ({ page }) => {
+  await startBlight(page)
+  await page.getByRole('button', { name: 'Continuer' }).click()
+  const board = page.getByRole('img', { name: 'Plateau : Search for the Lair' })
+  await board.getByRole('button', { name: 'Jeton totem:blue' }).click()
+  await page.getByRole('button', { name: 'Activer' }).click()
+  const toPlace = page.getByRole('button', { name: 'gevaudan-1', exact: true })
+  await expect(toPlace).toBeVisible()
+
+  const from = (await toPlace.boundingBox())!
+  const tile = (await board.locator('g.tile image').nth(2).boundingBox())!
+  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(tile.x + tile.width / 2, tile.y + tile.height / 2, { steps: 10 })
+  await page.mouse.up()
+
+  await expect(board.getByRole('button', { name: 'Figurine gevaudan-1' })).toBeVisible()
+  await expect(toPlace).toHaveCount(0)
+})
+
+test('a GM resolves an attack with the duel helper, then a spell', async ({ page }) => {
+  await startBlight(page)
+  await page.getByRole('button', { name: 'Continuer' }).click()
+
+  // Rook attacks from the table: unarmed (2 purple dice) against the nearest fragor (Defense 11)
+  await page
+    .getByRole('img', { name: 'Plateau : Search for the Lair' })
+    .getByRole('button', { name: 'Figurine Rook' })
+    .click()
+  await page.getByRole('button', { name: 'Attaquer', exact: true }).click()
+  const duel = page.getByRole('region', { name: 'Affrontement' })
+  await expect(duel.getByRole('combobox').first()).toHaveText('Rook')
+  await expect(duel.getByRole('combobox').nth(1)).toHaveText(/^fragor-2 · Fragor/)
+  await expect(duel.getByRole('status', { name: 'Chances' })).toContainText('Touche : 22')
+
+  // The odds can be hidden for tables that prefer to roll blind
+  await duel.getByRole('switch').click()
+  await expect(duel.getByRole('status', { name: 'Chances' })).toHaveCount(0)
+
+  // The table rolled 14 and a star: hit by 3, no symbol ability for Rook, 3 damage dealt to the fragor
+  await duel.getByLabel('Total des dés').fill('14')
+  await duel.getByLabel('Étoiles').fill('1')
+  await expect(duel.getByText('Jet 14 contre Défense 11 : touché, écart de 3.')).toBeVisible()
+  await duel.getByRole('button', { name: 'Infliger 3 dégâts à fragor-2' }).click()
+  await duel.getByRole('button', { name: "Fermer l'affrontement" }).click()
+  await expect(page.getByText('3 / 12 PV').first()).toBeVisible()
+
+  // A Spell-Like Ability of the fragor against Nightingale: Force 6 against her Conviction roll of 5
+  await page
+    .getByRole('img', { name: 'Plateau : Search for the Lair' })
+    .getByRole('button', { name: 'Figurine fragor-1' })
+    .click()
+  await page.getByRole('button', { name: 'Attaquer', exact: true }).click()
+  await duel
+    .getByRole('radio', { name: 'Sort' })
+    .or(duel.getByRole('button', { name: 'Sort' }))
+    .click()
+  await duel.getByLabel('Jet de Conviction').pressSequentially('5')
+  await expect(duel.getByText('le sort agit.')).toBeVisible()
+})
+
 test('the table alone follows the game', async ({ page, context }) => {
   await startBlight(page)
   await page.getByRole('button', { name: 'Continuer' }).click()
@@ -122,6 +191,19 @@ test('the table alone follows the game', async ({ page, context }) => {
   await expect(table.getByRole('img', { name: 'Plateau : Search for the Lair' })).toBeVisible()
   await page.getByRole('button', { name: 'Commencer le round 1' }).click()
   await expect(table.getByText('Round 1', { exact: true })).toBeVisible()
+})
+
+test('a GM puts the table in full screen, then leaves it', async ({ page }) => {
+  await startBlight(page)
+  await page.getByRole('button', { name: 'Continuer' }).click()
+  await expect(page.getByRole('img', { name: 'Plateau : Search for the Lair' })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Plein écran' }).click()
+  await expect.poll(() => page.evaluate(() => document.fullscreenElement?.className ?? '')).toContain('table')
+  await expect(page.getByRole('img', { name: 'Plateau : Search for the Lair' })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Quitter le plein écran' }).click()
+  await expect.poll(() => page.evaluate(() => document.fullscreenElement)).toBeNull()
 })
 
 test('the home page lists the saved game, which can be deleted', async ({ page }) => {

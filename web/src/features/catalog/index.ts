@@ -1,2 +1,2 @@
-export type { Combatant } from './api/types'
+export type { Combatant, SymbolAbilityCard } from './api/types'
 export { useCombatants } from './api/queries'

@@ -1,0 +1,20 @@
+{
+  "dice": [
+    {
+      "id": "white",
+      "name": { "en": "White", "fr": "Blanc" },
+      "faces": [
+        { "value": 2 }, { "value": 3 }, { "value": 4, "shield": 1 },
+        { "value": 5, "shield": 1, "book": 1 }, { "value": 6, "shield": 2, "book": 1 }, { "value": 7, "star": 1, "shield": 2, "book": 1 }
+      ]
+    },
+    {
+      "id": "black",
+      "name": { "en": "Black", "fr": "Noir" },
+      "faces": [
+        { "value": 0, "shield": 4 }, { "value": 0, "shield": 3, "book": 1 }, { "value": 0, "shield": 2, "book": 2 },
+        { "value": 0, "shield": 1, "book": 3 }, { "value": 0, "book": 4 }, { "value": 0, "skull": true }
+      ]
+    }
+  ]
+}

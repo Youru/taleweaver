@@ -6,7 +6,8 @@ public static class PacksEndpoints
         services.AddScoped<ListPacks.Handler>()
             .AddScoped<GetCombatant.Handler>()
             .AddScoped<SearchCatalog.Handler>()
-            .AddScoped<GetBoardPieces.Handler>();
+            .AddScoped<GetBoardPieces.Handler>()
+            .AddScoped<GetDice.Handler>();
 
     public static IEndpointRouteBuilder MapPacksEndpoints(this IEndpointRouteBuilder app)
     {
@@ -16,6 +17,7 @@ public static class PacksEndpoints
         var catalog = app.MapGroup("/api/catalog").WithTags("Packs");
         SearchCatalog.Map(catalog);
         GetBoardPieces.Map(catalog);
+        GetDice.Map(catalog);
         return app;
     }
 }

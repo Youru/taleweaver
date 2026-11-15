@@ -25,6 +25,7 @@ export interface ScenarioNode {
   map?: BoardMap
   setup?: { adventurersStart?: string }
   diagrams?: Diagram[]
+  specialRules?: SpecialRule[]
   tokens: Record<string, TokenRule>
   endConditions: EndCondition[]
 }
@@ -108,4 +109,10 @@ export interface Diagram {
   label?: LocalizedText
   page?: number
   map?: BoardMap
+}
+
+export interface SpecialRule {
+  id: string
+  name: LocalizedText
+  text: LocalizedText
 }

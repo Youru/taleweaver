@@ -68,6 +68,26 @@ interface Gesture {
   moved: boolean
 }
 let gesture: Gesture | null = null
+
+/** Two fingers on the board: pinch to zoom around their middle. */
+const pointers = new Map<number, { x: number; y: number }>()
+let pinch: { distance: number; startBox: ViewBox; center: { x: number; y: number } } | null = null
+
+function spread() {
+  const [a, b] = [...pointers.values()]
+  return a && b
+    ? { distance: Math.hypot(a.x - b.x, a.y - b.y), middle: { clientX: (a.x + b.x) / 2, clientY: (a.y + b.y) / 2 } }
+    : null
+}
+
+/** The square under a point of the screen, or null outside the board (used to drop a figure from outside). */
+function cellAtClient(clientX: number, clientY: number): Cell | null {
+  const rect = svg.value?.getBoundingClientRect()
+  if (!rect || clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom) return null
+  const cell = cellAt(toSvg({ clientX, clientY }), S)
+  return cell.x >= 0 && cell.y >= 0 && cell.x < props.layout.width && cell.y < props.layout.height ? cell : null
+}
+defineExpose({ cellAtClient })
 /** Where the dragged figure is, in SVG units. */
 const drag = ref<{ id: string; x: number; y: number } | null>(null)
 
@@ -84,6 +104,16 @@ function targetOf(element: EventTarget | null): Selection | null {
 function onPointerDown(event: PointerEvent) {
   if (event.pointerType === 'mouse' && event.button !== 0) return
   svg.value?.setPointerCapture?.(event.pointerId)
+  pointers.set(event.pointerId, { x: event.clientX, y: event.clientY })
+  const two = pointers.size === 2 ? spread() : null
+  if (two) {
+    // A second finger: the gesture becomes a pinch (no drag, no tap).
+    pinch = { distance: two.distance, startBox: box.value, center: toSvg(two.middle) }
+    gesture = null
+    drag.value = null
+    return
+  }
+  if (pinch) return
   gesture = {
     pointerId: event.pointerId,
     clientX: event.clientX,
@@ -96,6 +126,13 @@ function onPointerDown(event: PointerEvent) {
 }
 
 function onPointerMove(event: PointerEvent) {
+  if (pointers.has(event.pointerId)) pointers.set(event.pointerId, { x: event.clientX, y: event.clientY })
+  if (pinch) {
+    const two = spread()
+    if (two && pinch.distance > 0)
+      box.value = zoomBox(pinch.startBox, two.distance / pinch.distance, pinch.center, full.value)
+    return
+  }
   if (!gesture || gesture.pointerId !== event.pointerId) return
   const dx = event.clientX - gesture.clientX
   const dy = event.clientY - gesture.clientY
@@ -109,6 +146,11 @@ function onPointerMove(event: PointerEvent) {
 }
 
 function onPointerUp(event: PointerEvent) {
+  pointers.delete(event.pointerId)
+  if (pinch) {
+    if (pointers.size === 0) pinch = null
+    return
+  }
   if (!gesture || gesture.pointerId !== event.pointerId) return
   const { target, moved } = gesture
   gesture = null
@@ -122,7 +164,9 @@ function onPointerUp(event: PointerEvent) {
   drag.value = null
 }
 
-function onPointerCancel() {
+function onPointerCancel(event: PointerEvent) {
+  pointers.delete(event.pointerId)
+  if (pointers.size === 0) pinch = null
   gesture = null
   drag.value = null
 }
@@ -152,6 +196,7 @@ function select(selection: Selection) {
         rounded
         size="small"
         :aria-label="t('table.zoomIn')"
+        :title="t('table.zoomIn')"
         @click="zoom(1.4)"
       />
       <Button
@@ -161,17 +206,21 @@ function select(selection: Selection) {
         rounded
         size="small"
         :aria-label="t('table.zoomOut')"
+        :title="t('table.zoomOut')"
         @click="zoom(1 / 1.4)"
       />
       <Button
-        icon="pi pi-expand"
+        icon="pi pi-refresh"
         severity="secondary"
         text
         rounded
         size="small"
         :aria-label="t('table.fit')"
+        :title="t('table.fit')"
         @click="box = full"
       />
+      <!-- Tools of the container (full screen…) -->
+      <slot name="tools" />
     </div>
     <svg
       ref="svg"

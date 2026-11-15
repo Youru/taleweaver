@@ -37,4 +37,14 @@ public class RepositoryContentTests(RepositoryFactory factory) : IClassFixture<R
         state.Encounter!.Node.Should().Be("search-for-the-lair");
         state.Encounter.Combatants.Should().HaveCount(6);
     }
+
+    [Fact]
+    public async Task GetDice_CorePack_NineDiceOfSixFaces()
+    {
+        var dice = await _client.GetFromJsonAsync<Dictionary<string, Die>>("/api/catalog/dice", JsonDefaults.Options, TestContext.Current.CancellationToken);
+
+        dice!.Keys.Should().BeEquivalentTo("purple", "white", "orange", "teal", "red", "green", "grey", "blue", "black");
+        dice.Values.Should().AllSatisfy(d => d.Faces.Should().HaveCount(6));
+        dice["blue"].Faces.Average(f => f.Value).Should().Be(7.5);
+    }
 }

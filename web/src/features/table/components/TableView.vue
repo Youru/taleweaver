@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 import Button from 'primevue/button'
@@ -27,14 +27,29 @@ const props = defineProps<{
   /** Reports are refused right now (a question other than an AI step is pending). Moves are always allowed. */
   locked: boolean
 }>()
-const emit = defineEmits<{ command: [command: EncounterCommand] }>()
+const emit = defineEmits<{ command: [command: EncounterCommand]; duel: [figure: string] }>()
+
+/** Full screen: the whole table (board, selection, figures to place), e.g. on a tablet. */
+const root = useTemplateRef<HTMLElement>('root')
+const fullScreen = ref(false)
+const canFullScreen = typeof document !== 'undefined' && !!document.fullscreenEnabled
+function syncFullScreen() {
+  fullScreen.value = !!root.value && document.fullscreenElement === root.value
+}
+onMounted(() => document.addEventListener('fullscreenchange', syncFullScreen))
+onBeforeUnmount(() => document.removeEventListener('fullscreenchange', syncFullScreen))
+async function toggleFullScreen() {
+  if (document.fullscreenElement) await document.exitFullscreen()
+  else await root.value?.requestFullscreen()
+}
 
 const { t } = useI18n()
 const { language } = storeToRefs(usePreferences())
 const pieces = useBoardPieces()
 const layout = computed(() => boardLayout(props.node, props.encounter, pieces.data.value))
 
-const selected = ref<Selection | null>(null)
+/** What is selected on the table; shared with the page (e.g. a combatant picked in a list). */
+const selected = defineModel<Selection | null>('selected', { default: null })
 // Forget a selection that left the board (defeated, token removed, area revealed).
 watch(layout, (now) => {
   const s = selected.value
@@ -52,6 +67,35 @@ const selectedUnplaced = computed(() =>
   selected.value?.kind === 'figure' ? layout.value.unplacedFigures.find((f) => f.id === selected.value?.id) : undefined,
 )
 
+const canvas = useTemplateRef<InstanceType<typeof BoardCanvas>>('canvas')
+
+/** A figure "to place" dragged from its button onto the board (works with a finger too). */
+const placing = ref<{ id: string; name: string; x: number; y: number; moved: boolean } | null>(null)
+
+function startPlacing(event: PointerEvent, figure: { id: string; name: string }) {
+  if (event.pointerType === 'mouse' && event.button !== 0) return
+  event.preventDefault()
+  const start = { x: event.clientX, y: event.clientY }
+  placing.value = { ...figure, ...start, moved: false }
+  const onMove = (e: PointerEvent) => {
+    if (!placing.value) return
+    const moved = placing.value.moved || Math.hypot(e.clientX - start.x, e.clientY - start.y) > 6
+    placing.value = { ...placing.value, x: e.clientX, y: e.clientY, moved }
+  }
+  const onUp = (e: PointerEvent) => {
+    window.removeEventListener('pointermove', onMove)
+    window.removeEventListener('pointerup', onUp)
+    const current = placing.value
+    placing.value = null
+    if (!current) return
+    const cell = current.moved ? canvas.value?.cellAtClient(e.clientX, e.clientY) : null
+    selected.value = { kind: 'figure', id: current.id }
+    if (cell) move(current.id, cell)
+  }
+  window.addEventListener('pointermove', onMove)
+  window.addEventListener('pointerup', onUp)
+}
+
 function move(figure: string, to: Cell) {
   emit('command', { type: 'move', figure, to })
 }
@@ -64,12 +108,13 @@ function tap(cell: Cell) {
 </script>
 
 <template>
-  <div class="table">
+  <div ref="root" class="table">
     <div class="stage">
       <Skeleton v-if="pieces.isPending.value" height="100%" />
       <Message v-else-if="pieces.isError.value" severity="warn">{{ t('table.unavailable') }}</Message>
       <BoardCanvas
         v-else
+        ref="canvas"
         class="board"
         :layout="layout"
         :selected="selected"
@@ -77,7 +122,21 @@ function tap(cell: Cell) {
         @select="selected = $event"
         @move="move"
         @tap="tap"
-      />
+      >
+        <template #tools>
+          <Button
+            v-if="canFullScreen"
+            :icon="fullScreen ? 'pi pi-window-minimize' : 'pi pi-window-maximize'"
+            severity="secondary"
+            text
+            rounded
+            size="small"
+            :aria-label="fullScreen ? t('table.exitFullScreen') : t('table.fullScreen')"
+            :title="fullScreen ? t('table.exitFullScreen') : t('table.fullScreen')"
+            @click="toggleFullScreen"
+          />
+        </template>
+      </BoardCanvas>
       <TableSelection
         v-if="selected"
         class="overlay"
@@ -88,6 +147,7 @@ function tap(cell: Cell) {
         :cards="cards"
         :locked="locked"
         @command="emit('command', $event)"
+        @duel="emit('duel', $event)"
         @close="selected = null"
       />
     </div>
@@ -103,7 +163,9 @@ function tap(cell: Cell) {
           size="small"
           :severity="figure.kind === 'adventurer' ? 'info' : 'warn'"
           :outlined="selected?.id !== figure.id"
-          @click="selected = { kind: 'figure', id: figure.id }"
+          class="to-place"
+          @pointerdown="startPlacing($event, figure)"
+          @keydown.enter="selected = { kind: 'figure', id: figure.id }"
         />
       </div>
       <div v-if="layout.unplacedTokens.length" class="unplaced">
@@ -111,10 +173,22 @@ function tap(cell: Cell) {
         <Tag v-for="tk in layout.unplacedTokens" :key="tk.id" :value="tk.key" severity="info" />
       </div>
     </div>
+    <div
+      v-if="placing?.moved"
+      class="ghost"
+      :style="{ left: `${placing.x}px`, top: `${placing.y}px` }"
+      aria-hidden="true"
+    >
+      {{ placing.name }}
+    </div>
   </div>
 </template>
 
 <style scoped>
+.table:fullscreen {
+  padding: 0.75rem;
+  background: var(--p-content-background);
+}
 .table {
   display: flex;
   flex-direction: column;
@@ -151,6 +225,22 @@ function tap(cell: Cell) {
   align-items: center;
   font-size: 0.85rem;
   color: var(--p-text-muted-color);
+}
+.to-place {
+  touch-action: none;
+  cursor: grab;
+}
+.ghost {
+  position: fixed;
+  z-index: 10;
+  transform: translate(-50%, -50%);
+  padding: 0.3rem 0.7rem;
+  border-radius: 1rem;
+  background: var(--p-primary-color);
+  color: var(--p-primary-contrast-color);
+  font-weight: 600;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.35);
 }
 .hint {
   margin: 0;

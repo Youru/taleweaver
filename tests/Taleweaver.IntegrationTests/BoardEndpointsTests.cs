@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using Taleweaver.Api.Common;
+using Taleweaver.Api.Content;
 using Taleweaver.Api.Features.Packs;
 
 namespace Taleweaver.IntegrationTests;
@@ -18,6 +19,16 @@ public class BoardEndpointsTests(HomebrewFactory factory) : IClassFixture<Homebr
         pieces!.Tiles["hb:tile/meadow"].Should().Be(new GetBoardPieces.TilePiece("Meadow", 6, 6, "assets/hb/pixel.png"));
         pieces.Tokens.Should().ContainKey("hb:token/objective");
         pieces.Figures["brute"].Image.Should().Be("assets/hb/pixel.png");
+    }
+
+    [Fact]
+    public async Task GetDice_HomebrewContent_ReturnsEachDieWithItsFaces()
+    {
+        var dice = await _client.GetFromJsonAsync<Dictionary<string, Die>>("/api/catalog/dice", JsonDefaults.Options, TestContext.Current.CancellationToken);
+
+        dice!.Keys.Should().BeEquivalentTo("white", "black");
+        dice["white"].Faces.Should().HaveCount(6).And.Contain(new DieFace(7, Shield: 2, Book: 1, Star: 1));
+        dice["black"].Faces.Should().ContainSingle(f => f.Skull);
     }
 
     [Fact]

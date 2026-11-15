@@ -1,31 +1,46 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 import Button from 'primevue/button'
 import Message from 'primevue/message'
 import ProgressSpinner from 'primevue/progressspinner'
+import Tab from 'primevue/tab'
+import TabList from 'primevue/tablist'
+import TabPanel from 'primevue/tabpanel'
+import TabPanels from 'primevue/tabpanels'
+import Tabs from 'primevue/tabs'
 import { useCombatants } from '@/features/catalog'
+import { DuelPanel } from '@/features/duel'
 import { useScenario } from '@/features/scenarios'
-import { TableView } from '@/features/table'
+import { TableView, type Selection } from '@/features/table'
 import { ApiError } from '@/shared/api/http'
 import { pick } from '@/shared/lib/localized'
 import { usePreferences } from '@/shared/lib/preferences'
 import { useGame, useGameCommand } from '../api/queries'
 import type { Answer, EncounterCommand } from '../api/types'
-import EncounterPanel from '../components/EncounterPanel.vue'
+import CombatantList from '../components/encounter/CombatantList.vue'
+import EncounterBar from '../components/encounter/EncounterBar.vue'
+import EncounterGoals from '../components/encounter/EncounterGoals.vue'
+import TurnCard from '../components/encounter/TurnCard.vue'
 import GameJournal from '../components/GameJournal.vue'
 import PromptPanel from '../components/PromptPanel.vue'
 
+/**
+ * The GM's view. In an encounter: the table in the middle, and beside it the turn being played
+ * (always in view) above tabs for the combatants, the journal and the encounter's goals.
+ * Between encounters: the story, read like a book, with its question.
+ */
 const props = defineProps<{ id: string }>()
 
 const { t } = useI18n()
 const { language } = storeToRefs(usePreferences())
 const game = useGame(() => props.id)
 const state = computed(() => game.data.value?.state)
+const encounter = computed(() => state.value?.encounter)
 const scenario = useScenario(() => game.data.value?.scenario)
-const node = computed(() => scenario.data.value?.nodes.find((n) => n.id === state.value?.encounter?.node))
-const cards = useCombatants(() => state.value?.encounter?.combatants.map((c) => c.card) ?? [])
+const node = computed(() => scenario.data.value?.nodes.find((n) => n.id === encounter.value?.node))
+const cards = useCombatants(() => encounter.value?.combatants.map((c) => c.card) ?? [])
 
 const command = useGameCommand(() => props.id)
 const commandError = computed(() => {
@@ -45,6 +60,11 @@ function encounterCommand(value: EncounterCommand) {
 const reportsLocked = computed(
   () => command.isPending.value || (!!state.value?.prompt && state.value.prompt.kind !== 'aiCondition'),
 )
+
+const selected = ref<Selection | null>(null)
+const tab = ref('combatants')
+/** The figure a duel was opened with: the duel then takes the place of the tabs. */
+const duel = ref<string | null>(null)
 </script>
 
 <template>
@@ -56,13 +76,13 @@ const reportsLocked = computed(
       {{ t('common.error', { message: game.error.value?.message ?? '' }) }}
     </Message>
     <template v-else-if="state && game.data.value">
-      <header class="bar">
+      <header class="top">
         <h1>{{ pick(scenario.data.value?.title, language) || game.data.value.scenario }}</h1>
         <span>{{ t('play.gold', { gold: state.campaign.gold }) }}</span>
         <span v-for="adventurer in state.campaign.party" :key="adventurer.name">
           {{ adventurer.name }} · {{ t('play.xp', { xp: adventurer.xp }) }}
         </span>
-        <RouterLink v-if="state.encounter" :to="{ name: 'table', params: { id } }" target="_blank">
+        <RouterLink v-if="encounter" :to="{ name: 'table', params: { id } }" target="_blank">
           <Button icon="pi pi-external-link" :label="t('table.openTable')" severity="secondary" text />
         </RouterLink>
         <Button
@@ -76,41 +96,92 @@ const reportsLocked = computed(
       </header>
       <Message v-if="commandError" severity="error" closable @close="command.reset()">{{ commandError }}</Message>
 
-      <div class="columns">
-        <div class="left">
+      <!-- Encounter: table in the middle, turn and tabs beside it -->
+      <template v-if="encounter">
+        <EncounterBar
+          :encounter="encounter"
+          :node="node"
+          :disabled="!!state.prompt || command.isPending.value"
+          @next-turn="encounterCommand({ type: 'nextTurn' })"
+        />
+        <div class="encounter">
           <TableView
-            v-if="state.encounter"
+            v-model:selected="selected"
             class="table"
             :node="node"
-            :encounter="state.encounter"
+            :encounter="encounter"
             :cards="cards"
             :locked="reportsLocked"
             @command="encounterCommand"
+            @duel="duel = $event"
           />
-          <GameJournal :log="state.log" class="journal" />
+          <aside class="side" :class="{ dueling: duel }">
+            <TurnCard
+              class="turn"
+              :encounter="encounter"
+              :log="state.log"
+              :prompt="state.prompt"
+              :cards="cards"
+              :pending="command.isPending.value"
+              @answer="answer"
+              @duel="duel = $event"
+            />
+            <DuelPanel
+              v-if="duel"
+              class="duel"
+              :game="id"
+              :encounter="encounter"
+              :cards="cards"
+              :from="duel"
+              :locked="reportsLocked"
+              @command="encounterCommand"
+              @close="duel = null"
+            />
+            <Tabs v-else v-model:value="tab" class="tabs">
+              <TabList>
+                <Tab value="combatants">{{ t('play.tabCombatants') }}</Tab>
+                <Tab value="journal">{{ t('play.journal') }}</Tab>
+                <Tab value="goals">{{ t('play.tabEncounter') }}</Tab>
+              </TabList>
+              <TabPanels>
+                <TabPanel value="combatants">
+                  <CombatantList
+                    :encounter="encounter"
+                    :cards="cards"
+                    :selected="selected?.kind === 'figure' ? selected.id : undefined"
+                    @select="selected = { kind: 'figure', id: $event }"
+                  />
+                </TabPanel>
+                <TabPanel value="journal">
+                  <GameJournal :log="state.log" class="journal" />
+                </TabPanel>
+                <TabPanel value="goals">
+                  <EncounterGoals
+                    :encounter="encounter"
+                    :node="node"
+                    :locked="reportsLocked"
+                    @command="encounterCommand"
+                  />
+                </TabPanel>
+              </TabPanels>
+            </Tabs>
+          </aside>
         </div>
-        <div class="right">
-          <PromptPanel
-            v-if="state.prompt"
-            :key="state.log.length"
-            :prompt="state.prompt"
-            :pending="command.isPending.value"
-            @answer="answer"
-          />
-          <Message v-if="state.status === 'Finished'" severity="success">{{
-            t('play.finished', { ending: state.ending ?? '' })
-          }}</Message>
-          <EncounterPanel
-            v-if="state.encounter"
-            :encounter="state.encounter"
-            :node="node"
-            :cards="cards"
-            :blocked="!!state.prompt"
-            :ai-question="state.prompt?.kind === 'aiCondition'"
-            :pending="command.isPending.value"
-            @command="encounterCommand"
-          />
-        </div>
+      </template>
+
+      <!-- Between encounters: the story -->
+      <div v-else class="story">
+        <GameJournal :log="state.log" class="journal" />
+        <PromptPanel
+          v-if="state.prompt"
+          :key="state.log.length"
+          :prompt="state.prompt"
+          :pending="command.isPending.value"
+          @answer="answer"
+        />
+        <Message v-if="state.status === 'Finished'" severity="success">
+          {{ t('play.finished', { ending: state.ending ?? '' }) }}
+        </Message>
       </div>
     </template>
   </main>
@@ -120,7 +191,7 @@ const reportsLocked = computed(
 .play {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.6rem;
   height: calc(100vh - 4.5rem);
   padding: 0 1rem 1rem;
 }
@@ -129,57 +200,97 @@ const reportsLocked = computed(
   place-items: center;
   flex: 1;
 }
-.bar {
+.top {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 1rem;
+  gap: 0.4rem 1rem;
 }
-.bar h1 {
+.top h1 {
   margin: 0;
-  font-size: 1.4rem;
+  font-size: 1.3rem;
   flex: 1;
 }
-.columns {
+.encounter {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(22rem, 28rem);
   gap: 1rem;
   flex: 1;
   min-height: 0;
-}
-.left,
-.right {
-  min-height: 0;
-  overflow-y: auto;
-}
-.left {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
 }
 .table {
-  flex: 0 0 auto;
-  height: 58vh;
+  min-height: 0;
 }
-.journal {
-  flex: 1 0 14rem;
-}
-.right {
+.side {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+  min-height: 0;
 }
-@media (max-width: 900px) {
+.turn {
+  flex: 0 1 auto;
+  max-height: 50%;
+  padding: 0.75rem;
+  border: 1px solid var(--p-content-border-color);
+  border-radius: var(--p-content-border-radius);
+}
+.dueling .turn {
+  max-height: 30%;
+}
+.duel {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0.75rem;
+  border: 1px solid var(--p-content-border-color);
+  border-radius: var(--p-content-border-radius);
+}
+.tabs {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.tabs :deep(.p-tabpanels) {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0.75rem 0 0;
+}
+.tabs :deep(.p-tablist-tab-list) {
+  background: transparent;
+}
+.journal {
+  height: 100%;
+}
+.story {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  flex: 1;
+  min-height: 0;
+  width: min(52rem, 100%);
+  margin: 0 auto;
+}
+.story .journal {
+  flex: 1;
+  min-height: 0;
+}
+@media (max-width: 1000px) {
   .play {
     height: auto;
   }
-  .columns {
+  .encounter {
     grid-template-columns: 1fr;
   }
-  .right {
-    order: -1;
+  .table {
+    /* Boards are wider than tall: no more height than the width needs. */
+    height: min(60vh, 80vw);
   }
-  .left {
+  .turn {
+    max-height: none;
+  }
+  .tabs :deep(.p-tabpanels) {
     max-height: 60vh;
   }
 }

@@ -28,13 +28,22 @@ cd taleweaver/web && npm install && npm run dev
 - Dans l'app de bureau Claude, `.claude/launch.json` déclare `taleweaver-api` et `taleweaver-web`.
 - Pages :
   - accueil : scénarios et parties sauvegardées ;
-  - partie : carte, journal, question en cours, rencontre (piste d'initiative, combattants, jetons, conditions de fin).
+  - partie, en rencontre (vue MJ, pensée PC d'abord) : barre de la rencontre (round, Urgence, piste d'initiative, « Tour suivant »), la table au centre, et à droite le **tour en cours** (toujours visible : à qui c'est, instructions d'IA gardées jusqu'au tour suivant, question en attente) au-dessus d'onglets Combattants (liste compacte ; une ligne sélectionne la figurine et ouvre ses actions sur la table) / Journal / Rencontre (conditions de fin, jetons, règles spéciales). Sous 1000 px de large, tout passe en une colonne ;
+  - partie, hors rencontre : le récit en colonne de lecture, avec sa question.
 - **Table** (`src/features/table/`), la carte, utilisable seule sur `/games/{id}/table` (bouton « Table seule » ; elle se recharge toutes les 2 s pour suivre la partie jouée depuis la vue MJ) :
   - `BoardCanvas` dessine (images locales `/api/assets/…`) et traduit les gestes : sélectionner, glisser une figurine, déplacer la vue, zoomer (molette, boutons) ;
   - `TableSelection` propose les actions de ce qui est sélectionné : dégâts, effets, Vaincre ; Activer un jeton ; Révéler une zone cachée ;
   - `TableView` assemble les deux et ne parle qu'en commandes de rencontre ; `lib/layout.ts` calcule ce qu'on voit (fonction pure, testée), `lib/viewport.ts` le zoom ;
-  - déplacements facultatifs : glisser la figurine, ou la sélectionner puis toucher une case (pratique sur tablette) ; ce qui n'a pas de case est listé « À placer » ;
+  - déplacements facultatifs : glisser la figurine, ou la sélectionner puis toucher une case (pratique sur tablette) ; ce qui n'a pas de case est listé « À placer » et se glisse de la liste vers la carte ;
+  - zoom : molette, boutons, ou deux doigts sur tablette ; bouton plein écran ;
   - brouillard : les tuiles d'une zone cachée sont grisées, et ce qui s'y trouve est masqué jusqu'à « Révéler la zone ».
+- **Affrontement** (`src/features/duel/`), une attaque ou un sort avec les dés physiques de la table, ouvert par « Attaquer » sur une figurine sélectionnée (ou « Résoudre l'attaque » quand l'IA dit d'attaquer) ; il prend la place des onglets, ou un tiroir sur la table seule :
+  - attaquant et cible (adversaires les plus proches d'abord), dés de combat, Empower, tenaille, allié ou terrain gênant, bonus, perforant, Défense, Armure, esquive ;
+  - **chances** avant le jet (toucher, blesser, dégâts moyens, mise hors de combat), calculées sur toutes les faces des dés (`/api/catalog/dice`) ; un interrupteur les masque pour les tables qui préfèrent ne pas savoir (préférence gardée) ;
+  - le MJ saisit le total et les symboles ; l'appli déroule les étapes du livre (écart, symboles dépensés pour le plus de dégâts, Armure, dégâts finaux) et inflige les dégâts au combattant en un clic ;
+  - sort ou capacité type sort : Force (dé de lancer + X, livres du dé noir, crâne) contre le jet de Conviction ;
+  - les dés, la Défense et l'Armure des aventuriers ne sont pas suivis par la partie : l'appli garde les dernières valeurs saisies, par partie, dans le navigateur ;
+  - le calcul (`lib/attack.ts`, `lib/spell.ts`) est testé sur les exemples chiffrés du livre de règles (p. 45, 54, 55, 65).
 - ⚠️ Les images appartiennent à Succubus Publishing : l'API les lit sur le disque local et ne doit jamais être exposée en ligne avec elles.
 - Les textes de l'interface et la mise en forme du journal sont dans `src/shared/i18n/messages.ts`. Le contenu du jeu garde ses propres textes `{ en, fr }`.
 - Vérifications :

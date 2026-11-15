@@ -9,7 +9,24 @@ export interface Combatant {
   kind: string
   lootLevel?: string
   activation?: string
-  stats?: { health?: number | '*'; defense?: number | '*'; movement?: number | '*'; armor?: number | '*' }
+  stats?: {
+    health?: number | '*'
+    defense?: number | '*'
+    movement?: number | '*'
+    armor?: number | '*'
+    /** Die colours ("teal"), or "*" when another card gives them. */
+    combatDice?: string[]
+    convictionDice?: string[]
+    castingDie?: string | null
+  }
+  passives?: { name: LocalizedText; text: LocalizedText }[]
+  symbolAbilities?: SymbolAbilityCard[]
+}
+
+/** A symbol ability as printed: its cost ("book", "shield×2", "*star" for an Esper's symbols) and effect. */
+export interface SymbolAbilityCard {
+  cost: { symbol: string }[]
+  effect: LocalizedText
 }
 
 export interface Effect {

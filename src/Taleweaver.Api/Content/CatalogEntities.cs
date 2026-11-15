@@ -77,6 +77,21 @@ public sealed record Tile
 
 public sealed record TileSize(int W, int H);
 
+/// <summary>A custom die (by colour, "white", "black"…): its six faces.</summary>
+public sealed record Die
+{
+    public required string Id { get; init; }
+
+    public required LocalizedText Name { get; init; }
+
+    public string? Image { get; init; }
+
+    public IReadOnlyList<DieFace> Faces { get; init; } = [];
+}
+
+/// <summary>One face: the number rolled and the symbols it shows. The black die only shows symbols, or the skull.</summary>
+public sealed record DieFace(int Value, int Shield = 0, int Book = 0, int Star = 0, bool Skull = false);
+
 public sealed record TokenType
 {
     public required string Id { get; init; }

@@ -45,6 +45,8 @@ public sealed record Pack
 
     public IReadOnlyList<InitiativeCard> InitiativeCards { get; init; } = [];
 
+    public IReadOnlyList<Die> Dice { get; init; } = [];
+
     public PackRules? Rules { get; init; }
 
     public string Id => Manifest.Id;

@@ -104,6 +104,7 @@ public sealed class JsonContentStore(IOptions<ContentOptions> options, IHostEnvi
         var tiles = await File<TilesFile>("tiles");
         var tokens = await File<TokensFile>("tokens");
         var initiative = await File<InitiativeFile>("initiative");
+        var dice = await File<DiceFile>("dice");
         return new Pack
         {
             Manifest = manifest,
@@ -113,6 +114,7 @@ public sealed class JsonContentStore(IOptions<ContentOptions> options, IHostEnvi
             Tiles = tiles?.Tiles ?? [],
             Tokens = tokens?.Tokens ?? [],
             InitiativeCards = initiative?.InitiativeCards ?? [],
+            Dice = dice?.Dice ?? [],
             Rules = await File<PackRules>("rules"),
         };
     }
@@ -161,4 +163,6 @@ public sealed class JsonContentStore(IOptions<ContentOptions> options, IHostEnvi
     private sealed record TokensFile(IReadOnlyList<TokenType> Tokens);
 
     private sealed record InitiativeFile(IReadOnlyList<InitiativeCard> InitiativeCards);
+
+    private sealed record DiceFile(IReadOnlyList<Die> Dice);
 }

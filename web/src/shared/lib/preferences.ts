@@ -3,6 +3,7 @@ import { ref, watch } from 'vue'
 import type { Language } from './localized'
 
 const storageKey = 'taleweaver.language'
+const oddsKey = 'taleweaver.showOdds'
 
 function initialLanguage(): Language {
   try {
@@ -12,6 +13,14 @@ function initialLanguage(): Language {
     // storage unavailable: default below
   }
   return 'fr'
+}
+
+function initialShowOdds(): boolean {
+  try {
+    return localStorage.getItem(oddsKey) !== 'false'
+  } catch {
+    return true
+  }
 }
 
 /** Reader preferences (client state only). */
@@ -24,5 +33,14 @@ export const usePreferences = defineStore('preferences', () => {
       // not persisted: fine
     }
   })
-  return { language }
+  /** Show the odds of an attack or spell before the dice are rolled (some tables prefer not to know). */
+  const showOdds = ref(initialShowOdds())
+  watch(showOdds, (value) => {
+    try {
+      localStorage.setItem(oddsKey, String(value))
+    } catch {
+      // not persisted: fine
+    }
+  })
+  return { language, showOdds }
 })
