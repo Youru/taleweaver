@@ -3,6 +3,7 @@
 // No server needed: the images are read from the repository. Usage (from taleweaver/web):
 //   npm run map-preview -- <scenario.json> [output folder]      one PNG per encounter (and per diagram)
 //   npm run map-preview -- --tiles [output folder]              contact sheets of the 72 tiles, with their theme
+//   npm run map-preview -- --grid [output folder]               the tiles 4 by 4, large, squares numbered (to read the terrain)
 import { mkdirSync, readFileSync, readdirSync, writeFileSync, existsSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -112,6 +113,30 @@ function tilesSheets() {
   return sheets
 }
 
+/** The tiles four by four, large, with their squares numbered: to read the terrain printed on them. */
+function gridSheets() {
+  const all = Object.values(tiles).sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }))
+  const size = 540
+  const cell = size / TILE
+  const sheets = []
+  for (let i = 0; i < all.length; i += 4) {
+    const cells = all
+      .slice(i, i + 4)
+      .map((t) => {
+        let grid = ''
+        for (let k = 0; k <= TILE; k++)
+          grid += `<line x1="${k * cell}" y1="0" x2="${k * cell}" y2="${size}"/><line x1="0" y1="${k * cell}" x2="${size}" y2="${k * cell}"/>`
+        let labels = ''
+        for (let k = 0; k < TILE; k++)
+          labels += `<text x="${k * cell + cell / 2}" y="-6">${k}</text><text x="-14" y="${k * cell + cell / 2 + 5}">${k}</text>`
+        return `<figure><figcaption>${esc(t.name)} · ${esc(t.theme ?? '')}</figcaption><svg width="${size + 24}" height="${size + 24}" viewBox="-22 -22 ${size + 24} ${size + 24}"><image href="${url(t.image)}" width="${size}" height="${size}" preserveAspectRatio="none"/><g stroke="rgba(255,255,255,0.55)" stroke-width="1">${grid}</g><g fill="#fde047" font-size="14" font-family="Consolas" text-anchor="middle">${labels}</g></svg></figure>`
+      })
+      .join('')
+    sheets.push(cells)
+  }
+  return sheets
+}
+
 const out = resolve(
   args.find((a, i) => i > 0 && !a.startsWith('--')) ?? (args[0] === '--tiles' ? 'map-preview' : 'map-preview'),
 )
@@ -122,6 +147,13 @@ if (args[0] === '--tiles') {
     pages.push({
       name: `tiles-${i + 1}`,
       html: `<style>body{margin:0;background:#111;color:#fff;font:14px Segoe UI}main{display:grid;grid-template-columns:repeat(6,220px);gap:8px;padding:8px}figure{margin:0}img{width:220px;height:220px;display:block}figcaption{padding:2px 0}</style><main>${cells}</main>`,
+    }),
+  )
+} else if (args[0] === '--grid') {
+  gridSheets().forEach((cells, i) =>
+    pages.push({
+      name: `grid-${String(i + 1).padStart(2, '0')}`,
+      html: `<style>body{margin:0;background:#111;color:#fff;font:16px Segoe UI}main{display:grid;grid-template-columns:repeat(2,564px);gap:10px;padding:8px}figure{margin:0}</style><main>${cells}</main>`,
     }),
   )
 } else if (args[0]) {
