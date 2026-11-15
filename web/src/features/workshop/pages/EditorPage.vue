@@ -90,6 +90,14 @@ function removeSelected() {
   })
 }
 
+/** The scenario on paper (saved first: the print page reads the saved copy). */
+function printOut(node?: string) {
+  const go = () =>
+    void router.push({ name: 'workshop-print', query: node ? { scenario: id.value, node } : { scenario: id.value } })
+  if (dirty.value) saveNow(go)
+  else go()
+}
+
 // "Test": save, then start a game of this scenario
 const testing = ref<{ id: string; title: string } | null>(null)
 function test() {
@@ -143,6 +151,13 @@ function started(game: GameView) {
           @click="saveNow()"
         />
         <Button
+          :label="t('workshop.print.print')"
+          icon="pi pi-print"
+          severity="secondary"
+          outlined
+          @click="printOut()"
+        />
+        <Button
           :label="t('workshop.test')"
           icon="pi pi-play"
           severity="contrast"
@@ -184,6 +199,7 @@ function started(game: GameView) {
             @remove="removeSelected"
             @start="editor.setStart(node!.id)"
             @map="mapping = node!.id"
+            @print="printOut(node!.id)"
           />
           <ScenarioSheet
             v-else

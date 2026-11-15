@@ -11,6 +11,11 @@ export const router = createRouter({
       component: () => import('@/features/workshop/pages/WorkshopPage.vue'),
     },
     {
+      path: '/workshop/print',
+      name: 'workshop-print',
+      component: () => import('@/features/workshop/pages/PrintPage.vue'),
+    },
+    {
       path: '/workshop/:name',
       name: 'workshop-editor',
       component: () => import('@/features/workshop/pages/EditorPage.vue'),

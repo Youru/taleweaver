@@ -42,6 +42,10 @@ function freeName(title: string): string {
   return name
 }
 
+function printOut(id: string) {
+  void router.push({ name: 'workshop-print', query: { scenario: id } })
+}
+
 function open(name: string) {
   void router.push({ name: 'workshop-editor', params: { name } })
 }
@@ -117,6 +121,14 @@ const error = computed(() => {
             <template #footer>
               <div class="actions">
                 <Button :label="t('workshop.open')" icon="pi pi-pencil" @click="open(nameOf(scenario.id))" />
+                <span class="spacer" />
+                <Button
+                  icon="pi pi-print"
+                  severity="secondary"
+                  text
+                  :aria-label="t('workshop.print.printScenario', { title: pick(scenario.title, language) })"
+                  @click="printOut(scenario.id)"
+                />
                 <Button
                   icon="pi pi-trash"
                   severity="danger"
@@ -136,13 +148,22 @@ const error = computed(() => {
             <template #title>{{ pick(scenario.title, language) }}</template>
             <template #subtitle>{{ scenario.kind }} · {{ t('workshop.readOnly') }}</template>
             <template #footer>
-              <Button
-                :label="t('workshop.duplicate')"
-                icon="pi pi-copy"
-                severity="secondary"
-                :loading="save.isPending.value"
-                @click="duplicate(scenario)"
-              />
+              <div class="actions">
+                <Button
+                  :label="t('workshop.duplicate')"
+                  icon="pi pi-copy"
+                  severity="secondary"
+                  :loading="save.isPending.value"
+                  @click="duplicate(scenario)"
+                />
+                <Button
+                  icon="pi pi-print"
+                  severity="secondary"
+                  text
+                  :aria-label="t('workshop.print.printScenario', { title: pick(scenario.title, language) })"
+                  @click="printOut(scenario.id)"
+                />
+              </div>
             </template>
           </Card>
         </div>
@@ -189,6 +210,10 @@ h1 {
 .actions {
   display: flex;
   justify-content: space-between;
+  align-items: center;
+}
+.spacer {
+  flex: 1;
 }
 .form {
   display: flex;

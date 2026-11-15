@@ -34,7 +34,7 @@ const props = defineProps<{
   issues: ScenarioIssue[]
   pieces?: BoardPieces
 }>()
-const emit = defineEmits<{ change: [node: DraftNode]; remove: []; start: []; map: [] }>()
+const emit = defineEmits<{ change: [node: DraftNode]; remove: []; start: []; map: []; print: [] }>()
 
 const { t } = useI18n()
 const { language } = storeToRefs(usePreferences())
@@ -286,6 +286,15 @@ const untouched = computed(() =>
               {{ t('workshop.map.countEnemies', board.setup.combatants.length) }}
             </span>
             <Button :label="t('workshop.map.open')" icon="pi pi-pencil" size="small" @click="emit('map')" />
+            <Button
+              icon="pi pi-print"
+              size="small"
+              severity="secondary"
+              text
+              :aria-label="t('workshop.print.encounterPage')"
+              :title="t('workshop.print.encounterPage')"
+              @click="emit('print')"
+            />
           </div>
           <div class="row">
             <div class="field">

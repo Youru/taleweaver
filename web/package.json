@@ -11,7 +11,8 @@
     "lint": "eslint .",
     "format": "prettier --write src e2e",
     "test": "vitest run",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "pdf": "node scripts/print-pdf.mjs"
   },
   "dependencies": {
     "@primeuix/themes": "~2.0.3",
