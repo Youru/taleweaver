@@ -99,7 +99,10 @@ const nextLabel = (next: string | undefined) => {
           <h2>{{ t('workshop.print.endConditions') }}</h2>
           <div v-for="(end, i) in sheet.ends" :key="i" class="end">
             <h3>{{ end.kind === 'win' ? t('workshop.print.win') : t('workshop.print.lose') }}</h3>
-            <p>{{ end.text }}</p>
+            <p v-if="end.later" class="activation">{{ t('workshop.print.later') }}</p>
+            <p :class="{ veiled: veiled && end.later }" :style="veiled && end.later ? veil : undefined">
+              {{ end.text }}
+            </p>
             <div v-if="end.reward || end.next" class="reward">
               <strong>{{ t('workshop.print.reward') }}</strong>
               <p v-if="end.reward" :class="{ veiled }" :style="veiled ? veil : undefined">{{ end.reward }}</p>
@@ -115,6 +118,13 @@ const nextLabel = (next: string | undefined) => {
           <div v-for="(rule, i) in sheet.rules" :key="i" class="rule">
             <h3>{{ rule.name }}</h3>
             <p>{{ rule.text }}</p>
+          </div>
+        </section>
+        <section v-if="sheet.hiddenRules.length">
+          <h2>{{ t('workshop.print.hiddenRules') }}</h2>
+          <div v-for="(rule, i) in sheet.hiddenRules" :key="i" class="rule">
+            <h3>{{ rule.name }}</h3>
+            <p :class="{ veiled }" :style="veiled ? veil : undefined">{{ rule.text }}</p>
           </div>
         </section>
       </div>

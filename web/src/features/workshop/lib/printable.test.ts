@@ -26,7 +26,11 @@ const scenario: DraftScenario = {
       id: 'fight',
       type: 'encounter',
       name: { en: 'Ambush' },
-      endConditions: [{ id: 'win', kind: 'win', text: { en: 'All dead' }, reward: { en: '10 gold' }, next: 'after' }],
+      endConditions: [
+        { id: 'win', kind: 'win', text: { en: 'All dead' }, reward: { en: '10 gold' }, next: 'after' },
+        { id: 'late', kind: 'win', active: false, text: { en: 'Sealed' } },
+      ],
+      hiddenRules: [{ id: 'cracks', name: { en: 'Cracks' }, text: { en: 'The seal cracks.' } }],
       map: {
         tiles: [{ ref: 'um1:tile/um1', x: 0, y: 0 }],
         tokens: [
@@ -61,8 +65,12 @@ describe('the printed encounter', () => {
     ])
   })
 
-  it('gives the end conditions their reward and where they lead', () => {
-    expect(sheet.ends).toEqual([{ kind: 'win', text: 'All dead', reward: '10 gold', next: 'After' }])
+  it('gives the end conditions their reward and where they lead, and prints the hidden rules', () => {
+    expect(sheet.ends).toEqual([
+      { kind: 'win', text: 'All dead', reward: '10 gold', next: 'After' },
+      { kind: 'win', text: 'Sealed', reward: '', next: undefined, later: true },
+    ])
+    expect(sheet.hiddenRules).toEqual([{ name: 'Cracks', text: 'The seal cracks.' }])
   })
 
   it('prints the hidden text of the tokens that have one', () => {

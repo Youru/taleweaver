@@ -19,6 +19,8 @@ export interface EncounterSheet {
   setup: SetupLine[]
   ends: PrintedEnd[]
   rules: { name: string; text: string }[]
+  /** Curiously Hidden Rules: read only when an event says so (printed under the red filter). */
+  hiddenRules: { name: string; text: string }[]
   hidden: HiddenSection[]
 }
 
@@ -34,6 +36,8 @@ export interface PrintedEnd {
   reward: string
   /** Where it leads: a step's caption, or an ending ("@victory"…). */
   next?: string
+  /** Only in play once an event adds it: printed under the red filter. */
+  later?: boolean
 }
 
 export interface HiddenSection {
@@ -107,14 +111,13 @@ export function encounterSheet(
     const step = scenario.nodes.find((n) => n.id === target)
     return step ? captionOf(step, language) : target
   }
-  const ends = (node.endConditions ?? [])
-    .filter((e) => e.active !== false)
-    .map((e) => ({
-      kind: e.kind === 'lose' ? ('lose' as const) : ('win' as const),
-      text: text(e.text),
-      reward: text(e.reward),
-      next: caption(e.next),
-    }))
+  const ends = (node.endConditions ?? []).map((e) => ({
+    kind: e.kind === 'lose' ? ('lose' as const) : ('win' as const),
+    text: text(e.text),
+    reward: text(e.reward),
+    next: caption(e.next),
+    ...(e.active === false ? { later: true } : {}),
+  }))
 
   const rules = (node.specialRules ?? []).map((r) => ({ name: text(r.name), text: text(r.text) }))
 
@@ -153,6 +156,9 @@ export function encounterSheet(
     setup: lines,
     ends,
     rules,
+    hiddenRules: ((node.hiddenRules as { name?: LocalizedText; text?: LocalizedText }[] | undefined) ?? []).map(
+      (r) => ({ name: text(r.name), text: text(r.text) }),
+    ),
     hidden,
   }
 }
