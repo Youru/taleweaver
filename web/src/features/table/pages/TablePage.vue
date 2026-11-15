@@ -3,11 +3,10 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 import Button from 'primevue/button'
-import Drawer from 'primevue/drawer'
 import Message from 'primevue/message'
 import ProgressSpinner from 'primevue/progressspinner'
 import { useCombatants } from '@/features/catalog'
-import { DuelPanel } from '@/features/duel'
+import { DuelDialog } from '@/features/duel'
 import { EncounterBar, useGame, useGameCommand, type EncounterCommand } from '@/features/games'
 import { useScenario } from '@/features/scenarios'
 import { ApiError } from '@/shared/api/http'
@@ -35,8 +34,14 @@ const commandError = computed(() => {
   return error instanceof ApiError ? error.message : error ? String(error) : null
 })
 
-/** The figure a duel was opened with, shown in a side drawer over the table. */
+/** The duel window, and the figure it opened with. */
 const duel = ref<string | null>(null)
+const dueling = ref(false)
+
+function openDuel(figure: string) {
+  duel.value = figure
+  dueling.value = true
+}
 
 function run(value: EncounterCommand) {
   command.mutate({ kind: 'encounter', command: value })
@@ -68,27 +73,19 @@ function run(value: EncounterCommand) {
         :cards="cards"
         :locked="locked"
         @command="run"
-        @duel="duel = $event"
+        @duel="openDuel"
       />
       <Message v-else severity="info">{{ t('table.noEncounter') }}</Message>
-      <Drawer
-        :visible="!!duel && !!encounter"
-        position="right"
-        :show-close-icon="false"
-        class="duel-drawer"
-        @update:visible="(open: boolean) => !open && (duel = null)"
-      >
-        <DuelPanel
-          v-if="duel && encounter"
-          :game="id"
-          :encounter="encounter"
-          :cards="cards"
-          :from="duel"
-          :locked="locked"
-          @command="run"
-          @close="duel = null"
-        />
-      </Drawer>
+      <DuelDialog
+        v-if="encounter"
+        v-model:open="dueling"
+        :game="id"
+        :encounter="encounter"
+        :cards="cards"
+        :from="duel"
+        :locked="locked"
+        @command="run"
+      />
     </template>
   </main>
 </template>
@@ -116,9 +113,6 @@ h1 {
   margin: 0;
   font-size: 1.3rem;
   flex: 1;
-}
-:global(.duel-drawer) {
-  width: min(30rem, 100vw);
 }
 .view {
   flex: 1;

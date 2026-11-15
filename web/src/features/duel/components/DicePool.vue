@@ -1,17 +1,21 @@
 <script setup lang="ts">
+import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 import { pick } from '@/shared/lib/localized'
 import { usePreferences } from '@/shared/lib/preferences'
 import type { Dice } from '../api/types'
 import { dieColours } from '../lib/dice'
+import { dieIcon } from '../lib/icons'
+import GameIcon from './GameIcon.vue'
 
-/** A pool of dice by colour: tap a die to take it out, a swatch to add one. */
+/** A pool of dice by colour: tap a die to take it out, "+" to pick one to add. */
 const pool = defineModel<string[]>({ required: true })
 const props = defineProps<{ dice: Dice | undefined; label: string; max?: number }>()
 
 const { t } = useI18n()
 const { language } = storeToRefs(usePreferences())
+const adding = ref(false)
 
 function name(colour: string): string {
   return colour === '*' ? t('duel.unknownDie') : pick(props.dice?.[colour]?.name, language.value) || colour
@@ -23,6 +27,7 @@ function remove(index: number) {
 
 function add(colour: string) {
   if (pool.value.length < (props.max ?? 6)) pool.value = [...pool.value, colour]
+  adding.value = false
 }
 </script>
 
@@ -35,26 +40,37 @@ function add(colour: string) {
         :key="index"
         type="button"
         class="die"
-        :class="colour === '*' ? 'unknown' : colour"
+        :class="{ unknown: colour === '*' }"
         :title="name(colour)"
         :aria-label="t('duel.removeDie', { die: name(colour) })"
         @click="remove(index)"
       >
-        {{ colour === '*' ? '?' : '' }}
+        <GameIcon v-if="colour !== '*'" :src="dieIcon(colour)" size="1.9rem" />
+        <span v-else>?</span>
       </button>
-      <span v-if="!pool.length" class="empty">—</span>
+      <button
+        v-if="pool.length < (max ?? 6)"
+        type="button"
+        class="die more"
+        :aria-label="t('duel.addDieMenu')"
+        :aria-expanded="adding"
+        @click="adding = !adding"
+      >
+        <i class="pi pi-plus" />
+      </button>
     </span>
-    <span class="add">
+    <span v-if="adding" class="choices">
       <button
         v-for="colour in dieColours"
         :key="colour"
         type="button"
-        class="swatch"
-        :class="colour"
+        class="die"
         :title="name(colour)"
         :aria-label="t('duel.addDie', { die: name(colour) })"
         @click="add(colour)"
-      />
+      >
+        <GameIcon :src="dieIcon(colour)" size="1.6rem" />
+      </button>
     </span>
   </div>
 </template>
@@ -62,83 +78,47 @@ function add(colour: string) {
 <style scoped>
 .pool {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.35rem 0.6rem;
+  flex-direction: column;
+  gap: 0.3rem;
 }
 .label {
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   color: var(--p-text-muted-color);
-  min-width: 6.5rem;
 }
 .dice,
-.add {
-  display: inline-flex;
+.choices {
+  display: flex;
   flex-wrap: wrap;
-  gap: 0.25rem;
+  align-items: center;
+  gap: 0.3rem;
 }
-.add {
-  margin-left: auto;
+.choices {
+  padding: 0.35rem;
+  border-radius: var(--p-content-border-radius);
+  background: var(--p-content-hover-background);
 }
-.die,
-.swatch {
-  border: 1px solid rgb(0 0 0 / 0.35);
+.die {
+  display: grid;
+  place-items: center;
+  min-width: 2.2rem;
+  min-height: 2.2rem;
+  padding: 0.1rem;
+  border: none;
+  border-radius: 0.4rem;
+  background: transparent;
+  color: var(--p-text-muted-color);
   cursor: pointer;
-  padding: 0;
   font: inherit;
   font-weight: 700;
 }
-.die {
-  width: 1.6rem;
-  height: 1.6rem;
-  border-radius: 0.35rem;
-  color: #fff;
-}
-.swatch {
-  width: 1rem;
-  height: 1rem;
-  border-radius: 0.2rem;
-  opacity: 0.8;
-}
-.swatch:hover {
-  opacity: 1;
-}
 .die:hover {
+  background: var(--p-content-hover-background);
+}
+.dice .die:not(.more):hover {
   outline: 2px solid var(--p-red-500);
 }
-.empty {
-  color: var(--p-text-muted-color);
-}
-.purple {
-  background: #7a3ec2;
-}
-.white {
-  background: #f4f4f4;
-}
-.orange {
-  background: #e85404;
-}
-.teal {
-  background: #00c4b4;
-}
-.red {
-  background: #a3233f;
-}
-.green {
-  background: #97d70b;
-}
-.grey {
-  background: #5b6670;
-}
-.blue {
-  background: #1b45bb;
-}
-.black {
-  background: #2e2a27;
-}
-.unknown {
-  background: transparent;
-  border-style: dashed;
-  color: var(--p-text-muted-color);
+.unknown,
+.more {
+  border: 2px dashed var(--p-content-border-color);
 }
 </style>

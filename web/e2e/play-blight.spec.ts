@@ -139,45 +139,40 @@ test('a GM drags a figure from "to place" onto the board', async ({ page }) => {
   await expect(toPlace).toHaveCount(0)
 })
 
-test('a GM resolves an attack with the duel helper, then a spell', async ({ page }) => {
+test('a GM resolves an attack in the duel window by tapping the dice faces, then a spell', async ({ page }) => {
   await startBlight(page)
   await page.getByRole('button', { name: 'Continuer' }).click()
+  const board = page.getByRole('img', { name: 'Plateau : Search for the Lair' })
 
   // Rook attacks from the table: unarmed (2 purple dice) against the nearest fragor (Defense 11)
-  await page
-    .getByRole('img', { name: 'Plateau : Search for the Lair' })
-    .getByRole('button', { name: 'Figurine Rook' })
-    .click()
+  await board.getByRole('button', { name: 'Figurine Rook' }).click()
   await page.getByRole('button', { name: 'Attaquer', exact: true }).click()
-  const duel = page.getByRole('region', { name: 'Affrontement' })
-  await expect(duel.getByRole('combobox').first()).toHaveText('Rook')
-  await expect(duel.getByRole('combobox').nth(1)).toHaveText(/^fragor-2 · Fragor/)
-  await expect(duel.getByRole('status', { name: 'Chances' })).toContainText('Touche : 22')
+  const duel = page.getByRole('dialog')
+  await expect(duel.getByRole('combobox', { name: 'Attaquant' })).toHaveText('Rook')
+  await expect(duel.getByRole('combobox', { name: 'Cible' })).toHaveText(/^fragor-2 · Fragor/)
+  await expect(duel.getByRole('status', { name: 'Chances' })).toContainText('22')
 
   // The odds can be hidden for tables that prefer to roll blind
   await duel.getByRole('switch').click()
   await expect(duel.getByRole('status', { name: 'Chances' })).toHaveCount(0)
 
-  // The table rolled 14 and a star: hit by 3, no symbol ability for Rook, 3 damage dealt to the fragor
-  await duel.getByLabel('Total des dés').fill('14')
-  await duel.getByLabel('Étoiles').fill('1')
+  // The table rolled a 7 on each die: 14 against 11, hit by 3; Rook has no symbol ability
+  await duel.getByRole('radiogroup', { name: 'Dé 1 · Violet' }).getByRole('radio', { name: /^7,/ }).click()
+  await duel.getByRole('radiogroup', { name: 'Dé 2 · Violet' }).getByRole('radio', { name: /^7,/ }).click()
   await expect(duel.getByText('Jet 14 contre Défense 11 : touché, écart de 3.')).toBeVisible()
   await duel.getByRole('button', { name: 'Infliger 3 dégâts à fragor-2' }).click()
-  await duel.getByRole('button', { name: "Fermer l'affrontement" }).click()
+  await expect(duel.getByText('Dégâts infligés')).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(duel).toBeHidden()
   await expect(page.getByText('3 / 12 PV').first()).toBeVisible()
 
-  // A Spell-Like Ability of the fragor against Nightingale: Force 6 against her Conviction roll of 5
-  await page
-    .getByRole('img', { name: 'Plateau : Search for the Lair' })
-    .getByRole('button', { name: 'Figurine fragor-1' })
-    .click()
+  // A Spell-Like Ability of the fragor (Force 6) against Nightingale's Conviction: 2 + 3 = 5, she fails
+  await board.getByRole('button', { name: 'Figurine fragor-1' }).click()
   await page.getByRole('button', { name: 'Attaquer', exact: true }).click()
-  await duel
-    .getByRole('radio', { name: 'Sort' })
-    .or(duel.getByRole('button', { name: 'Sort' }))
-    .click()
-  await duel.getByLabel('Jet de Conviction').pressSequentially('5')
-  await expect(duel.getByText('le sort agit.')).toBeVisible()
+  await duel.getByRole('button', { name: 'Sort' }).click()
+  await duel.getByRole('radiogroup', { name: /dé 1/ }).getByRole('radio', { name: '2', exact: true }).click()
+  await duel.getByRole('radiogroup', { name: /dé 2/ }).getByRole('radio', { name: /^3,/ }).click()
+  await expect(duel.getByText('Le sort agit')).toBeVisible()
 })
 
 test('the table alone follows the game', async ({ page, context }) => {

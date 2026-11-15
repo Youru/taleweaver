@@ -11,7 +11,7 @@ import TabPanel from 'primevue/tabpanel'
 import TabPanels from 'primevue/tabpanels'
 import Tabs from 'primevue/tabs'
 import { useCombatants } from '@/features/catalog'
-import { DuelPanel } from '@/features/duel'
+import { DuelDialog } from '@/features/duel'
 import { useScenario } from '@/features/scenarios'
 import { TableView, type Selection } from '@/features/table'
 import { ApiError } from '@/shared/api/http'
@@ -63,8 +63,14 @@ const reportsLocked = computed(
 
 const selected = ref<Selection | null>(null)
 const tab = ref('combatants')
-/** The figure a duel was opened with: the duel then takes the place of the tabs. */
+/** The duel window, and the figure it opened with. */
 const duel = ref<string | null>(null)
+const dueling = ref(false)
+
+function openDuel(figure: string) {
+  duel.value = figure
+  dueling.value = true
+}
 </script>
 
 <template>
@@ -113,9 +119,9 @@ const duel = ref<string | null>(null)
             :cards="cards"
             :locked="reportsLocked"
             @command="encounterCommand"
-            @duel="duel = $event"
+            @duel="openDuel"
           />
-          <aside class="side" :class="{ dueling: duel }">
+          <aside class="side">
             <TurnCard
               class="turn"
               :encounter="encounter"
@@ -124,20 +130,9 @@ const duel = ref<string | null>(null)
               :cards="cards"
               :pending="command.isPending.value"
               @answer="answer"
-              @duel="duel = $event"
+              @duel="openDuel"
             />
-            <DuelPanel
-              v-if="duel"
-              class="duel"
-              :game="id"
-              :encounter="encounter"
-              :cards="cards"
-              :from="duel"
-              :locked="reportsLocked"
-              @command="encounterCommand"
-              @close="duel = null"
-            />
-            <Tabs v-else v-model:value="tab" class="tabs">
+            <Tabs v-model:value="tab" class="tabs">
               <TabList>
                 <Tab value="combatants">{{ t('play.tabCombatants') }}</Tab>
                 <Tab value="journal">{{ t('play.journal') }}</Tab>
@@ -167,6 +162,15 @@ const duel = ref<string | null>(null)
             </Tabs>
           </aside>
         </div>
+        <DuelDialog
+          v-model:open="dueling"
+          :game="id"
+          :encounter="encounter"
+          :cards="cards"
+          :from="duel"
+          :locked="reportsLocked"
+          @command="encounterCommand"
+        />
       </template>
 
       <!-- Between encounters: the story -->
@@ -230,17 +234,6 @@ const duel = ref<string | null>(null)
 .turn {
   flex: 0 1 auto;
   max-height: 50%;
-  padding: 0.75rem;
-  border: 1px solid var(--p-content-border-color);
-  border-radius: var(--p-content-border-radius);
-}
-.dueling .turn {
-  max-height: 30%;
-}
-.duel {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
   padding: 0.75rem;
   border: 1px solid var(--p-content-border-color);
   border-radius: var(--p-content-border-radius);

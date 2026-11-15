@@ -19,6 +19,8 @@ export interface Combatant {
     convictionDice?: string[]
     castingDie?: string | null
   }
+  /** Card image path ("assets/act1/combatants/…"). */
+  image?: string
   passives?: { name: LocalizedText; text: LocalizedText }[]
   symbolAbilities?: SymbolAbilityCard[]
 }

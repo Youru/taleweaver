@@ -37,13 +37,15 @@ cd taleweaver/web && npm install && npm run dev
   - déplacements facultatifs : glisser la figurine, ou la sélectionner puis toucher une case (pratique sur tablette) ; ce qui n'a pas de case est listé « À placer » et se glisse de la liste vers la carte ;
   - zoom : molette, boutons, ou deux doigts sur tablette ; bouton plein écran ;
   - brouillard : les tuiles d'une zone cachée sont grisées, et ce qui s'y trouve est masqué jusqu'à « Révéler la zone ».
-- **Affrontement** (`src/features/duel/`), une attaque ou un sort avec les dés physiques de la table, ouvert par « Attaquer » sur une figurine sélectionnée (ou « Résoudre l'attaque » quand l'IA dit d'attaquer) ; il prend la place des onglets, ou un tiroir sur la table seule :
-  - attaquant et cible (adversaires les plus proches d'abord), dés de combat, Empower, tenaille, allié ou terrain gênant, bonus, perforant, Défense, Armure, esquive ;
-  - **chances** avant le jet (toucher, blesser, dégâts moyens, mise hors de combat), calculées sur toutes les faces des dés (`/api/catalog/dice`) ; un interrupteur les masque pour les tables qui préfèrent ne pas savoir (préférence gardée) ;
-  - le MJ saisit le total et les symboles ; l'appli déroule les étapes du livre (écart, symboles dépensés pour le plus de dégâts, Armure, dégâts finaux) et inflige les dégâts au combattant en un clic ;
-  - sort ou capacité type sort : Force (dé de lancer + X, livres du dé noir, crâne) contre le jet de Conviction ;
-  - les dés, la Défense et l'Armure des aventuriers ne sont pas suivis par la partie : l'appli garde les dernières valeurs saisies, par partie, dans le navigateur ;
-  - le calcul (`lib/attack.ts`, `lib/spell.ts`) est testé sur les exemples chiffrés du livre de règles (p. 45, 54, 55, 65).
+- **Affrontement** (`src/features/duel/`), une attaque ou un sort avec les dés physiques de la table, dans **sa propre fenêtre** (modale, plein écran sur tablette ; Échap la ferme et rend la table telle quelle). Elle s'ouvre par « Attaquer » sur une figurine sélectionnée, ou « Résoudre l'attaque » quand l'IA dit d'attaquer, depuis la vue MJ comme depuis la table seule :
+  - à gauche l'attaquant (figurine, carte consultable en grand, dés de combat, Empower, tenaille, allié ou terrain gênant, bonus, perforant, capacités de symboles), à droite la cible (PV, Défense, Armure, esquive), bouton « Inverser » ;
+  - au centre les **chances** (toucher, blesser, dégâts moyens, hors de combat), masquables par un interrupteur (préférence gardée) ;
+  - puis **les dés à toucher** : chaque dé montre ses six faces, le MJ touche celle obtenue (comme les ponts « dés physiques » des tables virtuelles) ; total et symboles se calculent seuls. « Saisie libre » garde la saisie d'un total et de symboles (relances, symboles venus d'ailleurs) ;
+  - le résultat déroule les étapes du livre (écart, symboles dépensés pour le plus de dégâts, Armure, dégâts finaux) et inflige les dégâts au combattant en un clic ; « Nouveau jet » enchaîne (Chains of Perdition…) ;
+  - sort ou capacité type sort : faces du dé de lancer (et du dé noir) puis des dés de Conviction de la cible ;
+  - images : figurines (`/api/catalog/board`), cartes des combattants, icônes de dés, de symboles et de stats de `assets/templates/discipline-card/icons/` ;
+  - aventuriers : Défense 7, Conviction 2 violets et lancer violet par défaut (toutes les cartes de l'Acte 1) ; armes et armure viennent des objets, que la partie ne suit pas : l'appli garde les dernières valeurs saisies, par partie, dans le navigateur ;
+  - le calcul (`lib/attack.ts`, `lib/spell.ts`, `lib/dice.ts`) est testé sur les exemples chiffrés du livre de règles (p. 45, 54, 55, 65).
 - ⚠️ Les images appartiennent à Succubus Publishing : l'API les lit sur le disque local et ne doit jamais être exposée en ligne avec elles.
 - Les textes de l'interface et la mise en forme du journal sont dans `src/shared/i18n/messages.ts`. Le contenu du jeu garde ses propres textes `{ en, fr }`.
 - Vérifications :

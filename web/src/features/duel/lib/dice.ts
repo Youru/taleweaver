@@ -50,3 +50,19 @@ function combine(outcome: RollOutcome, face: DieFace, p: number): RollOutcome {
     p,
   }
 }
+
+/** The faces the table rolled (one index per die, in pool order), read as a total and symbols. */
+export function readFaces(
+  colours: readonly string[],
+  faces: readonly (number | null)[],
+  dice: Dice,
+): Omit<RollOutcome, 'p'> | undefined {
+  let roll: RollOutcome = { total: 0, shield: 0, book: 0, star: 0, skull: false, p: 1 }
+  for (const [i, colour] of colours.entries()) {
+    const index = faces[i]
+    const face = index === null || index === undefined ? undefined : dice[colour]?.faces[index]
+    if (!face) return undefined
+    roll = combine(roll, face, 1)
+  }
+  return { total: roll.total, shield: roll.shield, book: roll.book, star: roll.star, skull: roll.skull }
+}

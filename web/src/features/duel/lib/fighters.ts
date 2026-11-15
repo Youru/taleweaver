@@ -1,5 +1,7 @@
 import type { Combatant } from '@/features/catalog'
 import type { Cell, EncounterState } from '@/features/games'
+import type { BoardPieces } from '@/features/table'
+import { assetUrl } from '@/shared/api/assets'
 import { pick, type Language } from '@/shared/lib/localized'
 import { symbolAbilities, type SymbolAbility } from './abilities'
 
@@ -13,9 +15,10 @@ export interface AdventurerSheet {
   casting: string
 }
 
+/** Every Act 1 adventurer card prints Defense 7, Conviction 2 purple, Casting purple; weapons and armor come from items. */
 export const defaultSheet: AdventurerSheet = {
   pool: ['purple', 'purple'],
-  defense: null,
+  defense: 7,
   armor: 0,
   conviction: ['purple', 'purple'],
   casting: 'purple',
@@ -44,6 +47,10 @@ export interface Fighter {
   health?: number
   damage: number
   position?: Cell
+  /** The figure's standee (URL), for its portrait. */
+  portrait?: string
+  /** The combatant card (URL), to read it during the duel. */
+  card?: string
 }
 
 const numberOrNull = (value: number | string | undefined) => (typeof value === 'number' ? value : null)
@@ -54,7 +61,10 @@ export function fighters(
   cards: Map<string, Combatant>,
   sheets: Record<string, AdventurerSheet>,
   language: Language,
+  pieces?: BoardPieces,
 ): Fighter[] {
+  const figure = (...names: (string | undefined)[]) =>
+    assetUrl(names.map((n) => (n ? pieces?.figures[n]?.image : undefined)).find((i) => !!i))
   const combatants = encounter.combatants
     .filter((c) => !c.defeated)
     .map((c): Fighter => {
@@ -78,6 +88,8 @@ export function fighters(
         health: numberOrNull(stats?.health) ?? undefined,
         damage: c.damage,
         position: c.position,
+        portrait: figure(c.figure, c.family),
+        card: assetUrl(card?.image),
       }
     })
   const adventurers = encounter.adventurers.map((a): Fighter => {
@@ -95,6 +107,7 @@ export function fighters(
       reminders: [],
       damage: 0,
       position: a.position,
+      portrait: figure(a.name.toLowerCase()),
     }
   })
   return [...combatants, ...adventurers]

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { SymbolAbility } from './abilities'
 import { attackOdds, resolveAttack, type AttackRoll, type AttackSetup } from './attack'
+import { readFaces } from './dice'
 import { testDice } from './testDice'
 
 const ability = (
@@ -112,5 +113,22 @@ describe('attackOdds', () => {
 
   it('cannot tell without every die', () => {
     expect(attackOdds(setup({ pool: ['*', '*'] }), testDice)).toBeUndefined()
+  })
+})
+
+describe('readFaces', () => {
+  it('adds up the faces picked on each die, symbols included', () => {
+    // white 7 (star, 2 shields, book) + purple 5 (shield, book) + black (skull)
+    expect(readFaces(['white', 'purple', 'black'], [5, 3, 5], testDice)).toEqual({
+      total: 12,
+      shield: 3,
+      book: 2,
+      star: 1,
+      skull: true,
+    })
+  })
+
+  it('waits until every die has its face', () => {
+    expect(readFaces(['white', 'purple'], [5, null], testDice)).toBeUndefined()
   })
 })
