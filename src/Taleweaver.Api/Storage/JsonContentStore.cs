@@ -9,7 +9,8 @@ namespace Taleweaver.Api.Storage;
 /// Reads packs/&lt;pack&gt;/pack.json and its catalogue files, and scenarios/**/*.json.
 /// Packs are read once and kept in memory; scenarios are read on each call, since the editor changes them.
 /// </summary>
-public sealed class JsonContentStore(IOptions<ContentOptions> options, IHostEnvironment environment) : IContentStore
+public sealed class JsonContentStore(IOptions<ContentOptions> options, IHostEnvironment environment, ILogger<JsonContentStore>? logger = null)
+    : IContentStore
 {
     private readonly string _root = Path.GetFullPath(options.Value.RootPath, environment.ContentRootPath);
     private readonly ContentOptions _options = options.Value;
@@ -155,16 +156,30 @@ public sealed class JsonContentStore(IOptions<ContentOptions> options, IHostEnvi
     private async Task<Dictionary<string, (Scenario Scenario, string Path)>> IndexScenariosAsync(CancellationToken cancellationToken)
     {
         var index = new Dictionary<string, (Scenario, string)>(StringComparer.Ordinal);
-        // The workshop folder may live outside the scenarios folder (e.g. a temporary one for tests).
+        // The workshop folder may live outside the scenarios folder (e.g. a temporary one for tests): then the
+        // default one (scenarios/homebrew) is not read as official scenarios.
+        var defaultHomebrew = Path.GetFullPath(Path.Combine(ScenariosPath, Scenario.HomebrewPack)) + Path.DirectorySeparatorChar;
         var files = new[] { ScenariosPath, HomebrewPath }
             .Where(Directory.Exists)
             .SelectMany(folder => Directory.EnumerateFiles(folder, "*.json", SearchOption.AllDirectories))
             .Select(Path.GetFullPath)
+            .Where(path => IsHomebrew(path) || !path.StartsWith(defaultHomebrew, StringComparison.OrdinalIgnoreCase))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Order();
         foreach (var path in files)
         {
-            var scenario = await ReadAsync<Scenario>(path, cancellationToken);
+            Scenario scenario;
+            try
+            {
+                scenario = await ReadAsync<Scenario>(path, cancellationToken);
+            }
+            catch (InvalidDataException e)
+            {
+                // One unreadable file (hand-written, half-saved) must not hide every other scenario.
+                logger?.LogWarning("Scenario file skipped: {Problem}", e.Message);
+                continue;
+            }
+
             if (!index.TryAdd(scenario.Id, (scenario, path)))
             {
                 throw new InvalidOperationException($"Scenario id '{scenario.Id}' is used by two files: {index[scenario.Id].Item2} and {path}.");

@@ -65,6 +65,8 @@ test('an official scenario is read only: the workshop duplicates it', async ({ p
   const graph = page.getByRole('application', { name: 'Graphe du scénario' })
   await expect(graph.locator('.vue-flow__node')).toHaveCount(4 + 3)
   await expect(page.getByText('Aucun problème')).toBeVisible()
+  // Playable, with points to check: more Fragors than cards, a loot token never laid…
+  await expect(page.getByText('3 avertissements')).toBeVisible()
 
   await page.getByRole('link', { name: 'Atelier' }).first().click()
   const mine = page.getByRole('region', { name: 'Mes scénarios' })

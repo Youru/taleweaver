@@ -11,6 +11,9 @@ public sealed class HomebrewFactory : WebApplicationFactory<Program>
 
     public static string FixturesPath => Path.Combine(AppContext.BaseDirectory, "Fixtures");
 
+    /// <summary>The temporary workshop folder of this API.</summary>
+    public string HomebrewPath => _homebrew;
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Development");

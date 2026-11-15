@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test'
 
 async function startBlight(page: Page) {
   await page.goto('/')
-  await page.getByRole('button', { name: 'Jouer' }).first().click()
+  await page.getByRole('button', { name: 'Jouer Blight of Rhamsted' }).click()
   await page.getByLabel('Aventurier 1').fill('Nightingale')
   await page.getByLabel('Aventurier 2').fill('Rook')
   await page.getByRole('button', { name: 'Commencer' }).click()

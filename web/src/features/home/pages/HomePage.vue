@@ -59,6 +59,7 @@ function remove(id: string) {
           <template #footer>
             <Button
               :label="t('home.play')"
+              :aria-label="t('home.playScenario', { title: pick(scenario.title, language) })"
               icon="pi pi-play"
               @click="starting = { id: scenario.id, title: pick(scenario.title, language) }"
             />

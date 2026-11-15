@@ -19,6 +19,26 @@ public class ScenariosEndpointsTests(HomebrewFactory factory) : IClassFixture<Ho
     }
 
     [Fact]
+    public async Task ListScenarios_UnreadableFileInTheWorkshop_ListsTheOthers()
+    {
+        // A setup "at" given as a zone name: not a square, the file cannot be read
+        var broken = Path.Combine(factory.HomebrewPath, "broken.json");
+        await File.WriteAllTextAsync(broken,
+            """{ "id": "homebrew:scenario/broken", "title": { "fr": "Cassé" }, "start": "x", "nodes": [ { "id": "x", "type": "encounter", "setup": { "combatants": [ { "family": "brute", "at": "spawn-a" } ] } } ] }""",
+            TestContext.Current.CancellationToken);
+        try
+        {
+            var scenarios = await _client.GetFromJsonAsync<List<ScenarioSummary>>("/api/scenarios", JsonDefaults.Options, TestContext.Current.CancellationToken);
+
+            scenarios.Should().Contain(s => s.Id == "hb:scenario/meadow-ambush").And.NotContain(s => s.Id == "homebrew:scenario/broken");
+        }
+        finally
+        {
+            File.Delete(broken);
+        }
+    }
+
+    [Fact]
     public async Task SaveScenario_NewHomebrewScenario_IsListedAsEditableThenDeleted()
     {
         var scenario = (await FixtureScenarioAsync()) with

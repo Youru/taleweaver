@@ -42,6 +42,8 @@ const pieces = useBoardPieces()
 const mapping = ref<string | null>(null)
 const mapped = computed(() => draft.value?.nodes.find((n) => n.id === mapping.value))
 const issuesOf = (nodeId: string) => (report.value?.errors ?? []).filter((i) => i.where.split('/')[0] === nodeId)
+const warningsOf = (nodeId: string) => (report.value?.warnings ?? []).filter((i) => i.where.split('/')[0] === nodeId)
+const warningCount = computed(() => report.value?.warnings.length ?? 0)
 const scenarioIssues = computed(() =>
   (report.value?.errors ?? []).filter((i) => !draft.value?.nodes.some((n) => n.id === i.where.split('/')[0])),
 )
@@ -128,6 +130,13 @@ function started(game: GameView) {
           :severity="errorCount ? 'danger' : 'success'"
           :icon="errorCount ? 'pi pi-exclamation-triangle' : 'pi pi-check'"
         />
+        <Tag
+          v-if="!checking && warningCount"
+          :value="t('workshop.warnings', warningCount)"
+          severity="warn"
+          icon="pi pi-info-circle"
+          :title="t('workshop.warningsHint')"
+        />
         <span class="spacer" />
         <Button
           :label="t('workshop.addScene')"
@@ -194,6 +203,7 @@ function started(game: GameView) {
             :scenario="draft"
             :node="node"
             :issues="issuesOf(node.id)"
+            :warnings="warningsOf(node.id)"
             :pieces="pieces.data.value"
             @change="(next) => editor.updateNode(node!.id, () => next)"
             @remove="removeSelected"

@@ -32,6 +32,7 @@ const props = defineProps<{
   scenario: DraftScenario
   node: DraftNode
   issues: ScenarioIssue[]
+  warnings?: ScenarioIssue[]
   pieces?: BoardPieces
 }>()
 const emit = defineEmits<{ change: [node: DraftNode]; remove: []; start: []; map: []; print: [] }>()
@@ -199,6 +200,9 @@ const untouched = computed(() =>
     </header>
 
     <Message v-for="(issue, i) in issues" :key="i" severity="error" size="small">{{ issue.message }}</Message>
+    <Message v-for="(issue, i) in warnings ?? []" :key="`w${i}`" severity="warn" size="small">{{
+      issue.message
+    }}</Message>
 
     <!-- Scene -->
     <template v-if="node.type !== 'encounter'">

@@ -16,13 +16,41 @@ public sealed record ScenarioReport(IReadOnlyList<ScenarioIssue> Errors, IReadOn
 
 /// <summary>
 /// Consistency checks of a scenario against the catalogue (port of tools/check_scenario.py):
-/// unique ids, resolved references, combatant cards for the loot level, and pieces placed on the tiles.
+/// unique ids, resolved references, combatant cards for the loot level, pieces placed on the tiles,
+/// and what the engine really plays (actions, triggers, token modes, spots, fog areas, typed
+/// conditions, figures beyond the numbered cards, hidden cards).
 /// Errors make the scenario unplayable; warnings do not.
 /// </summary>
 public static class ScenarioChecker
 {
     private static readonly HashSet<string> CatalogKinds = ["combatant", "item", "item-upgrade", "tile", "token", "initiative"];
     private static readonly HashSet<string> BlockingTerrain = ["obstructing", "dangerous"];
+
+    /// <summary>The actions the engine plays (Engine/Session.Actions.cs); any other is skipped in play.</summary>
+    public static readonly IReadOnlySet<string> EngineActions = new HashSet<string>
+    {
+        "goToNode", "showText", "gainGold", "gainXp", "gainItem", "restore", "revealHiddenCard", "setFlag", "setVar",
+        "askChoice", "askSkillCheck", "readHiddenRule", "placeToken", "removeToken", "activateToken", "spawn",
+        "appendAiStep", "revealArea", "placeDiagram", "addEndCondition", "endEncounter", "addUrgency",
+        "restoreCombatant", "replaceInitiativeCard", "defeatAdventurer",
+    };
+
+    /// <summary>The triggers the engine fires.</summary>
+    public static readonly IReadOnlySet<string> Triggers = new HashSet<string>
+    {
+        "tokenActivated", "encounterStart", "roundStart", "roundEnd", "combatantDefeated", "adventurerDefeated",
+        "areaRevealed", "hiddenRuleRead",
+    };
+
+    /// <summary>How an Adventurer activates a token (shown to the GM).</summary>
+    public static readonly IReadOnlySet<string> TokenModes = new HashSet<string>
+    {
+        "enter", "adjacent", "onSpaceEncounterAction", "adjacentEncounterAction", "endTurnOn", "none", "adventure",
+    };
+
+    private static readonly HashSet<string> BuiltInVariables = ["round", "urgency", "gold"];
+    private static readonly string[] BooleanPrefixes = ["placed.", "activated.", "revealed."];
+    private static readonly string[] CountPrefixes = ["defeated.", "alive."];
 
     public static ScenarioReport Check(Scenario scenario, Catalog catalog)
     {
@@ -43,6 +71,12 @@ public static class ScenarioChecker
 
         public List<CardChoice> Cards { get; } = [];
 
+        /// <summary>Variables that hold true or false: declared flags, and those raised by setFlag.</summary>
+        private readonly HashSet<string> _flags = [];
+
+        /// <summary>Every variable the scenario declares or sets.</summary>
+        private readonly HashSet<string> _variables = [];
+
         private void Error(string code, string where, string message) => Errors.Add(new ScenarioIssue($"Scenarios.{code}", where, message));
 
         private void Warn(string code, string where, string message) => Warnings.Add(new ScenarioIssue($"Scenarios.{code}", where, message));
@@ -60,8 +94,14 @@ public static class ScenarioChecker
                 Error("UnknownStart", "start", $"unknown node '{scenario.Start}'");
             }
 
+            CollectVariables(scenario);
             foreach (var node in scenario.Nodes)
             {
+                foreach (var action in ScenarioAction.Flatten(node.Mechanics))
+                {
+                    CheckKnownAction(node.Id, action);
+                }
+
                 // next, the end conditions, and every goToNode of the node (choices, skill checks, events)
                 var jumps = ScenarioAction.Flatten(node.Mechanics
                         .Concat(node.EndConditions.SelectMany(e => e.Mechanics))
@@ -80,6 +120,94 @@ public static class ScenarioChecker
                 }
             }
         }
+
+        private void CollectVariables(Scenario scenario)
+        {
+            foreach (var variable in scenario.Variables.Where(v => v.ValueKind == JsonValueKind.Object))
+            {
+                if (variable.TryGetProperty("id", out var id) && id.GetString() is { } name)
+                {
+                    _variables.Add(name);
+                    if (variable.TryGetProperty("type", out var type) && type.GetString() == "flag")
+                    {
+                        _flags.Add(name);
+                    }
+                }
+            }
+
+            var actions = scenario.Nodes.SelectMany(n => ScenarioAction.Flatten(n.Mechanics
+                .Concat(n.EndConditions.SelectMany(e => e.Mechanics))
+                .Concat(n.Events.SelectMany(e => e.Actions))
+                .Concat(n.HiddenRules.SelectMany(r => r.Actions))));
+            foreach (var action in actions)
+            {
+                if (action.Do == "setFlag" && Extra(action, "flag") is { } flag)
+                {
+                    _flags.Add(flag);
+                }
+                else if (action.Do == "setVar" && Extra(action, "var") is { } variable)
+                {
+                    _variables.Add(variable);
+                }
+            }
+
+            _variables.UnionWith(_flags);
+        }
+
+        private void CheckKnownAction(string where, ScenarioAction action)
+        {
+            if (!EngineActions.Contains(action.Do))
+            {
+                Warn("UnknownAction", where, $"action '{action.Do}' is skipped by the engine");
+            }
+        }
+
+        /// <summary>Variables compared as they hold: true/false ones only with == or != against a boolean.</summary>
+        private void CheckConditions(string where, IEnumerable<EventCondition> conditions, HashSet<string> tokenKeys, HashSet<string> areas, HashSet<string> diagrams)
+        {
+            foreach (var condition in conditions.SelectMany(Simple))
+            {
+                if (condition.Var is not { } name)
+                {
+                    continue;
+                }
+
+                var op = condition.Op ?? "==";
+                var boolean = BooleanPrefixes.Any(p => name.StartsWith(p, StringComparison.Ordinal)) || _flags.Contains(name);
+                if (boolean && (op is not ("==" or "!=") || condition.Value is { ValueKind: not (JsonValueKind.True or JsonValueKind.False) }))
+                {
+                    Error("BadCondition", where, $"condition '{name} {op} {condition.Value?.GetRawText()}': it is true or false, compare it with == true / false");
+                }
+
+                var rest = name.Contains('.', StringComparison.Ordinal) ? name[(name.IndexOf('.', StringComparison.Ordinal) + 1)..] : "";
+                if (name.StartsWith("activated.", StringComparison.Ordinal) && !tokenKeys.Contains(rest))
+                {
+                    Warn("AbsentToken", where, $"condition on a token never on the board '{rest}'");
+                }
+                else if (name.StartsWith("revealed.", StringComparison.Ordinal) && !areas.Contains(rest))
+                {
+                    Error("UnknownArea", where, $"condition on an unknown fog area '{rest}'");
+                }
+                else if (name.StartsWith("placed.", StringComparison.Ordinal) && !diagrams.Contains(rest))
+                {
+                    Error("UnknownDiagram", where, $"condition on an unknown diagram '{rest}'");
+                }
+                else if (!BuiltInVariables.Contains(name) && !BooleanPrefixes.Concat(CountPrefixes).Any(p => name.StartsWith(p, StringComparison.Ordinal))
+                         && !_variables.Contains(name))
+                {
+                    Warn("UnknownVariable", where, $"variable never declared nor set '{name}'");
+                }
+            }
+        }
+
+        private static IEnumerable<EventCondition> Simple(EventCondition condition) =>
+            new[] { condition }
+                .Concat((condition.All ?? []).SelectMany(Simple))
+                .Concat((condition.Any ?? []).SelectMany(Simple))
+                .Concat(condition.Not is { } not ? Simple(not) : []);
+
+        private static string? Extra(ScenarioAction action, string key) =>
+            action.Extra?.TryGetValue(key, out var value) == true && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
 
         /// <summary>Every "pack:kind/name" string of a catalogue kind must exist in the enabled packs.</summary>
         public void CheckCatalogReferences(Scenario scenario)
@@ -111,6 +239,16 @@ public static class ScenarioChecker
                 .ToList();
             CheckCombatants(encounter, boards.SelectMany(b => b.Setup.Combatants), actions);
 
+            // Fog areas: declared before tiles and tokens refer to them
+            var areas = boards.SelectMany(b => b.Map.Areas).Select(a => a.Id).ToHashSet();
+            foreach (var (name, map, _, _) in boards)
+            {
+                foreach (var area in map.Tiles.Select(t => t.Area).Concat(map.Tokens.Select(t => t.Area)).OfType<string>().Distinct().Where(a => !areas.Contains(a)))
+                {
+                    Error("UnknownArea", $"{id}/{name}", $"fog area not declared in map.areas '{area}'");
+                }
+            }
+
             // Tokens on the boards, by id and by "type:colour" key
             var tokenIds = new HashSet<string>();
             var tokenKeys = new HashSet<string>();
@@ -141,6 +279,26 @@ public static class ScenarioChecker
             knownKeys.UnionWith(tokenKeys);
             var randomLoot = placements.Any(a => a.Color == "random");
 
+            foreach (var (key, rule) in encounter.Tokens.Where(t => t.Value.Mode is { } mode && !TokenModes.Contains(mode)))
+            {
+                Warn("UnknownTokenMode", id, $"tokens.{key}: unknown activation mode '{rule.Mode}'");
+            }
+
+            foreach (var ev in encounter.Events)
+            {
+                if (!Triggers.Contains(ev.Trigger.On))
+                {
+                    Warn("UnknownTrigger", $"{id}/{ev.Id}", $"trigger '{ev.Trigger.On}' is never fired by the engine");
+                }
+
+                if (ev.Trigger.On == "areaRevealed" && ev.Trigger.Area is { } area && !areas.Contains(area))
+                {
+                    Error("UnknownArea", $"{id}/{ev.Id}", $"unknown fog area '{area}'");
+                }
+
+                CheckConditions($"{id}/{ev.Id}", ev.Conditions, knownKeys.Concat(encounter.Tokens.Keys).ToHashSet(), areas, diagrams);
+            }
+
             foreach (var (key, rule) in encounter.Tokens)
             {
                 if (!knownKeys.Contains(key) && !(randomLoot && key.StartsWith("loot:", StringComparison.Ordinal)))
@@ -165,16 +323,35 @@ public static class ScenarioChecker
             foreach (var action in actions)
             {
                 CheckAction(id, action, rules, diagrams, ends, tokenIds, encounter.Tokens, knownKeys);
+                CheckKnownAction(id, action);
+                if (action.Do == "revealArea" && !areas.Contains(Extra(action, "area") ?? ""))
+                {
+                    Error("UnknownArea", id, $"revealArea: unknown fog area '{Extra(action, "area")}'");
+                }
+
+                if (action.Do is "spawn" or "placeToken" && action.At is { } spot && !Understood(spot))
+                {
+                    Error("BadSpot", id, $"{action.Do}: spot not understood {spot.GetRawText()} (expected {{x, y}}, {{on: \"token:…\"}}, {{adjacentTo: …}} or {{where: …}})");
+                }
             }
 
             CheckGeometry(id, boards.Select(b => (b.Name, b.Map, b.Setup, b.ReplacesTerrain)).ToList());
         }
 
+        /// <summary>A spot the engine places ({x, y}, on a token or a figure) or leaves to the GM (next to, where).</summary>
+        private static bool Understood(JsonElement spot) =>
+            spot.ValueKind == JsonValueKind.Object
+            && ((spot.TryGetProperty("x", out _) && spot.TryGetProperty("y", out _))
+                || new[] { "on", "adjacentTo", "tile", "where" }.Any(k => spot.TryGetProperty(k, out _)));
+
         /// <summary>Each combatant must resolve: a known card (ref), or a family with a card at the loot level.</summary>
         private void CheckCombatants(Node encounter, IEnumerable<CombatantPlacement> placed, IEnumerable<ScenarioAction> actions)
         {
-            var used = placed.Select(c => (c.Ref, c.Family))
-                .Concat(actions.Where(a => a.Do == "spawn").Select(a => (a.Ref, a.Family)));
+            var placedList = placed.ToList();
+            var spawns = actions.Where(a => a.Do == "spawn").ToList();
+            CheckFamilyCounts(encounter, placedList.Select(c => (c.Family, 1)).Concat(spawns.Select(a => (a.Family, a.Count ?? 1))));
+            var used = placedList.Select(c => (c.Ref, c.Family))
+                .Concat(spawns.Select(a => (a.Ref, a.Family)));
             foreach (var (reference, family) in used)
             {
                 if (reference is not null && catalog.FindCombatant(reference) is null)
@@ -195,6 +372,38 @@ public static class ScenarioChecker
                     {
                         Error("NoCardForLootLevel", encounter.Id, $"no '{family}' card of loot level ≤ {encounter.LootLevel}");
                     }
+                }
+            }
+        }
+
+        /// <summary>
+        /// More figures of a family than its numbered cards at the loot level: a spawn fails while none is
+        /// defeated. And a hidden card (a boss, often) is a spoiler worth knowing.
+        /// </summary>
+        private void CheckFamilyCounts(Node encounter, IEnumerable<(string? Family, int Count)> wanted)
+        {
+            foreach (var group in wanted.Where(w => w.Family is not null).GroupBy(w => w.Family!))
+            {
+                if (catalog.CardFor(group.Key, encounter.LootLevel) is not { } card)
+                {
+                    continue;
+                }
+
+                var numbers = catalog.IntelligentCards(group.Key)
+                    .Where(c => c.LootLevel == card.LootLevel)
+                    .SelectMany(c => Engine.Session.ActivationNumbers(c.Activation))
+                    .Distinct()
+                    .Count();
+                var total = group.Sum(w => w.Count);
+                if (numbers > 0 && total > numbers)
+                {
+                    Warn("BeyondCards", encounter.Id,
+                        $"{total} × {group.Key} planned (setup and spawns), but {numbers} numbered card(s) at level {card.LootLevel}: beyond that, a spawn fails while none is defeated");
+                }
+
+                if (card.Source?.StartsWith("hidden-cards", StringComparison.Ordinal) == true)
+                {
+                    Warn("HiddenCard", encounter.Id, $"{group.Key} → {card.Id} is a hidden card (spoiler, often a boss)");
                 }
             }
         }

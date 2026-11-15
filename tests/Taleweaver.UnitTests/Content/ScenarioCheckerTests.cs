@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Taleweaver.Api.Content;
 
 namespace Taleweaver.UnitTests.Content;
@@ -13,8 +14,13 @@ public class ScenarioCheckerTests
             [
                 new Combatant
                 {
-                    Id = "hb:combatant/brute-common", Family = "brute", Kind = "intelligent", LootLevel = "common",
+                    Id = "hb:combatant/brute-common", Family = "brute", Kind = "intelligent", LootLevel = "common", Activation = "1-2",
                     Name = new Dictionary<string, string> { ["en"] = "Brute" },
+                },
+                new Combatant
+                {
+                    Id = "hb:combatant/queen-common", Family = "queen", Kind = "intelligent", LootLevel = "common", Source = "hidden-cards-and-figures/queen",
+                    Name = new Dictionary<string, string> { ["en"] = "Queen" },
                 },
             ],
             Tokens =
@@ -35,8 +41,14 @@ public class ScenarioCheckerTests
         var report = ScenarioChecker.Check(scenario, catalog);
 
         report.Errors.Should().BeEmpty();
-        report.Warnings.Should().ContainSingle().Which.Should().Be(
-            new ScenarioIssue("Scenarios.TokenNeverPlaced", "blight-found", "token 'loot:blue' is described but never placed"));
+        report.Warnings.Should().BeEquivalentTo(
+        [
+            new ScenarioIssue("Scenarios.BeyondCards", "search-for-the-lair",
+                "6 × fragor planned (setup and spawns), but 3 numbered card(s) at level common: beyond that, a spawn fails while none is defeated"),
+            new ScenarioIssue("Scenarios.BeyondCards", "blight-found",
+                "4 × animate planned (setup and spawns), but 2 numbered card(s) at level mundane: beyond that, a spawn fails while none is defeated"),
+            new ScenarioIssue("Scenarios.TokenNeverPlaced", "blight-found", "token 'loot:blue' is described but never placed"),
+        ]);
         report.Cards.Select(c => $"{c.Encounter} : {c.Family} → {c.CombatantId}").Should().Equal(
             "blight-found : animate → um1:combatant/animate-1-2-mundane",
             "crossing-the-river : cave-sickle → um1:combatant/cave-sickle-1-3-common",
@@ -173,7 +185,7 @@ public class ScenarioCheckerTests
     {
         var encounter = Encounter() with
         {
-            Tokens = new Dictionary<string, TokenRule> { ["objective:blue"] = new() { Mode = "encounterAction" } },
+            Tokens = new Dictionary<string, TokenRule> { ["objective:blue"] = new() { Mode = "adjacent" } },
         };
 
         var report = ScenarioChecker.Check(Scenario(encounter), Catalog);
@@ -193,6 +205,100 @@ public class ScenarioCheckerTests
 
         report.Warnings.Should().ContainSingle().Which.Message.Should().Be("not in the catalogue: 'hb:token/beacon'");
     }
+
+    [Fact]
+    public void Check_ActionTriggerAndModeTheEngineDoesNotKnow_ReportsWarnings()
+    {
+        var encounter = Encounter() with
+        {
+            Map = Board() with { Tokens = [new MapToken { Id = "o", Type = "hb:token/objective", Color = "red", X = 0, Y = 0 }] },
+            Tokens = new Dictionary<string, TokenRule> { ["objective:red"] = new() { Mode = "lineOfSight" } },
+            Events = [Event(new ScenarioAction { Do = "warp" }) with { Trigger = new EventTrigger { On = "turnStart" } }],
+        };
+
+        var report = ScenarioChecker.Check(Scenario(encounter), Catalog);
+
+        report.Errors.Should().BeEmpty();
+        report.Warnings.Select(w => w.Code).Should().BeEquivalentTo(
+            ["Scenarios.UnknownTokenMode", "Scenarios.UnknownTrigger", "Scenarios.UnknownAction"]);
+    }
+
+    [Fact]
+    public void Check_TrueOrFalseVariableComparedAsANumber_ReportsBadCondition()
+    {
+        var encounter = Encounter() with
+        {
+            Map = Board() with { Tokens = [new MapToken { Id = "o", Type = "hb:token/objective", Color = "red", X = 0, Y = 0 }] },
+            Tokens = new Dictionary<string, TokenRule> { ["objective:red"] = new() },
+            Events =
+            [
+                Event(new ScenarioAction { Do = "showText" }) with
+                {
+                    Conditions =
+                    [
+                        new EventCondition { Var = "activated.objective:red", Op = ">=", Value = JsonSerializer.SerializeToElement(1) },
+                        new EventCondition { Not = new EventCondition { Var = "guide", Op = "==", Value = JsonSerializer.SerializeToElement(true) } },
+                        new EventCondition { Var = "guid", Op = "==", Value = JsonSerializer.SerializeToElement(true) },
+                    ],
+                },
+            ],
+        };
+        var scenario = Scenario(encounter) with { Variables = [JsonSerializer.SerializeToElement(new { id = "guide", type = "flag" })] };
+
+        var report = ScenarioChecker.Check(scenario, Catalog);
+
+        report.Errors.Should().ContainSingle().Which.Code.Should().Be("Scenarios.BadCondition");
+        report.Warnings.Should().ContainSingle().Which.Message.Should().Be("variable never declared nor set 'guid'");
+    }
+
+    [Fact]
+    public void Check_FogAreaNotDeclared_ReportsErrors()
+    {
+        var encounter = Encounter() with
+        {
+            Map = Board() with { Tiles = [new MapTile("hb:tile/t1", 0, 0, 0, "crypt")] },
+            Events = [Event(Reveal("cellar"))],
+        };
+
+        var report = ScenarioChecker.Check(Scenario(encounter), Catalog);
+
+        report.Errors.Select(e => e.Message).Should().BeEquivalentTo(
+            ["fog area not declared in map.areas 'crypt'", "revealArea: unknown fog area 'cellar'"]);
+    }
+
+    [Fact]
+    public void Check_SpawnAtAZoneName_ReportsBadSpot()
+    {
+        var spawn = new ScenarioAction { Do = "spawn", Family = "brute", At = JsonSerializer.SerializeToElement("spawn-a") };
+
+        var report = ScenarioChecker.Check(Scenario(Encounter() with { Events = [Event(spawn)] }), Catalog);
+
+        report.Errors.Should().ContainSingle().Which.Code.Should().Be("Scenarios.BadSpot");
+    }
+
+    [Fact]
+    public void Check_MoreFiguresThanNumberedCardsAndAHiddenCard_ReportsWarnings()
+    {
+        var encounter = Encounter() with
+        {
+            Events =
+            [
+                Event(new ScenarioAction { Do = "spawn", Family = "brute", Count = 2 }),
+                Event(new ScenarioAction { Do = "spawn", Family = "queen" }) with { Id = "e2" },
+            ],
+        };
+
+        var report = ScenarioChecker.Check(Scenario(encounter), Catalog);
+
+        report.Errors.Should().BeEmpty();
+        report.Warnings.Select(w => w.Code).Should().BeEquivalentTo(["Scenarios.BeyondCards", "Scenarios.HiddenCard"]);
+    }
+
+    private static ScenarioAction Reveal(string area) => new()
+    {
+        Do = "revealArea",
+        Extra = new Dictionary<string, JsonElement> { ["area"] = JsonSerializer.SerializeToElement(area) },
+    };
 
     private static Scenario Scenario(params Node[] nodes) => new()
     {
