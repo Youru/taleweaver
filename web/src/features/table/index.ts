@@ -1,5 +1,6 @@
-export type { BoardPieces, FigurePiece } from './api/types'
+export type { BoardPieces, FamilyPiece, FigurePiece, TokenPiece } from './api/types'
 export { useBoardPieces } from './api/queries'
 export { boardLayout, type BoardLayout, type Selection } from './lib/layout'
 export { default as TableView } from './components/TableView.vue'
 export { default as BoardCanvas } from './components/BoardCanvas.vue'
+export { cellAt, fitBox, panBox, zoomBox, type ViewBox } from './lib/viewport'

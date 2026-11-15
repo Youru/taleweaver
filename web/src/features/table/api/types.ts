@@ -6,6 +6,8 @@ export interface BoardPieces {
   tokens: Record<string, TokenPiece>
   /** Figure of each family, by family. */
   figures: Record<string, FigurePiece>
+  /** Families of combatants the setup can place, by family. */
+  families: Record<string, FamilyPiece>
 }
 
 export interface TilePiece {
@@ -26,5 +28,12 @@ export interface TokenPiece {
 
 export interface FigurePiece {
   image: string
+  baseSize?: string
+}
+
+export interface FamilyPiece {
+  name: LocalizedText
+  /** command or intelligent. */
+  kind: string
   baseSize?: string
 }

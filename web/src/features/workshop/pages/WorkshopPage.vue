@@ -46,8 +46,14 @@ function open(name: string) {
   void router.push({ name: 'workshop-editor', params: { name } })
 }
 
-function create(scenario: DraftScenario) {
-  save.mutate(scenario, { onSuccess: () => open(nameOf(scenario.id)) })
+/** Saves the new scenario, then opens it (awaited: a callback given to mutate() can be skipped). */
+async function create(scenario: DraftScenario) {
+  try {
+    await save.mutateAsync(scenario)
+  } catch {
+    return // shown by the error message
+  }
+  open(nameOf(scenario.id))
 }
 
 // New scenario
@@ -57,7 +63,7 @@ function createNew() {
   const value = title.value.trim()
   if (!value) return
   const name = freeName(value)
-  create({
+  void create({
     id: `homebrew:scenario/${name}`,
     title: text(language.value, value),
     kind: 'bounty',
@@ -73,7 +79,7 @@ function createNew() {
 async function duplicate(summary: WorkshopSummary) {
   const original = await workshopApi.get(summary.id)
   const copyTitle = t('workshop.copyOf', { title: pick(original.title, language.value) })
-  create({ ...original, id: `homebrew:scenario/${freeName(copyTitle)}`, title: text(language.value, copyTitle) })
+  void create({ ...original, id: `homebrew:scenario/${freeName(copyTitle)}`, title: text(language.value, copyTitle) })
 }
 
 function askRemove(summary: WorkshopSummary) {

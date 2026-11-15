@@ -5,6 +5,7 @@ import type { BoardPieces } from '../api/types'
 import { boardLayout } from './layout'
 
 const pieces: BoardPieces = {
+  families: {},
   tiles: {
     'um1:tile/um47': { name: 'UM47', w: 6, h: 6, image: 'assets/act1/tiles/um47.jpg' },
     'um1:tile/um15': { name: 'UM15', w: 6, h: 6, image: 'assets/act1/tiles/um15.jpg' },

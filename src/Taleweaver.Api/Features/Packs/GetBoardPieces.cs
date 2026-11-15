@@ -10,13 +10,17 @@ public static class GetBoardPieces
     public sealed record Response(
         IReadOnlyDictionary<string, TilePiece> Tiles,
         IReadOnlyDictionary<string, TokenPiece> Tokens,
-        IReadOnlyDictionary<string, FigurePiece> Figures);
+        IReadOnlyDictionary<string, FigurePiece> Figures,
+        IReadOnlyDictionary<string, FamilyPiece> Families);
 
     public sealed record TilePiece(string Name, int W, int H, string? Image);
 
     public sealed record TokenPiece(LocalizedText Name, string Category, string? Size, string? Image, IReadOnlyDictionary<string, string>? Colors);
 
     public sealed record FigurePiece(string Image, string? BaseSize);
+
+    /// <summary>A family of combatants the setup can place (the card is chosen from the encounter's loot level).</summary>
+    public sealed record FamilyPiece(LocalizedText Name, string Kind, string? BaseSize);
 
     public sealed class Handler(CatalogProvider catalogs)
     {
@@ -26,6 +30,7 @@ public static class GetBoardPieces
             var tiles = new Dictionary<string, TilePiece>();
             var tokens = new Dictionary<string, TokenPiece>();
             var figures = new Dictionary<string, FigurePiece>();
+            var families = new Dictionary<string, FamilyPiece>();
             foreach (var pack in catalog.Packs)
             {
                 foreach (var tile in pack.Tiles)
@@ -36,6 +41,11 @@ public static class GetBoardPieces
                 foreach (var token in pack.Tokens)
                 {
                     tokens[token.Id] = new TokenPiece(token.Name, token.Category, token.Size, token.Image, token.Colors);
+                }
+
+                foreach (var combatant in pack.Combatants)
+                {
+                    families.TryAdd(combatant.Family, new FamilyPiece(combatant.Name, combatant.Kind, combatant.BaseSize));
                 }
 
                 foreach (var combatant in pack.Combatants.Where(c => c.Miniature is not null))
@@ -50,7 +60,7 @@ public static class GetBoardPieces
                 }
             }
 
-            return new Response(tiles, tokens, figures);
+            return new Response(tiles, tokens, figures, families);
         }
     }
 

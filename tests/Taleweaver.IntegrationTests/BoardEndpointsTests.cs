@@ -12,13 +12,14 @@ public class BoardEndpointsTests(HomebrewFactory factory) : IClassFixture<Homebr
     private readonly HttpClient _client = factory.CreateClient();
 
     [Fact]
-    public async Task GetBoardPieces_HomebrewContent_ReturnsTilesTokensAndFigures()
+    public async Task GetBoardPieces_HomebrewContent_ReturnsTilesTokensFiguresAndFamilies()
     {
         var pieces = await _client.GetFromJsonAsync<GetBoardPieces.Response>("/api/catalog/board", JsonDefaults.Options, TestContext.Current.CancellationToken);
 
         pieces!.Tiles["hb:tile/meadow"].Should().Be(new GetBoardPieces.TilePiece("Meadow", 6, 6, "assets/hb/pixel.png"));
         pieces.Tokens.Should().ContainKey("hb:token/objective");
         pieces.Figures["brute"].Image.Should().Be("assets/hb/pixel.png");
+        pieces.Families["brute"].Kind.Should().NotBeNullOrEmpty();
     }
 
     [Fact]

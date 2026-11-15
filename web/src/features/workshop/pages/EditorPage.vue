@@ -9,10 +9,12 @@ import ProgressSpinner from 'primevue/progressspinner'
 import Tag from 'primevue/tag'
 import { useConfirm } from 'primevue/useconfirm'
 import { StartGameDialog, type GameView } from '@/features/games'
+import { useBoardPieces } from '@/features/table'
 import { ApiError } from '@/shared/api/http'
 import { pick } from '@/shared/lib/localized'
 import { usePreferences } from '@/shared/lib/preferences'
 import { useDraft, useSaveDraft } from '../api/queries'
+import MapEditor from '../components/MapEditor.vue'
 import NodeSheet from '../components/NodeSheet.vue'
 import ScenarioGraph from '../components/ScenarioGraph.vue'
 import ScenarioSheet from '../components/ScenarioSheet.vue'
@@ -34,6 +36,11 @@ const editor = useEditor(saved.data, language)
 const { draft, dirty, selected, positions, report, checking, issuesByNode } = editor
 
 const node = computed(() => draft.value?.nodes.find((n) => n.id === selected.value))
+
+// The map editor of an encounter takes the whole body while open
+const pieces = useBoardPieces()
+const mapping = ref<string | null>(null)
+const mapped = computed(() => draft.value?.nodes.find((n) => n.id === mapping.value))
 const issuesOf = (nodeId: string) => (report.value?.errors ?? []).filter((i) => i.where.split('/')[0] === nodeId)
 const scenarioIssues = computed(() =>
   (report.value?.errors ?? []).filter((i) => !draft.value?.nodes.some((n) => n.id === i.where.split('/')[0])),
@@ -146,7 +153,15 @@ function started(game: GameView) {
       </header>
       <Message v-if="saveError" severity="error" closable @close="save.reset()">{{ saveError }}</Message>
 
-      <div class="body">
+      <MapEditor
+        v-if="mapped"
+        class="mapping"
+        :node="mapped"
+        :pieces="pieces.data.value"
+        @change="(next) => editor.updateNode(mapped!.id, () => next)"
+        @close="mapping = null"
+      />
+      <div v-else class="body">
         <ScenarioGraph
           class="graph"
           :scenario="draft"
@@ -164,9 +179,11 @@ function started(game: GameView) {
             :scenario="draft"
             :node="node"
             :issues="issuesOf(node.id)"
+            :pieces="pieces.data.value"
             @change="(next) => editor.updateNode(node!.id, () => next)"
             @remove="removeSelected"
             @start="editor.setStart(node!.id)"
+            @map="mapping = node!.id"
           />
           <ScenarioSheet
             v-else
@@ -221,6 +238,10 @@ h1 {
   min-height: 0;
 }
 .graph {
+  min-height: 0;
+}
+.mapping {
+  flex: 1;
   min-height: 0;
 }
 .side {

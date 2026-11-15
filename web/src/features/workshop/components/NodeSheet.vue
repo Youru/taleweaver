@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 import Button from 'primevue/button'
@@ -8,10 +8,19 @@ import Select from 'primevue/select'
 import SelectButton from 'primevue/selectbutton'
 import ToggleSwitch from 'primevue/toggleswitch'
 import Message from 'primevue/message'
+import Tab from 'primevue/tab'
+import TabList from 'primevue/tablist'
+import TabPanel from 'primevue/tabpanel'
+import TabPanels from 'primevue/tabpanels'
+import Tabs from 'primevue/tabs'
+import type { BoardPieces } from '@/features/table'
 import { pick, type LocalizedText } from '@/shared/lib/localized'
 import { usePreferences } from '@/shared/lib/preferences'
 import type { DraftEnd, DraftNode, DraftRule, DraftScenario, ScenarioIssue } from '../api/types'
 import { choiceOf, exitsOf, setChoice, setExit, setText, text, withChoice } from '../lib/graph'
+import { mapOf, setupOf } from '../lib/map'
+import BoardRules from './BoardRules.vue'
+import { eventsOf } from '../lib/events'
 import TargetSelect from './TargetSelect.vue'
 import TextField from './TextField.vue'
 
@@ -19,8 +28,13 @@ import TextField from './TextField.vue'
  * The sheet of a scene (title, text read aloud, what comes next or the players' choice) or of an
  * encounter (name, introduction, loot level, special rules, end conditions and where they lead).
  */
-const props = defineProps<{ scenario: DraftScenario; node: DraftNode; issues: ScenarioIssue[] }>()
-const emit = defineEmits<{ change: [node: DraftNode]; remove: []; start: [] }>()
+const props = defineProps<{
+  scenario: DraftScenario
+  node: DraftNode
+  issues: ScenarioIssue[]
+  pieces?: BoardPieces
+}>()
+const emit = defineEmits<{ change: [node: DraftNode]; remove: []; start: []; map: [] }>()
 
 const { t } = useI18n()
 const { language } = storeToRefs(usePreferences())
@@ -34,6 +48,7 @@ const field = <K extends keyof DraftNode>(key: K) =>
     set: (value: DraftNode[K]) => patch({ [key]: value } as Partial<DraftNode>),
   })
 
+const tab = ref('sheet')
 const title = field('title')
 const name = field('name')
 const narrative = field('narrative')
@@ -143,9 +158,11 @@ function addRule() {
     specialRules: [...rules.value, { id: `rule-${n}`, name: text(language.value, ''), text: text(language.value, '') }],
   })
 }
-/** What the encounter keeps from the file that this sheet does not edit yet (map, setup, tokens, events). */
+/** The board at a glance. */
+const board = computed(() => ({ map: mapOf(props.node), setup: setupOf(props.node) }))
+/** What the encounter keeps from the file that this sheet does not edit yet. */
 const untouched = computed(() =>
-  ['map', 'setup', 'tokens', 'events', 'diagrams', 'hiddenRules'].filter((key) => {
+  ['diagrams', 'hiddenRules'].filter((key) => {
     const value = props.node[key]
     return Array.isArray(value) ? value.length > 0 : !!value && Object.keys(value).length > 0
   }),
@@ -232,118 +249,154 @@ const untouched = computed(() =>
       </div>
     </template>
 
-    <!-- Encounter -->
-    <template v-else>
-      <TextField v-model="name" :label="t('workshop.name')" />
-      <TextField v-model="intro" :label="t('workshop.encounterIntro')" long />
-      <div class="row">
-        <div class="field">
-          <label for="loot">{{ t('workshop.lootLevel') }}</label>
-          <Select
-            input-id="loot"
-            :model-value="node.lootLevel"
-            :options="lootLevels"
-            option-label="label"
-            option-value="value"
-            @update:model-value="(v) => patch({ lootLevel: v })"
+    <!-- Encounter: its sheet, its tokens, its events -->
+    <Tabs v-else v-model:value="tab">
+      <TabList>
+        <Tab value="sheet">{{ t('workshop.events.tabSheet') }}</Tab>
+        <Tab value="tokens">{{ t('workshop.events.tabTokens') }}</Tab>
+        <Tab value="events">{{ t('workshop.events.tabEvents', { n: eventsOf(node).length }) }}</Tab>
+      </TabList>
+      <TabPanels class="panels">
+        <TabPanel value="tokens">
+          <BoardRules
+            :scenario="scenario"
+            :node="node"
+            :pieces="pieces"
+            show="tokens"
+            @change="(n) => emit('change', n)"
           />
-        </div>
-        <div class="field">
-          <label for="location">{{ t('workshop.locationType') }}</label>
-          <Select
-            input-id="location"
-            :model-value="node.locationType"
-            :options="locations"
-            option-label="label"
-            option-value="value"
-            show-clear
-            @update:model-value="(v) => patch({ locationType: v ?? undefined })"
+        </TabPanel>
+        <TabPanel value="events">
+          <BoardRules
+            :scenario="scenario"
+            :node="node"
+            :pieces="pieces"
+            show="events"
+            @change="(n) => emit('change', n)"
           />
-        </div>
-      </div>
-
-      <h3>{{ t('workshop.endConditions') }}</h3>
-      <ol class="ends">
-        <li v-for="(end, index) in ends" :key="end.id" :class="end.kind">
-          <div class="end-head">
-            <SelectButton
-              :model-value="end.kind"
-              :options="kinds"
-              option-label="label"
-              option-value="value"
-              :allow-empty="false"
-              :aria-label="t('workshop.endKind', { n: index + 1 })"
-              size="small"
-              @update:model-value="(v) => patchEnd(index, { kind: v })"
-            />
-            <Button
-              icon="pi pi-times"
-              size="small"
-              severity="secondary"
-              text
-              :aria-label="t('workshop.removeEnd', { n: index + 1 })"
-              @click="patch({ endConditions: ends.filter((_, i) => i !== index) })"
-            />
+        </TabPanel>
+        <TabPanel value="sheet" class="encounter">
+          <TextField v-model="name" :label="t('workshop.name')" />
+          <TextField v-model="intro" :label="t('workshop.encounterIntro')" long />
+          <div class="board">
+            <i class="pi pi-map" aria-hidden="true" />
+            <span>
+              {{ t('workshop.map.countTiles', board.map.tiles.length) }} ·
+              {{ t('workshop.map.countTokens', board.map.tokens.length) }} ·
+              {{ t('workshop.map.countEnemies', board.setup.combatants.length) }}
+            </span>
+            <Button :label="t('workshop.map.open')" icon="pi pi-pencil" size="small" @click="emit('map')" />
           </div>
-          <TextField
-            :model-value="end.text"
-            :label="t('workshop.endText')"
-            @update:model-value="(v) => patchEnd(index, { text: v })"
-          />
-          <TextField
-            :model-value="end.reward"
-            :label="t('workshop.reward')"
-            @update:model-value="(v) => patchEnd(index, { reward: v })"
-          />
-          <div class="field">
-            <span class="label">{{ t('workshop.leadsTo') }}</span>
-            <TargetSelect
-              :model-value="end.next"
-              :scenario="scenario"
-              :from="node.id"
-              :label="t('workshop.endTarget', { n: index + 1 })"
-              @update:model-value="(v) => patchEnd(index, { next: v })"
-            />
+          <div class="row">
+            <div class="field">
+              <label for="loot">{{ t('workshop.lootLevel') }}</label>
+              <Select
+                input-id="loot"
+                :model-value="node.lootLevel"
+                :options="lootLevels"
+                option-label="label"
+                option-value="value"
+                @update:model-value="(v) => patch({ lootLevel: v })"
+              />
+            </div>
+            <div class="field">
+              <label for="location">{{ t('workshop.locationType') }}</label>
+              <Select
+                input-id="location"
+                :model-value="node.locationType"
+                :options="locations"
+                option-label="label"
+                option-value="value"
+                show-clear
+                @update:model-value="(v) => patch({ locationType: v ?? undefined })"
+              />
+            </div>
           </div>
-        </li>
-      </ol>
-      <div class="adds">
-        <Button :label="t('workshop.addWin')" icon="pi pi-plus" size="small" text @click="addEnd('win')" />
-        <Button :label="t('workshop.addLose')" icon="pi pi-plus" size="small" text @click="addEnd('lose')" />
-      </div>
 
-      <h3>{{ t('workshop.specialRules') }}</h3>
-      <ol class="rules">
-        <li v-for="(rule, index) in rules" :key="rule.id">
-          <TextField
-            :model-value="rule.name"
-            :label="t('workshop.ruleName')"
-            @update:model-value="(v) => patchRule(index, { name: v ?? {} })"
-          />
-          <TextField
-            :model-value="rule.text"
-            :label="t('workshop.ruleText')"
-            long
-            :rows="3"
-            @update:model-value="(v) => patchRule(index, { text: v ?? {} })"
-          />
-          <Button
-            :label="t('workshop.removeRule')"
-            icon="pi pi-times"
-            size="small"
-            severity="secondary"
-            text
-            @click="patch({ specialRules: rules.filter((_, i) => i !== index) })"
-          />
-        </li>
-      </ol>
-      <Button :label="t('workshop.addRule')" icon="pi pi-plus" size="small" text @click="addRule" />
+          <h3>{{ t('workshop.endConditions') }}</h3>
+          <ol class="ends">
+            <li v-for="(end, index) in ends" :key="end.id" :class="end.kind">
+              <div class="end-head">
+                <SelectButton
+                  :model-value="end.kind"
+                  :options="kinds"
+                  option-label="label"
+                  option-value="value"
+                  :allow-empty="false"
+                  :aria-label="t('workshop.endKind', { n: index + 1 })"
+                  size="small"
+                  @update:model-value="(v) => patchEnd(index, { kind: v })"
+                />
+                <Button
+                  icon="pi pi-times"
+                  size="small"
+                  severity="secondary"
+                  text
+                  :aria-label="t('workshop.removeEnd', { n: index + 1 })"
+                  @click="patch({ endConditions: ends.filter((_, i) => i !== index) })"
+                />
+              </div>
+              <TextField
+                :model-value="end.text"
+                :label="t('workshop.endText')"
+                @update:model-value="(v) => patchEnd(index, { text: v })"
+              />
+              <TextField
+                :model-value="end.reward"
+                :label="t('workshop.reward')"
+                @update:model-value="(v) => patchEnd(index, { reward: v })"
+              />
+              <div class="field">
+                <span class="label">{{ t('workshop.leadsTo') }}</span>
+                <TargetSelect
+                  :model-value="end.next"
+                  :scenario="scenario"
+                  :from="node.id"
+                  :label="t('workshop.endTarget', { n: index + 1 })"
+                  @update:model-value="(v) => patchEnd(index, { next: v })"
+                />
+              </div>
+            </li>
+          </ol>
+          <div class="adds">
+            <Button :label="t('workshop.addWin')" icon="pi pi-plus" size="small" text @click="addEnd('win')" />
+            <Button :label="t('workshop.addLose')" icon="pi pi-plus" size="small" text @click="addEnd('lose')" />
+          </div>
 
-      <p class="later">
-        <i class="pi pi-map" aria-hidden="true" />
-        {{ untouched.length ? t('workshop.keptFromFile', { list: untouched.join(', ') }) : t('workshop.mapLater') }}
-      </p>
-    </template>
+          <h3>{{ t('workshop.specialRules') }}</h3>
+          <ol class="rules">
+            <li v-for="(rule, index) in rules" :key="rule.id">
+              <TextField
+                :model-value="rule.name"
+                :label="t('workshop.ruleName')"
+                @update:model-value="(v) => patchRule(index, { name: v ?? {} })"
+              />
+              <TextField
+                :model-value="rule.text"
+                :label="t('workshop.ruleText')"
+                long
+                :rows="3"
+                @update:model-value="(v) => patchRule(index, { text: v ?? {} })"
+              />
+              <Button
+                :label="t('workshop.removeRule')"
+                icon="pi pi-times"
+                size="small"
+                severity="secondary"
+                text
+                @click="patch({ specialRules: rules.filter((_, i) => i !== index) })"
+              />
+            </li>
+          </ol>
+          <Button :label="t('workshop.addRule')" icon="pi pi-plus" size="small" text @click="addRule" />
+
+          <p v-if="untouched.length" class="later">
+            <i class="pi pi-info-circle" aria-hidden="true" />
+            {{ t('workshop.keptFromFile', { list: untouched.join(', ') }) }}
+          </p>
+        </TabPanel>
+      </TabPanels>
+    </Tabs>
   </section>
 </template>
 
@@ -445,6 +498,26 @@ ol {
 .adds {
   display: flex;
   gap: 0.5rem;
+}
+.panels {
+  padding: 0.75rem 0 0;
+}
+.encounter {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.board {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.7rem;
+  border-radius: var(--p-content-border-radius);
+  background: var(--p-content-hover-background);
+  font-size: 0.85rem;
+}
+.board span {
+  flex: 1;
 }
 .later {
   margin: 0.5rem 0 0;
