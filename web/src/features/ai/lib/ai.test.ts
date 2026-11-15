@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { parseCondition, suggest } from './conditions'
-import { lineCells, range, reachable, sight, type Board, type BoardFigure, type Terrain } from './grid'
+import { lineCells, range, reachable, sight, terrainOf, type Board, type BoardFigure, type Terrain } from './grid'
 import { parseInstruction, planTurn } from './instructions'
 
 /** A 12×6 board (two tiles) with nothing on it. */
@@ -166,6 +166,12 @@ function withTerrain(b: Board, cells: Record<string, Terrain>): Board {
 }
 
 describe('terrain', () => {
+  it('knows a Terrain token by its catalogue type', () => {
+    expect(terrainOf('um1:token/terrain/obstructing-long')).toBe('obstructing')
+    expect(terrainOf('um1:token/terrain/water-long-dark')).toBe('water')
+    expect(terrainOf('um1:token/totem')).toBeUndefined()
+  })
+
   it('goes around Obstructing and Dangerous Terrain, and pays 2 to leave Hindering Terrain', () => {
     const sickle = fig('sickle-1', 'combatant', 0, 0)
     const b = withTerrain(board(sickle), { '1,0': 'obstructing', '0,1': 'hindering', '2,1': 'dangerous' })

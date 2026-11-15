@@ -99,9 +99,12 @@ export function withBoard(
   return { ...node, map, setup }
 }
 
-/** "um1:token/objective" + "blue" → "objective:blue": the key the token rules and events use. */
+/**
+ * "um1:token/objective" + "blue" → "objective:blue": the key the token rules and events use. Like the
+ * engine, only the last part of the type counts ("um1:token/terrain/obstructing" → "obstructing").
+ */
 export function tokenKey(type: string, color?: string): string {
-  const short = type.replace(/^[^:]+:token\//, '')
+  const short = type.slice(type.lastIndexOf('/') + 1)
   return color ? `${short}:${color}` : short
 }
 

@@ -42,7 +42,7 @@ describe('map editor', () => {
     const second = addToken(first.map, { type: 'um1:token/objective', color: 'blue' }, { x: 4, y: 3 })
     expect([first.id, second.id]).toEqual(['objective-blue-1', 'objective-blue-2'])
     expect(tokenKey('um1:token/objective', 'blue')).toBe('objective:blue')
-    expect(tokenKey('um1:token/terrain/obstructing')).toBe('terrain/obstructing')
+    expect(tokenKey('um1:token/terrain/obstructing')).toBe('obstructing')
 
     const long = addToken(map, { type: 'um1:token/terrain/obstructing-long', size: '2x1' }, { x: 0, y: 0 })
     expect(long.map.tokens[0]).toMatchObject({ id: 'terrain-obstructing-long-1', w: 2, h: 1 })

@@ -16,10 +16,10 @@ export interface Board {
 /** The Terrain types that change movement or Line of Sight (rulebook p. 21). */
 export type Terrain = 'obstructing' | 'hindering' | 'water' | 'muck' | 'dangerous'
 
-/** The Terrain of a token, from its key ("terrain/obstructing-long" → obstructing). */
-export function terrainOf(tokenKey: string): Terrain | undefined {
-  if (!tokenKey.startsWith('terrain/')) return undefined
-  return (['obstructing', 'hindering', 'water', 'muck', 'dangerous'] as const).find((t) => tokenKey.includes(t))
+/** The Terrain of a token, from its catalogue type ("um1:token/terrain/obstructing-long" → obstructing). */
+export function terrainOf(type: string | undefined): Terrain | undefined {
+  if (!type?.includes(':token/terrain/')) return undefined
+  return (['obstructing', 'hindering', 'water', 'muck', 'dangerous'] as const).find((t) => type.includes(t))
 }
 
 export type Side = 'combatant' | 'adventurer'

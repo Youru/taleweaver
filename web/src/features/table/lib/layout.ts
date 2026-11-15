@@ -65,6 +65,8 @@ export interface TokenShape {
   turned: boolean
   /** Objectives, totems, exits, loot… are round tokens; terrain pieces are square. */
   round: boolean
+  /** Catalogue type ("um1:token/terrain/obstructing-long"), when known. */
+  type?: string
 }
 
 export type FigureKind = 'combatant' | 'adventurer'
@@ -158,6 +160,7 @@ export function boardLayout(
       {
         id: token.id,
         key: token.key,
+        type: token.type ?? undefined,
         href: assetUrl(image),
         ...token.area,
         turned: token.area.h > token.area.w,

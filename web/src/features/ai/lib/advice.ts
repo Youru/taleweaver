@@ -41,7 +41,7 @@ export function readBoard(layout: BoardLayout, encounter: EncounterState): Board
   // Terrain tokens: what they cover changes movement and Line of Sight
   const terrain = new Map<string, Terrain>()
   for (const token of layout.tokens) {
-    const type = terrainOf(token.key)
+    const type = terrainOf(token.type)
     if (type)
       for (let x = token.x; x < token.x + token.w; x++)
         for (let y = token.y; y < token.y + token.h; y++) terrain.set(key({ x, y }), type)
