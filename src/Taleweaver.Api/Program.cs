@@ -1,6 +1,7 @@
 using FluentValidation;
 using Taleweaver.Api.Common;
 using Taleweaver.Api.Content;
+using Taleweaver.Api.Features.Assets;
 using Taleweaver.Api.Features.Encounters;
 using Taleweaver.Api.Features.Games;
 using Taleweaver.Api.Features.Packs;
@@ -21,7 +22,7 @@ builder.Services.AddSingleton<IContentStore, JsonContentStore>();
 builder.Services.AddSingleton<IGameStore, JsonGameStore>();
 builder.Services.AddSingleton<CatalogProvider>();
 
-builder.Services.AddPacksFeature().AddScenariosFeature().AddGamesFeature();
+builder.Services.AddPacksFeature().AddScenariosFeature().AddGamesFeature().AddAssetsFeature();
 
 var app = builder.Build();
 
@@ -32,6 +33,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.MapPacksEndpoints().MapScenariosEndpoints().MapGamesEndpoints().MapEncountersEndpoints();
+GetAsset.Map(app);
 
 app.Run();
 

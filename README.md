@@ -14,6 +14,32 @@ cd taleweaver && dotnet run --project src/Taleweaver.Api
 - Document OpenAPI sur `/openapi/v1.json` (Development).
 - Le contenu est lu depuis la racine du dépôt : section `Content` de `appsettings.json` (`RootPath`, `EnabledPacks`).
 
+## Front (`web/`)
+
+Vue 3 + TypeScript strict, Vite, PrimeVue 4, TanStack Query, Pinia, vue-i18n (FR/EN). Standards : skill `vue-frontend`.
+
+⚠️ **PrimeVue reste en 4.5.x** (MIT). La version 5 passe sous licence PrimeUI, qui exige une clé, même pour la licence gratuite.
+
+```bash
+cd taleweaver/web && npm install && npm run dev
+```
+
+- Lancer aussi l'API (section précédente). Le serveur Vite (http://localhost:5173) redirige `/api` vers http://localhost:5145.
+- Dans l'app de bureau Claude, `.claude/launch.json` déclare `taleweaver-api` et `taleweaver-web`.
+- Pages :
+  - accueil : scénarios et parties sauvegardées ;
+  - partie : carte, journal, question en cours, rencontre (piste d'initiative, combattants, jetons, conditions de fin).
+- **Carte** (`src/features/board/`) : la mise en place dessinée en SVG à partir des images locales (`/api/assets/…`) : tuiles tournées, schémas posés en cours de rencontre, terrain, jetons (un clic active un jeton du scénario), zone de départ, courants, élévation, figurines numérotées (celle qui agit clignote). Les positions sont celles de la mise en place : l'appli ne suit pas les déplacements. Ce que le scénario place sans case précise est listé « à placer par le MJ ».
+- ⚠️ Les images appartiennent à Succubus Publishing : l'API les lit sur le disque local et ne doit jamais être exposée en ligne avec elles.
+- Les textes de l'interface et la mise en forme du journal sont dans `src/shared/i18n/messages.ts`. Le contenu du jeu garde ses propres textes `{ en, fr }`.
+- Vérifications :
+
+```bash
+npm run typecheck && npm run lint && npm test && npm run e2e
+```
+
+`npm run e2e` lance lui-même l'API (sauvegardes dans un dossier temporaire) et Vite, puis joue Blight dans Edge (`channel: 'msedge'` : aucun navigateur à télécharger).
+
 ## Tester
 
 ```bash

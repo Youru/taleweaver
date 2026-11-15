@@ -1,3 +1,4 @@
+using Taleweaver.Api.Content;
 using Taleweaver.Api.Engine;
 
 namespace Taleweaver.UnitTests.Engine;
@@ -17,6 +18,9 @@ public class BlightPlaythroughTests
         game.Encounter.Combatants.Select(c => c.Instance).Should().Equal("fragor-1", "fragor-2", "fragor-3", "earth-loa-1", "water-loa-1", "water-loa-2");
         game.Combatant("water-loa-1").Card.Should().Be("um1:combatant/crystal-water-loa-1-2-common");
         game.Encounter.InitiativeTrack.Should().HaveCount(4 + 3);
+        game.Combatant("fragor-1").Position.Should().Be(new Cell(11, 2));
+        game.Encounter.Tokens.Single(t => t.Key == "totem:blue").Area.Should().Be(new Rect(1, 3));
+        game.Encounter.Tokens.Single(t => t.Id == "obs-long-1").Area.Should().Be(new Rect(6, 6, 1, 2));
 
         game.PlayRound("yes");
         game.Encounter.Round.Should().Be(1);
@@ -31,6 +35,8 @@ public class BlightPlaythroughTests
         // Blue totem: Earth Loa on the totem + 2 Gevaudan, who gain a step
         game.Do(GameCommand.ActivateToken("totem:blue"));
         game.Encounter.Combatants.Select(c => c.Instance).Should().Contain(["earth-loa-2", "gevaudan-1", "gevaudan-2"]);
+        game.Combatant("earth-loa-2").Position.Should().Be(new Cell(1, 3), "it spawns on the totem");
+        game.Combatant("gevaudan-1").Position.Should().BeNull("'any space on the east side' is for the GM to choose");
         game.Encounter.ExtraAiSteps["gevaudan"].Should().ContainSingle();
         game.Encounter.Tokens.Where(t => t.Key == "totem:blue").Should().OnlyContain(t => t.Removed);
 

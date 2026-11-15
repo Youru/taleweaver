@@ -1,7 +1,7 @@
 {
   "combatants": [
     {
-      "id": "hb:combatant/brute-mundane", "family": "brute", "name": { "en": "Brute", "fr": "Brute" },
+      "id": "hb:combatant/brute-mundane", "family": "brute", "name": { "en": "Brute", "fr": "Brute" }, "miniature": "assets/hb/pixel.png", "baseSize": "1x1",
       "kind": "intelligent", "lootLevel": "mundane", "activation": "1-2", "initiativeCards": ["hb:initiative/brute"],
       "stats": { "health": 8, "defense": 3, "movement": 4, "armor": 1, "combatDice": ["red", "red"], "convictionDice": ["green"], "castingDie": null },
       "aiSteps": [

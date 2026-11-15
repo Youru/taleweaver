@@ -127,6 +127,9 @@ public sealed class CombatantState
 
     public string? Figure { get; set; }
 
+    /// <summary>Square where the scenario placed the figure, when it says so; the app does not follow it afterwards.</summary>
+    public Cell? Position { get; set; }
+
     public int Damage { get; set; }
 
     public List<string> Effects { get; set; } = [];
@@ -145,6 +148,14 @@ public sealed class BoardToken
 
     /// <summary>"type:colour" (e.g. "objective:red"), the key used by the scenario's tokens and triggers.</summary>
     public required string Key { get; set; }
+
+    /// <summary>Token id in the catalogue (e.g. "um1:token/objective").</summary>
+    public string? Type { get; set; }
+
+    public string? Color { get; set; }
+
+    /// <summary>Squares covered, when the scenario gives them.</summary>
+    public Rect? Area { get; set; }
 
     public bool Removed { get; set; }
 }

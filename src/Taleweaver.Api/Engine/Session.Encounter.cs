@@ -273,6 +273,7 @@ internal sealed partial class Session
             }
 
             figure.Figure = action.Figure ?? figure.Figure;
+            figure.Position = i == 0 ? Locate(action.At) : null;
             var existing = Encounter.Combatants.FindIndex(c => c.Instance == figure.Instance);
             if (existing >= 0)
             {

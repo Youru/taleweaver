@@ -216,7 +216,14 @@ internal sealed partial class Session
         }
 
         var key = color is null ? type : $"{type}:{color}";
-        var token = new BoardToken { Id = $"placed-{Encounter.Tokens.Count + 1}", Key = key };
+        var token = new BoardToken
+        {
+            Id = $"placed-{Encounter.Tokens.Count + 1}",
+            Key = key,
+            Type = action.Type,
+            Color = color,
+            Area = Locate(action.At) is { } cell ? new Rect(cell.X, cell.Y) : null,
+        };
         Encounter.Tokens.Add(token);
         Log("placeToken", args: Args(("token", key), ("id", token.Id), ("at", Json(action.At))));
     }
@@ -257,8 +264,46 @@ internal sealed partial class Session
         foreach (var token in map?.Tokens ?? [])
         {
             var type = TokenType(token.Type);
-            Encounter.Tokens.Add(new BoardToken { Id = token.Id, Key = token.Color is null ? type : $"{type}:{token.Color}" });
+            Encounter.Tokens.Add(new BoardToken
+            {
+                Id = token.Id,
+                Key = token.Color is null ? type : $"{type}:{token.Color}",
+                Type = token.Type,
+                Color = token.Color,
+                Area = token.Area,
+            });
         }
+    }
+
+    /// <summary>
+    /// The square an action's "at" designates: explicit coordinates, or the square of a token ("token:totem:blue")
+    /// or of a combatant ("instance:terror"). Null when only described in words (adjacent to…, any space on a tile…).
+    /// </summary>
+    private Cell? Locate(JsonElement? at)
+    {
+        if (at is not { ValueKind: JsonValueKind.Object } where)
+        {
+            return null;
+        }
+
+        if (where.TryGetProperty("x", out var x) && where.TryGetProperty("y", out var y)
+            && x.TryGetInt32(out var column) && y.TryGetInt32(out var row))
+        {
+            return new Cell(column, row);
+        }
+
+        if (!where.TryGetProperty("on", out var on) || on.GetString() is not { } target)
+        {
+            return null;
+        }
+
+        if (target.StartsWith("token:", StringComparison.Ordinal))
+        {
+            var key = target["token:".Length..];
+            return Encounter.Tokens.LastOrDefault(t => t.Key == key && t.Area is not null)?.Area is { } area ? new Cell(area.X, area.Y) : null;
+        }
+
+        return target.StartsWith("instance:", StringComparison.Ordinal) ? Find(target["instance:".Length..])?.Position : null;
     }
 
     /// <summary>"um1:token/objective" → "objective".</summary>

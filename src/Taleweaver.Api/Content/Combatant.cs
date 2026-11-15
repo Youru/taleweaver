@@ -48,6 +48,12 @@ public sealed record Combatant
 
     public string? ImageBack { get; init; }
 
+    /// <summary>Figure of the family on the board (standee image).</summary>
+    public string? Miniature { get; init; }
+
+    /// <summary>Base of the figure: "1x1", "2x2".</summary>
+    public string? BaseSize { get; init; }
+
     public string? Source { get; init; }
 
     public string? Note { get; init; }
