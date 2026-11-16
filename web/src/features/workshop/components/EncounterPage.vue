@@ -211,8 +211,14 @@ const folio = (index: number) => (props.firstPage ? props.firstPage + index : un
                 <span>{{ entry.label }}</span>
               </h3>
               <p v-if="entry.activation" class="activation">{{ entry.activation }}</p>
-              <div v-if="entry.text.length" :class="['secret', { veiled }]" :style="veiled ? veil : undefined">
-                <p v-for="(line, i) in entry.text" :key="i">{{ line }}</p>
+              <!-- One box per branch, its mark (A:, PASS:…) in the clear as in the books -->
+              <div
+                v-for="(block, i) in entry.text"
+                :key="i"
+                :class="['branch', { long: (block.label?.length ?? 0) > 3 }]"
+              >
+                <strong v-if="block.label" class="branch-label">{{ block.label }}</strong>
+                <p :class="['secret', { veiled }]" :style="veiled ? veil : undefined">{{ block.text }}</p>
               </div>
             </div>
           </section>
@@ -476,8 +482,30 @@ p {
   background: rgb(243 233 216 / 0.55);
   font-style: italic;
 }
-.secret {
+.branch {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.05in;
   margin-top: 0.04in;
+}
+.branch .secret {
+  flex: 1;
+  min-width: 0;
+}
+/* "MASTERFUL PASS:" and the like sit above their box, not beside it */
+.branch.long {
+  flex-direction: column;
+  gap: 0.02in;
+}
+.branch.long .secret {
+  width: 100%;
+  box-sizing: border-box;
+}
+.branch-label {
+  flex: none;
+  padding-top: 0.03in;
+  font-size: 8pt;
+  text-transform: uppercase;
 }
 .activation {
   font-style: italic;

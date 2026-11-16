@@ -168,6 +168,7 @@ internal sealed partial class Session
     {
         var options = (action.Options ?? [])
             .Select((o, i) => new PromptOption($"pass-{i}", Text($"{o.Skill} {o.Difficulty}: passed", $"{o.Skill} {o.Difficulty} : réussi")))
+            .Concat(action.Masterful is null ? [] : [new PromptOption("masterful", Text("Masterful Pass", "Réussite magistrale"))])
             .Append(new PromptOption("fail", Text("Failed", "Raté")));
         var who = action.Who is { ValueKind: JsonValueKind.Object } w ? w.Deserialize<Dictionary<string, string>>() : null;
         Ask(PromptKinds.SkillCheck, who, options, action);
@@ -178,6 +179,12 @@ internal sealed partial class Session
         if (option == "fail")
         {
             Push(action.Fail ?? []);
+            return;
+        }
+
+        if (option == "masterful")
+        {
+            Push(action.Masterful ?? []);
             return;
         }
 

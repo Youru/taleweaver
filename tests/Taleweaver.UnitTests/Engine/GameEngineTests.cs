@@ -145,6 +145,27 @@ public class GameEngineTests
     }
 
     [Fact]
+    public void SkillCheck_WithMasterfulBranch_OffersItAndShowsItsText()
+    {
+        var check = new ScenarioAction
+        {
+            Do = "askSkillCheck",
+            Options = [new ActionOption { Skill = "strength", Difficulty = 12 }],
+            Pass = [new ScenarioAction { Do = "showText", Text = En("PASS: held.") }],
+            Masterful = [new ScenarioAction { Do = "showText", Text = En("MASTERFUL PASS: thrown back.") }],
+            Fail = [new ScenarioAction { Do = "showText", Text = En("FAIL: crushed.") }],
+        };
+        var game = Game(spawn: check).Continue();
+
+        game.Do(GameCommand.ActivateToken("totem:red"));
+        game.State.Prompt!.Options.Select(o => o.Id).Should().Equal("pass-0", "masterful", "fail");
+        game.Answer("masterful");
+
+        game.State.Log.Should().Contain(l => l.Code == "text" && l.Text!["en"] == "MASTERFUL PASS: thrown back.");
+        game.State.Log.Should().NotContain(l => l.Code == "text" && l.Text!["en"] == "PASS: held.");
+    }
+
+    [Fact]
     public void Spawn_FourImps_FillsGroupOneThreeThenFourSix()
     {
         var game = Game(spawn: new ScenarioAction { Do = "spawn", Family = "imp", Count = 4 }).Continue();

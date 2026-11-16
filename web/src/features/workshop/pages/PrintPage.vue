@@ -77,8 +77,14 @@ const pageOfCaption = (caption: string) => {
 }
 const colorName = (color: string) => t(`workshop.map.color.${color}`, color)
 const sheetOf = (node: DraftNode) =>
-  encounterSheet(scenario.value!, node, pieces.data.value, language.value, colorName, (name, color) =>
-    t('workshop.print.tokenLabel', { name, color }),
+  encounterSheet(
+    scenario.value!,
+    node,
+    pieces.data.value,
+    language.value,
+    colorName,
+    (name, color) => t('workshop.print.tokenLabel', { name, color }),
+    (on) => t(`workshop.events.on.${on}`, on),
   )
 
 const shown = computed(() => {

@@ -434,6 +434,9 @@ public sealed record ScenarioAction
 
     public IReadOnlyList<ScenarioAction>? Pass { get; init; }
 
+    /// <summary>askSkillCheck: what a Masterful Pass does, offered beside "passed" when present.</summary>
+    public IReadOnlyList<ScenarioAction>? Masterful { get; init; }
+
     public IReadOnlyList<ScenarioAction>? Fail { get; init; }
 
     public IReadOnlyList<ScenarioAction>? Fallback { get; init; }
@@ -447,7 +450,7 @@ public sealed record ScenarioAction
     public IEnumerable<ScenarioAction> SelfAndDescendants()
     {
         yield return this;
-        foreach (var branch in new[] { Pass, Fail, Fallback, Actions })
+        foreach (var branch in new[] { Pass, Masterful, Fail, Fallback, Actions })
         {
             foreach (var action in Flatten(branch))
             {

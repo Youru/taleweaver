@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import type { BoardPieces } from '@/features/table'
 import type { DraftScenario } from '../api/types'
-import { encounterSheet, readingOrder, setupColumns, terrainFrame, terrainName } from './printable'
+import {
+  encounterSheet,
+  eventTexts,
+  hiddenBlocks,
+  readingOrder,
+  setupColumns,
+  terrainFrame,
+  terrainName,
+} from './printable'
 
 const pieces: BoardPieces = {
   tiles: { 'um1:tile/um1': { name: 'UM1', w: 6, h: 6 } },
@@ -83,7 +91,7 @@ describe('the printed encounter', () => {
             label: 'Blue Totem',
             image: 'b.png',
             activation: 'In line of sight.',
-            text: ['A Fragor appears.'],
+            text: [{ text: 'A Fragor appears.' }],
           },
         ],
       },
@@ -166,4 +174,87 @@ it('frames each terrain in the colour of its kind, as the books draw it', () => 
   expect(terrainFrame('um1:token/terrain/water-long-dark')).not.toBe(terrainFrame('um1:token/terrain/water'))
   expect(terrainFrame('um1:token/terrain/water-large-light')).toBe(terrainFrame('um1:token/terrain/water'))
   expect(terrainFrame('um1:token/totem')).toBeUndefined()
+})
+
+it('reads every text of an event, down each branch: choice, pass, masterful pass, fail', () => {
+  const event = {
+    hiddenText: { en: 'The wall falls. Read A or B.' },
+    actions: [
+      {
+        do: 'askChoice',
+        options: [
+          {
+            label: { en: 'jump' },
+            actions: [
+              { do: 'showText', text: { en: 'A: You jump.' } },
+              {
+                do: 'askSkillCheck',
+                pass: [{ do: 'showText', text: { en: 'PASS: Safe.' } }],
+                masterful: [{ do: 'showText', text: { en: 'MASTERFUL PASS: Hero.' } }],
+                fail: [
+                  { do: 'showText', text: { en: 'FAIL: Hurt.' } },
+                  { do: 'setFlag', flag: 'hurt' },
+                ],
+              },
+            ],
+          },
+          { label: { en: 'stay' }, actions: [{ do: 'showText', text: { en: 'B: You stay.' } }] },
+        ],
+      },
+    ],
+  }
+
+  expect(eventTexts(event, 'en')).toEqual([
+    'The wall falls. Read A or B.',
+    'A: You jump.',
+    'PASS: Safe.',
+    'MASTERFUL PASS: Hero.',
+    'FAIL: Hurt.',
+    'B: You stay.',
+  ])
+})
+
+it('gives each branch its own box, also when the branches were written in one text', () => {
+  expect(
+    hiddenBlocks([
+      'If you are west, read A. Otherwise read B. A:  You hear a roar. PASS:  You win. FAIL: You lose. B: Nothing.',
+      'PASS WITH A RESULT OF 14 OR LESS: Open.',
+    ]),
+  ).toEqual([
+    { text: 'If you are west, read A. Otherwise read B.' },
+    { label: 'A:', text: 'You hear a roar.' },
+    { label: 'PASS:', text: 'You win.' },
+    { label: 'FAIL:', text: 'You lose.' },
+    { label: 'B:', text: 'Nothing.' },
+    { label: 'PASS WITH A RESULT OF 14 OR LESS:', text: 'Open.' },
+  ])
+})
+
+it('prints the hidden texts of the events tied to no token, unless a rule already prints them', () => {
+  const node = {
+    id: 'end',
+    type: 'encounter',
+    specialRules: [{ id: 'rush', name: { en: 'Rush' }, text: { en: 'Each round, more of them come.' } }],
+    events: [
+      { id: 'rush', trigger: { on: 'roundStart' }, hiddenText: { en: 'Each round, more of them come.' } },
+      { id: 'q1', trigger: { on: 'combatantDefeated', family: 'fragor' }, hiddenText: { en: 'The queen falls.' } },
+      { id: 'q2', trigger: { on: 'combatantDefeated', family: 'fragor' }, hiddenText: { en: 'The queen falls.' } },
+    ],
+  }
+  const sheet = encounterSheet(
+    { ...scenario, nodes: [node] },
+    node,
+    pieces,
+    'en',
+    (c) => c,
+    undefined,
+    (on) => (on === 'combatantDefeated' ? 'Enemy defeated' : on),
+  )
+
+  expect(sheet.hidden).toEqual([
+    {
+      group: 'event',
+      entries: [{ key: 'q1', label: 'Enemy defeated : Fragor', activation: '', text: [{ text: 'The queen falls.' }] }],
+    },
+  ])
 })

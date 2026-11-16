@@ -254,6 +254,7 @@ export const messages = {
           direction: 'Directions',
           figures: 'Figurines',
           other: 'Autres jetons',
+          event: 'Autres textes cachés',
         },
       },
       events: {
@@ -907,6 +908,7 @@ export const messages = {
           direction: 'Directions',
           figures: 'Figures',
           other: 'Other tokens',
+          event: 'Other hidden texts',
         },
       },
       events: {

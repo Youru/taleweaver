@@ -24,7 +24,9 @@ const veil = computed(() =>
       <small>{{ encounter }}</small>
     </header>
     <div :class="['text', { veiled }]" :style="veil">
-      <p v-for="(line, i) in entry.text" :key="i">{{ line }}</p>
+      <p v-for="(block, i) in entry.text" :key="i">
+        <strong v-if="block.label">{{ block.label }} </strong>{{ block.text }}
+      </p>
     </div>
   </article>
 </template>

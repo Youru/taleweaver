@@ -1,7 +1,7 @@
 import type { BoardPieces } from '@/features/table'
 import { pick, type Language, type LocalizedText } from '@/shared/lib/localized'
 import type { DraftNode, DraftScenario } from '../api/types'
-import { eventsOfToken, tokenRulesOf } from './events'
+import { eventsOf, eventsOfToken, tokenRulesOf } from './events'
 import { captionOf } from './graph'
 import { mapOf, setupOf, tokenKey } from './map'
 
@@ -59,7 +59,13 @@ export interface HiddenEntry {
   /** How it is activated: printed in the clear. */
   activation: string
   /** What it reveals: printed under the red filter. */
-  text: string[]
+  text: HiddenBlock[]
+}
+
+/** One box of hidden text: its branch ("A:", "PASS:", "MASTERFUL PASS:"…) printed in the clear, then the text. */
+export interface HiddenBlock {
+  label?: string
+  text: string
 }
 
 /** The order of the setup list and of the hidden sections, as in the books. */
@@ -79,6 +85,8 @@ export function encounterSheet(
   colorName: (color: string) => string,
   /** "Blue Loot" or "Loot bleu": the order of the language. */
   tokenLabel: (name: string, color: string) => string = (name, color) => `${color} ${name}`,
+  /** What starts an event in words ("Enemy defeated"), for the hidden texts tied to no token. */
+  triggerName: (on: string) => string = (on) => on,
 ): EncounterSheet {
   const text = (value: LocalizedText | undefined) => pick(value, language)
   const map = mapOf(node)
@@ -170,9 +178,7 @@ export function encounterSheet(
   const sections = new Map<string, HiddenEntry[]>()
   for (const key of keys) {
     const rule = tokenRulesOf(node)[key]
-    const hiddenText = eventsOfToken(node, key)
-      .map((e) => text(e.hiddenText))
-      .filter((t) => !!t)
+    const hiddenText = hiddenBlocks(eventsOfToken(node, key).flatMap((e) => eventTexts(e, language)))
     const activation = text(rule?.activation)
     if (!hiddenText.length && !activation) continue
     const type = typeOfKey(key)
@@ -190,6 +196,34 @@ export function encounterSheet(
       { key, label: capitalize(label), ...(image ? { image } : {}), activation, text: hiddenText },
     ])
   }
+  // The texts of the events tied to no token (an enemy falls, a round starts, an area is revealed…):
+  // printed too, unless a rule already prints them (Sickle Rush) or another event the same text
+  const printed = [...(node.specialRules ?? []), ...((node.hiddenRules as { text?: LocalizedText }[]) ?? [])].map((r) =>
+    squash(text(r.text)),
+  )
+  const linked = new Set(Object.values(tokenRulesOf(node)).flatMap((r) => r.events ?? []))
+  const untied: HiddenEntry[] = []
+  for (const event of eventsOf(node)) {
+    if (linked.has(event.id) || event.trigger.on === 'tokenActivated') continue
+    const blocks = hiddenBlocks(eventTexts(event, language)).filter(
+      (b) => !printed.some((rule) => rule.includes(squash(b.text))),
+    )
+    if (!blocks.length) continue
+    const same = squash(blocks.map((b) => b.text).join(' '))
+    if (untied.some((o) => squash(o.text.map((b) => b.text).join(' ')) === same)) continue
+    printed.push(...blocks.map((b) => squash(b.text)))
+    const trigger = event.trigger as { on: string; family?: string; round?: number; area?: string }
+    const family = trigger.family ? text(pieces?.families[trigger.family]?.name) || trigger.family : undefined
+    const detail = family ?? trigger.round ?? trigger.area
+    untied.push({
+      key: event.id,
+      label: detail !== undefined ? `${triggerName(trigger.on)} : ${detail}` : triggerName(trigger.on),
+      activation: '',
+      text: blocks,
+    })
+  }
+  if (untied.length) sections.set('event', untied)
+
   const hidden = [...sections]
     .sort(([a], [b]) => rank(a) - rank(b))
     .map(([group, entries]) => ({
@@ -225,6 +259,9 @@ const colorRank = (color: string | undefined) => {
   const i = color ? COLORS.indexOf(color) : -1
   return i < 0 ? COLORS.length : i
 }
+
+/** A text reduced to its letters and digits, to find it inside another. */
+const squash = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, '')
 
 /** "UM5" before "UM31": the numbers compared as numbers. */
 const byNumber = (a: string, b: string) => a.localeCompare(b, undefined, { numeric: true })
@@ -347,4 +384,61 @@ export const TOKEN_COLORS: Record<string, string> = {
   pink: '#e8579b',
   white: '#f2f2f2',
   indigo: '#3f4aa8',
+}
+
+type TextEvent = { hiddenText?: LocalizedText; actions?: unknown }
+type TextAction = {
+  do?: string
+  text?: LocalizedText
+  actions?: TextAction[]
+  options?: TextAction[]
+  pass?: TextAction[]
+  masterful?: TextAction[]
+  fail?: TextAction[]
+  fallback?: TextAction[]
+}
+
+/**
+ * Every text an event shows, in reading order: its hidden text, then the texts of its actions, down
+ * every branch (a choice's options, a check's pass, masterful pass and fail), as the books print them.
+ */
+export function eventTexts(event: TextEvent, language: Language): string[] {
+  const texts: string[] = []
+  const first = pick(event.hiddenText, language)
+  if (first) texts.push(first)
+  const walk = (actions: unknown) => {
+    for (const action of (Array.isArray(actions) ? actions : []) as TextAction[]) {
+      if (action.do === 'showText') {
+        const shown = pick(action.text, language)
+        if (shown) texts.push(shown)
+      }
+      walk(action.actions)
+      walk(action.options)
+      walk(action.pass)
+      walk(action.masterful)
+      walk(action.fail)
+      walk(action.fallback)
+    }
+  }
+  walk(event.actions)
+  return texts
+}
+
+/** A branch's mark at the start of a sentence: "A:", "PASS:", "MASTERFUL PASS:", "PASS WITH A RESULT OF 14 OR LESS:"… */
+const BRANCH =
+  /(?<=^|[.!?"”)]\s+)((?:[A-E]|PASS|FAIL|MASTERFUL PASS|PASS WITH A RESULT OF \d+\+?(?: OR (?:LESS|MORE))?):)\s+/g
+
+/** The texts cut at each branch mark, so that each branch gets its own box, as in the books. */
+export function hiddenBlocks(texts: string[]): HiddenBlock[] {
+  const blocks: HiddenBlock[] = []
+  for (const text of texts) {
+    const marks = [...text.matchAll(BRANCH)]
+    const head = text.slice(0, marks[0]?.index ?? text.length).trim()
+    if (head) blocks.push({ text: head })
+    marks.forEach((mark, i) => {
+      const end = marks[i + 1]?.index ?? text.length
+      blocks.push({ label: mark[1]!, text: text.slice(mark.index! + mark[0].length, end).trim() })
+    })
+  }
+  return blocks
 }
