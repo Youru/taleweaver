@@ -1,6 +1,17 @@
 import { describe, expect, it } from 'vitest'
 import { parseCondition, suggest } from './conditions'
-import { lineCells, printedTerrain, range, reachable, rotate, sight, terrainOf, type Board, type BoardFigure, type Terrain } from './grid'
+import {
+  lineCells,
+  printedTerrain,
+  range,
+  reachable,
+  rotate,
+  sight,
+  terrainOf,
+  type Board,
+  type BoardFigure,
+  type Terrain,
+} from './grid'
 import { parseInstruction, planTurn } from './instructions'
 
 /** A 12×6 board (two tiles) with nothing on it. */

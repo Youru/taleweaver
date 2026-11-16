@@ -30,9 +30,9 @@ const { t } = useI18n()
 const endingLabel = useEndingLabel()
 const page = useTemplateRef<HTMLElement>('page')
 const art = (path: string) => assetUrl(`assets/templates/encounter/${path}`)
-const background = computed(() => ({
-  backgroundImage: [art('bg-right.png'), art('bg-left.png')].map((u) => `url("${u}")`).join(', '),
-}))
+// The template's two background layers, flattened into one JPEG (scripts/flatten-print-background.mjs):
+// as PNG they weighed 14 MB each in every PDF, which readers were slow or failed to open
+const background = computed(() => ({ backgroundImage: `url("${art('print-background.jpg')}")` }))
 const veil = computed(() => ({
   backgroundImage: `linear-gradient(rgb(245 205 190 / 0.4), rgb(245 205 190 / 0.4)), url("${art('content/totem/hide-text.png')}")`,
 }))

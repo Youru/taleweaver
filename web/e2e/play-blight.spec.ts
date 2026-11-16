@@ -89,7 +89,7 @@ test('a GM deals damage, then undoes it', async ({ page }) => {
   await startBlight(page)
   await page.getByRole('button', { name: 'Continuer' }).click()
 
-  // A combatant picked in the list opens its actions on the table
+  // A combatant picked in the list opens its actions under the list
   await page
     .getByRole('button', { name: /fragor-1/ })
     .first()

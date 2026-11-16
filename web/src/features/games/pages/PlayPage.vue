@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref, useTemplateRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 import Button from 'primevue/button'
@@ -14,7 +14,7 @@ import { useAiAdvice } from '@/features/ai'
 import { useCombatants } from '@/features/catalog'
 import { DuelDialog } from '@/features/duel'
 import { useScenario } from '@/features/scenarios'
-import { boardLayout, TableView, useBoardPieces, type Selection } from '@/features/table'
+import { boardLayout, TableSelection, TableView, useBoardPieces, type Selection } from '@/features/table'
 import { ApiError } from '@/shared/api/http'
 import { pick } from '@/shared/lib/localized'
 import { usePreferences } from '@/shared/lib/preferences'
@@ -80,6 +80,14 @@ const reportsLocked = computed(
 
 const selected = ref<Selection | null>(null)
 const tab = ref('combatants')
+// What is picked on the table opens its actions under the combatants, scrolled into view
+const selectionPanel = useTemplateRef<{ $el: HTMLElement }>('selectionPanel')
+watch(selected, async (now) => {
+  if (!now) return
+  tab.value = 'combatants'
+  await nextTick()
+  selectionPanel.value?.$el.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' })
+})
 /** The duel window, the figure it opened with, and the target the AI picked if any. */
 const duel = ref<string | null>(null)
 const duelTarget = ref<string | null>(null)
@@ -151,6 +159,7 @@ function moveFigure(figure: string, to: Cell) {
             :cards="cards"
             :locked="reportsLocked"
             :hint="ai.hint.value"
+            selection-outside
             @command="encounterCommand"
             @duel="openDuel"
           />
@@ -182,6 +191,20 @@ function moveFigure(figure: string, to: Cell) {
                     :shown="shownFigures"
                     :selected="selected?.kind === 'figure' ? selected.id : undefined"
                     @select="selected = { kind: 'figure', id: $event }"
+                  />
+                  <TableSelection
+                    v-if="selected && layout"
+                    ref="selectionPanel"
+                    class="selection"
+                    :selection="selected"
+                    :layout="layout"
+                    :encounter="encounter"
+                    :node="node"
+                    :cards="cards"
+                    :locked="reportsLocked"
+                    @command="encounterCommand"
+                    @duel="openDuel"
+                    @close="selected = null"
                   />
                 </TabPanel>
                 <TabPanel value="journal">
@@ -295,6 +318,9 @@ function moveFigure(figure: string, to: Cell) {
 }
 .journal {
   height: 100%;
+}
+.selection {
+  margin-top: 0.75rem;
 }
 .story {
   display: flex;

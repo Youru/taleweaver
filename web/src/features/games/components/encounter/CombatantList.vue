@@ -8,7 +8,7 @@ import { pick } from '@/shared/lib/localized'
 import { usePreferences } from '@/shared/lib/preferences'
 import type { CombatantState, EncounterState } from '../../api/types'
 
-/** The combatants in play, compact. A row selects the figure: its actions open on the table. */
+/** The combatants in play, compact. A row selects the figure: its actions open under the list. */
 const props = defineProps<{
   encounter: EncounterState
   cards: Map<string, Combatant>

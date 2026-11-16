@@ -31,6 +31,8 @@ const props = defineProps<{
   hint?: TableHint
   /** The table the players see: combatants still to place are never named (they would tell what is coming). */
   forPlayers?: boolean
+  /** The page shows the selected piece's actions elsewhere (beside the table): none over the board. */
+  selectionOutside?: boolean
 }>()
 const emit = defineEmits<{ command: [command: EncounterCommand]; duel: [figure: string] }>()
 
@@ -158,7 +160,7 @@ function tap(cell: Cell) {
         </template>
       </BoardCanvas>
       <TableSelection
-        v-if="selected"
+        v-if="selected && !selectionOutside"
         class="overlay"
         :selection="selected"
         :layout="layout"

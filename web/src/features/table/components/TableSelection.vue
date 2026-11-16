@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 import Button from 'primevue/button'
 import Chip from 'primevue/chip'
+import InputGroup from 'primevue/inputgroup'
 import InputNumber from 'primevue/inputnumber'
 import InputText from 'primevue/inputtext'
 import Tag from 'primevue/tag'
@@ -52,11 +53,20 @@ const area = computed(() =>
 
 const title = computed(() => {
   if (adventurer.value) return adventurer.value
-  if (combatant.value) return `${combatant.value.instance} · ${card.value ? pick(card.value.name, language.value) : ''}`
+  if (combatant.value) return combatant.value.instance
   if (token.value) return token.value.key
   if (area.value) return pick(area.value.name, language.value) || area.value.id
   return ''
 })
+
+/** Health printed on the card, and the share of it already taken (for the bar). */
+const health = computed(() => {
+  const value = card.value?.stats?.health
+  return typeof value === 'number' ? value : undefined
+})
+const taken = computed(() =>
+  combatant.value && health.value ? Math.min(100, (combatant.value.damage / health.value) * 100) : 0,
+)
 
 const amount = ref<number | null>(null)
 const effect = ref('')
@@ -86,15 +96,53 @@ function addEffect() {
 <template>
   <section class="selection" :aria-label="t('table.selection', { name: title })">
     <header>
-      <strong>{{ title }}</strong>
-      <Tag v-if="adventurer" :value="t('table.adventurer')" severity="info" />
+      <span v-if="combatant" class="number" aria-hidden="true">{{ combatant.number || '·' }}</span>
+      <span v-else-if="adventurer" class="number adventurer" aria-hidden="true"><i class="pi pi-user" /></span>
+      <span class="who">
+        <strong>{{ title }}</strong>
+        <small v-if="card">{{ pick(card.name, language) }}</small>
+        <small v-else-if="adventurer">{{ t('table.adventurer') }}</small>
+      </span>
       <Tag v-if="combatant?.aggro" :value="t('play.aggro')" severity="danger" />
       <Button icon="pi pi-times" text rounded size="small" :aria-label="t('table.close')" @click="emit('close')" />
     </header>
 
     <template v-if="combatant">
-      <p class="hp">
-        {{ combatant.damage }} / {{ card?.stats?.health ?? '?' }} {{ t('play.health') }}
+      <div class="vitals">
+        <span class="hp-text">{{ combatant.damage }} / {{ health ?? '?' }} {{ t('play.health') }}</span>
+        <span class="hp-bar" aria-hidden="true"><span :style="{ width: `${taken}%` }" /></span>
+      </div>
+
+      <InputGroup class="damage">
+        <InputNumber
+          v-model="amount"
+          :min="0"
+          :max="999"
+          size="small"
+          :placeholder="t('play.damage')"
+          :aria-label="`${t('play.damage')} ${combatant.instance}`"
+          :disabled="locked"
+          @keydown.enter="damage(1)"
+        />
+        <Button
+          :label="t('play.addDamage')"
+          icon="pi pi-minus-circle"
+          size="small"
+          severity="warn"
+          :disabled="locked"
+          @click="damage(1)"
+        />
+        <Button
+          :label="t('play.heal')"
+          icon="pi pi-heart"
+          size="small"
+          severity="secondary"
+          :disabled="locked"
+          @click="damage(-1)"
+        />
+      </InputGroup>
+
+      <div class="effects">
         <Chip
           v-for="e in combatant.effects"
           :key="e"
@@ -103,56 +151,57 @@ function addEffect() {
           :aria-label="t('play.removeEffect', { effect: e })"
           @remove="emit('command', { type: 'effect', instance: combatant.instance, effect: e, active: false })"
         />
-      </p>
-      <div class="actions">
-        <InputNumber
-          v-model="amount"
-          :min="0"
-          :max="999"
-          size="small"
-          :aria-label="`${t('play.damage')} ${combatant.instance}`"
-          :disabled="locked"
-        />
-        <Button :label="t('play.addDamage')" size="small" :disabled="locked" @click="damage(1)" />
-        <Button :label="t('play.heal')" size="small" severity="secondary" :disabled="locked" @click="damage(-1)" />
-        <Button
-          :label="t('play.defeat')"
-          size="small"
-          severity="danger"
-          :disabled="locked"
-          @click="emit('command', { type: 'defeat', instance: combatant.instance })"
-        />
         <form @submit.prevent="addEffect">
-          <InputText v-model="effect" size="small" :placeholder="t('play.effect')" :disabled="locked" />
-          <Button
-            type="submit"
-            icon="pi pi-plus"
-            size="small"
-            text
-            :aria-label="t('play.addEffect')"
-            :disabled="locked"
-          />
+          <InputGroup>
+            <InputText
+              v-model="effect"
+              size="small"
+              :placeholder="t('play.effect')"
+              :aria-label="t('play.effect')"
+              :disabled="locked"
+            />
+            <Button
+              type="submit"
+              icon="pi pi-plus"
+              size="small"
+              severity="secondary"
+              :aria-label="t('play.addEffect')"
+              :disabled="locked || !effect.trim()"
+            />
+          </InputGroup>
         </form>
       </div>
     </template>
 
     <template v-if="selection.kind === 'figure'">
-      <Button
-        v-if="adventurer || (combatant && !combatant.defeated)"
-        class="duel"
-        :label="t('duel.open')"
-        icon="pi pi-bolt"
-        size="small"
-        severity="contrast"
-        @click="emit('duel', selection.id)"
-      />
-      <p class="hint">{{ t('table.moveHint') }}</p>
+      <div class="footer">
+        <Button
+          v-if="adventurer || (combatant && !combatant.defeated)"
+          :label="t('duel.open')"
+          icon="pi pi-bolt"
+          size="small"
+          severity="contrast"
+          @click="emit('duel', selection.id)"
+        />
+        <Button
+          v-if="combatant"
+          :label="t('play.defeat')"
+          icon="pi pi-times-circle"
+          size="small"
+          severity="danger"
+          outlined
+          :disabled="locked"
+          @click="emit('command', { type: 'defeat', instance: combatant.instance })"
+        />
+      </div>
+      <p class="hint"><i class="pi pi-arrows-alt" aria-hidden="true" /> {{ t('table.moveHint') }}</p>
     </template>
 
     <template v-if="token">
       <p v-if="tokenRule?.activation">{{ pick(tokenRule.activation, language) }}</p>
       <Button
         v-if="tokenRule"
+        class="start"
         :label="t('table.activate')"
         size="small"
         :disabled="locked"
@@ -164,6 +213,7 @@ function addEffect() {
     <template v-if="area">
       <p class="hint">{{ t('table.revealHint') }}</p>
       <Button
+        class="start"
         :label="t('table.reveal')"
         icon="pi pi-eye"
         size="small"
@@ -178,38 +228,92 @@ function addEffect() {
 .selection {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
-  padding: 0.6rem 0.75rem;
+  gap: 0.6rem;
+  padding: 0.75rem;
   border: 1px solid var(--p-content-border-color);
+  border-left: 3px solid var(--p-yellow-400);
   border-radius: var(--p-content-border-radius);
   background: var(--p-content-background);
 }
-header,
-.actions,
-.actions form,
-.hp {
+header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.number {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 1.8rem;
+  height: 1.8rem;
+  border-radius: 50%;
+  background: var(--p-red-600);
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+.number.adventurer {
+  background: var(--p-sky-600);
+}
+.who {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  line-height: 1.2;
+}
+.who small {
+  color: var(--p-text-muted-color);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.vitals {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.hp-text {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+.hp-bar {
+  height: 0.45rem;
+  border-radius: 1rem;
+  background: var(--p-content-border-color);
+  overflow: hidden;
+}
+.hp-bar span {
+  display: block;
+  height: 100%;
+  background: var(--p-red-500);
+  transition: width 0.2s;
+}
+.damage :deep(.p-inputnumber input) {
+  width: 4.5rem;
+}
+.effects {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.35rem;
 }
-header strong {
-  flex: 1;
+.effects form {
+  flex: 1 1 10rem;
+}
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.start {
+  align-self: flex-start;
 }
 p {
   margin: 0;
 }
-.duel {
-  align-self: flex-start;
-}
 .hint {
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   color: var(--p-text-muted-color);
-}
-.actions :deep(.p-inputnumber input) {
-  width: 4rem;
-}
-.actions :deep(.p-inputtext) {
-  width: 7rem;
 }
 </style>
