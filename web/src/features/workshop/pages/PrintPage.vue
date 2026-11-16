@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, reactive, ref, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
@@ -15,6 +15,7 @@ import { useDraft, usePrintPdf } from '../api/queries'
 import type { DraftAction, DraftNode } from '../api/types'
 import { nameOf } from '../api/workshopApi'
 import EncounterPage from '../components/EncounterPage.vue'
+import ScenePage from '../components/ScenePage.vue'
 import TokenCard from '../components/TokenCard.vue'
 import { captionOf, choiceOf, exitsOf } from '../lib/graph'
 import { encounterSheet, readingOrder } from '../lib/printable'
@@ -44,21 +45,9 @@ watch(veiled, (v) => router.replace({ query: { ...route.query, veiled: v ? undef
 const steps = computed(() => (scenario.value ? readingOrder(scenario.value) : []))
 
 // Page numbers of the booklet: the cover is page 1, then every step takes as many sheets as it
-// measures (an encounter says how many; a scene runs on as many as its text needs)
-const SHEET = 11 * 96
+// says (an encounter or a scene runs on as many as its text needs)
 const sheetsOf = reactive(new Map<string, number>())
 const onSheets = (id: string, count: number) => sheetsOf.set(id, count)
-const sceneRefs = new Map<string, HTMLElement>()
-const sceneRef = (id: string) => (el: unknown) => {
-  if (el instanceof HTMLElement) sceneRefs.set(id, el)
-  else sceneRefs.delete(id)
-}
-async function measureScenes() {
-  await nextTick()
-  await document.fonts?.ready
-  for (const [id, el] of sceneRefs) sheetsOf.set(id, Math.max(1, Math.ceil(el.scrollHeight / SHEET - 0.01)))
-}
-watch(() => [steps.value, what.value], measureScenes, { immediate: true })
 const pageStarts = computed(() => {
   const starts = new Map<string, number>()
   let page = 2
@@ -248,21 +237,17 @@ const backTo = computed(() =>
             :page-of="pageOfCaption"
             @sheets="onSheets"
           />
-          <section v-else :ref="sceneRef(node.id)" class="scene">
-            <h2>{{ captionOf(node, language) }}</h2>
-            <p class="narrative">{{ pick(node.narrative, language) }}</p>
-            <p v-for="(line, i) in otherMechanics(node)" :key="i" class="mechanic">{{ line }}</p>
-            <p v-if="choiceOf(node)" class="question">{{ pick(choiceOf(node)!.question, language) }}</p>
-            <ul class="leads">
-              <li v-for="(lead, i) in leads(node)" :key="i">
-                <strong v-if="lead.label">{{ lead.label }} → </strong>
-                <template v-else>{{ `${t('workshop.print.then')} ` }}</template>{{ lead.to }}
-              </li>
-            </ul>
-            <span v-if="pageOfNode(node.id)" :class="['scene-folio', { odd: pageOfNode(node.id)! % 2 }]">{{
-              pageOfNode(node.id)
-            }}</span>
-          </section>
+          <ScenePage
+            v-else
+            :id="node.id"
+            :title="captionOf(node, language)"
+            :narrative="pick(node.narrative, language)"
+            :mechanics="otherMechanics(node)"
+            :question="choiceOf(node) ? pick(choiceOf(node)!.question, language) : undefined"
+            :leads="leads(node)"
+            :first-page="pageOfNode(node.id)"
+            @sheets="onSheets"
+          />
         </template>
       </template>
     </div>
@@ -321,8 +306,7 @@ const backTo = computed(() =>
 .sheets > :not(.encounter) {
   box-shadow: 0 2px 12px rgb(0 0 0 / 0.25);
 }
-.cover,
-.scene {
+.cover {
   box-sizing: border-box;
   width: 8.5in;
   padding: 0.8in 0.9in;
@@ -382,49 +366,6 @@ const backTo = computed(() =>
 .contents .page-number {
   font-weight: 700;
   color: #6d1a1a;
-}
-/* A scene starts a sheet of its own and runs on as many as its text needs */
-.scene {
-  position: relative;
-  min-height: 11in;
-  break-after: page;
-  page: sheet;
-}
-.scene-folio {
-  position: absolute;
-  bottom: 0.14in;
-  left: 0.6in;
-  font-family: 'Cinzel', 'Trajan Pro', 'Palatino Linotype', 'Book Antiqua', Georgia, serif;
-  font-size: 9pt;
-  font-weight: 700;
-}
-.scene-folio.odd {
-  left: auto;
-  right: 0.55in;
-}
-.scene h2 {
-  margin: 0 0 0.12in;
-  font-family: 'Cinzel', 'Trajan Pro', 'Palatino Linotype', 'Book Antiqua', Georgia, serif;
-  font-variant: small-caps;
-  font-size: 18pt;
-  border-bottom: 1.5px solid #1d1712;
-}
-.narrative {
-  margin: 0;
-  font-family: 'Palatino Linotype', 'Book Antiqua', Georgia, serif;
-  font-style: italic;
-  font-size: 12pt;
-  line-height: 1.35;
-  white-space: pre-line;
-}
-.mechanic,
-.question {
-  margin: 0.1in 0 0;
-  font-weight: 700;
-}
-.leads {
-  margin: 0.08in 0 0;
-  padding-left: 1.1em;
 }
 .card-page {
   box-sizing: border-box;

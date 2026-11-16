@@ -535,6 +535,10 @@ p {
   order: 1;
   margin-left: 0.2in;
 }
+/* Alone on the last sheet (no "Continued"), an odd page number still sits at the right corner */
+.folio.odd:only-child {
+  margin-left: auto;
+}
 .continued {
   margin-left: auto;
   font-variant: small-caps;

@@ -8,11 +8,12 @@ test('a GM prints Blight of Rhamsted: the booklet, an encounter page, the cards,
   await page.getByRole('button', { name: 'Imprimer Blight of Rhamsted' }).click()
   await expect(page).toHaveURL(/\/workshop\/print\?scenario=/)
 
-  // The booklet: the cover, then each step numbered, one page per encounter
+  // The booklet: the cover, then each step numbered: the opening scene, then one page per encounter
   await expect(page.getByRole('heading', { name: 'Blight of Rhamsted', level: 1 })).toBeVisible()
+  await expect(page.getByRole('article', { name: 'Page de The Blighted Terror' })).toBeVisible()
   const encounter = page.getByRole('article', { name: 'Page de Search for the Lair' })
   await expect(encounter).toBeVisible()
-  await expect(page.getByRole('article', { name: /^Page de / })).toHaveCount(3)
+  await expect(page.getByRole('article', { name: /^Page de / })).toHaveCount(4)
   await expect(encounter.getByRole('img', { name: 'Diagramme de la rencontre' }).locator('image').first()).toBeVisible()
   await expect(encounter.getByText('Mise en place')).toBeVisible()
   await expect(encounter.getByText('UM35, UM47, UM53, UM55, UM59')).toBeVisible()
