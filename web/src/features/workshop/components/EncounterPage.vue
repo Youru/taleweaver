@@ -25,9 +25,9 @@ const props = defineProps<{
   pieces: BoardPieces | undefined
   /** Hidden texts under the red noise (players' copy) or readable (GM's copy). */
   veiled: boolean
-  /** Step number printed at the bottom (booklet). */
-  number?: number
-  /** Where each step is printed, to write "§X" after a reward. */
+  /** Page number of its first sheet (booklet): each sheet prints its own, at the outer corner. */
+  firstPage?: number
+  /** The page where each step starts, to write "p. X" after a reward. */
   pageOf?: (caption: string) => number | undefined
 }>()
 
@@ -95,6 +95,11 @@ const endTitle = (end: EncounterSheet['ends'][number]) =>
       ? t('workshop.print.alternateWin')
       : t('workshop.print.win')
 const sheetCount = computed(() => parts.value.length + textSheets.value)
+// The booklet numbers its pages from the sheets of every step
+const emit = defineEmits<{ sheets: [id: string, count: number] }>()
+watch(sheetCount, (count) => emit('sheets', props.sheet.id, count), { immediate: true })
+/** The page number of a sheet of this encounter (0: the first one), when printed in the booklet. */
+const folio = (index: number) => (props.firstPage ? props.firstPage + index : undefined)
 </script>
 
 <template>
@@ -139,8 +144,8 @@ const sheetCount = computed(() => parts.value.length + textSheets.value)
         </div>
       </section>
       <footer class="foot">
-        <span v-if="number" class="folio">§{{ number }}</span>
         <span class="continued">{{ t('workshop.print.continued') }}</span>
+        <span v-if="folio(p)" :class="['folio', { odd: folio(p)! % 2 }]">{{ folio(p) }}</span>
       </footer>
     </div>
 
@@ -208,8 +213,10 @@ const sheetCount = computed(() => parts.value.length + textSheets.value)
         </div>
       </div>
       <footer class="foot">
-        <span v-if="number" class="folio">§{{ number }}</span>
         <span v-if="parts.length + k < sheetCount" class="continued">{{ t('workshop.print.continued') }}</span>
+        <span v-if="folio(parts.length + k - 1)" :class="['folio', { odd: folio(parts.length + k - 1)! % 2 }]">{{
+          folio(parts.length + k - 1)
+        }}</span>
       </footer>
     </div>
   </article>
@@ -478,7 +485,7 @@ p {
   padding: 0.04in 0.06in;
 }
 
-/* Bottom: the step number on the left, "Continued ▶" on the right */
+/* Bottom: "Continued ▶" on the right; the page number at the outer corner (left on even pages) */
 .foot {
   position: absolute;
   left: 0.6in;
@@ -489,6 +496,13 @@ p {
   font-family: var(--print-title-font);
   font-size: 9pt;
   font-weight: 700;
+}
+.folio {
+  order: -1;
+}
+.folio.odd {
+  order: 1;
+  margin-left: 0.2in;
 }
 .continued {
   margin-left: auto;

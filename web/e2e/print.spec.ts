@@ -17,6 +17,9 @@ test('a GM prints Blight of Rhamsted: the booklet, an encounter page, the cards,
   await expect(encounter.getByText('Mise en place')).toBeVisible()
   await expect(encounter.getByText('UM47, UM59, UM55, UM53, UM35')).toBeVisible()
   await encounter.screenshot({ path: test.info().outputPath('encounter-page.png') })
+  // Page numbers, as in the books: the rewards send to a page, and the booklet is marked paged for the PDF
+  await expect(page.getByText(/^Suite : .+, p\. \d+$/).first()).toBeVisible()
+  await expect(page.locator('.sheets[data-paged]')).toHaveCount(1)
 
   // The PDF made by the API (Edge without a window), downloaded whole
   const [download] = await Promise.all([

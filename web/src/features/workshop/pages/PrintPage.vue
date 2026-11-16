@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
@@ -42,10 +42,38 @@ const veiled = ref(route.query.veiled !== '0')
 watch(veiled, (v) => router.replace({ query: { ...route.query, veiled: v ? undefined : '0' } }))
 
 const steps = computed(() => (scenario.value ? readingOrder(scenario.value) : []))
-const numberOf = (id: string) => steps.value.findIndex((n) => n.id === id) + 1
-const numberOfCaption = (caption: string) => {
+
+// Page numbers of the booklet: the cover is page 1, then every step takes as many sheets as it
+// measures (an encounter says how many; a scene runs on as many as its text needs)
+const SHEET = 11 * 96
+const sheetsOf = reactive(new Map<string, number>())
+const onSheets = (id: string, count: number) => sheetsOf.set(id, count)
+const sceneRefs = new Map<string, HTMLElement>()
+const sceneRef = (id: string) => (el: unknown) => {
+  if (el instanceof HTMLElement) sceneRefs.set(id, el)
+  else sceneRefs.delete(id)
+}
+async function measureScenes() {
+  await nextTick()
+  await document.fonts?.ready
+  for (const [id, el] of sceneRefs) sheetsOf.set(id, Math.max(1, Math.ceil(el.scrollHeight / SHEET - 0.01)))
+}
+watch(() => [steps.value, what.value], measureScenes, { immediate: true })
+const pageStarts = computed(() => {
+  const starts = new Map<string, number>()
+  let page = 2
+  for (const node of steps.value) {
+    starts.set(node.id, page)
+    page += sheetsOf.get(node.id) ?? 1
+  }
+  return starts
+})
+/** Every step measured: the numbers are final (the PDF scripts wait for this). */
+const paged = computed(() => steps.value.every((n) => sheetsOf.has(n.id)))
+const pageOfNode = (id: string) => (what.value === 'booklet' ? pageStarts.value.get(id) : undefined)
+const pageOfCaption = (caption: string) => {
   const found = steps.value.find((n) => captionOf(n, language.value) === caption)
-  return found ? numberOf(found.id) : undefined
+  return found ? pageOfNode(found.id) : undefined
 }
 const colorName = (color: string) => t(`workshop.map.color.${color}`, color)
 const sheetOf = (node: DraftNode) =>
@@ -77,19 +105,20 @@ function choose(value: string) {
   })
 }
 
-/** What a scene leads to, in words: "§3 · The ambush". */
+/** What a scene leads to, in words: "The ambush, p. 3". */
 const leads = (node: DraftNode) =>
   exitsOf(node).map((exit) => ({
     label: pick(exit.label, language.value),
-    to: exit.target?.startsWith('@')
-      ? endingLabel(exit.target)
-      : exit.target
-        ? `§${numberOf(exit.target)} · ${captionOf(
-            scenario.value!.nodes.find((n) => n.id === exit.target)!,
-            language.value,
-          )}`
-        : '—',
+    to: exit.target?.startsWith('@') ? endingLabel(exit.target) : exit.target ? stepLabel(exit.target) : '—',
   }))
+const stepLabel = (id: string) => {
+  const caption = captionOf(
+    scenario.value!.nodes.find((n) => n.id === id)!,
+    language.value,
+  )
+  const page = pageOfNode(id)
+  return page ? t('workshop.print.stepAt', { step: caption, number: page }) : caption
+}
 const otherMechanics = (node: DraftNode) =>
   (node.mechanics ?? []).filter((a) => a !== choiceOf(node)).map((a: DraftAction) => actionLine(a))
 function actionLine(action: DraftAction): string {
@@ -171,7 +200,7 @@ const backTo = computed(() =>
       {{ t('common.error', { message: draft.error.value?.message ?? '' }) }}
     </Message>
 
-    <div v-else-if="scenario" class="sheets">
+    <div v-else-if="scenario" class="sheets" :data-paged="paged ? '' : undefined">
       <!-- Cards of the hidden texts -->
       <template v-if="what === 'cards'">
         <p v-if="!cards.length" class="no-print">{{ t('workshop.print.noCard') }}</p>
@@ -193,9 +222,11 @@ const backTo = computed(() =>
           <h1>{{ pick(scenario.title, language) }}</h1>
           <p class="made">{{ t('workshop.print.made') }}</p>
           <ol class="contents">
-            <li v-for="(node, i) in steps" :key="node.id">
-              <span>§{{ i + 1 }}</span> {{ captionOf(node, language) }}
+            <li v-for="node in steps" :key="node.id">
+              {{ captionOf(node, language) }}
               <em>{{ node.type === 'encounter' ? t('workshop.encounter') : t('workshop.scene') }}</em>
+              <span class="dots" />
+              <span class="page-number">{{ pageStarts.get(node.id) }}</span>
             </li>
           </ol>
         </section>
@@ -207,22 +238,24 @@ const backTo = computed(() =>
             :node="node"
             :pieces="pieces.data.value"
             :veiled="veiled"
-            :number="what === 'booklet' ? numberOf(node.id) : undefined"
-            :page-of="numberOfCaption"
+            :first-page="pageOfNode(node.id)"
+            :page-of="pageOfCaption"
+            @sheets="onSheets"
           />
-          <section v-else class="scene">
-            <h2>
-              <span>§{{ numberOf(node.id) }}</span> {{ captionOf(node, language) }}
-            </h2>
+          <section v-else :ref="sceneRef(node.id)" class="scene">
+            <h2>{{ captionOf(node, language) }}</h2>
             <p class="narrative">{{ pick(node.narrative, language) }}</p>
             <p v-for="(line, i) in otherMechanics(node)" :key="i" class="mechanic">{{ line }}</p>
             <p v-if="choiceOf(node)" class="question">{{ pick(choiceOf(node)!.question, language) }}</p>
             <ul class="leads">
               <li v-for="(lead, i) in leads(node)" :key="i">
                 <strong v-if="lead.label">{{ lead.label }} → </strong>
-                <template v-else>{{ t('workshop.print.then') }} </template>{{ lead.to }}
+                <template v-else>{{ `${t('workshop.print.then')} ` }}</template>{{ lead.to }}
               </li>
             </ul>
+            <span v-if="pageOfNode(node.id)" :class="['scene-folio', { odd: pageOfNode(node.id)! % 2 }]">{{
+              pageOfNode(node.id)
+            }}</span>
           </section>
         </template>
       </template>
@@ -327,20 +360,41 @@ const backTo = computed(() =>
   gap: 0.08in;
   font-size: 12pt;
 }
-.contents span,
-.scene h2 span {
-  display: inline-block;
-  min-width: 0.45in;
-  font-weight: 700;
-  color: #6d1a1a;
+.contents li {
+  display: flex;
+  align-items: baseline;
+  gap: 0.1in;
 }
 .contents em {
-  margin-left: 0.1in;
   font-size: 9pt;
   color: #6b5b45;
 }
+.contents .dots {
+  flex: 1;
+  border-bottom: 1px dotted #6b5b45;
+}
+.contents .page-number {
+  font-weight: 700;
+  color: #6d1a1a;
+}
+/* A scene starts a sheet of its own and runs on as many as its text needs */
 .scene {
-  break-inside: avoid;
+  position: relative;
+  min-height: 11in;
+  break-after: page;
+  page: sheet;
+}
+.scene-folio {
+  position: absolute;
+  bottom: 0.14in;
+  left: 0.6in;
+  font-family: 'Cinzel', 'Trajan Pro', 'Palatino Linotype', 'Book Antiqua', Georgia, serif;
+  font-size: 9pt;
+  font-weight: 700;
+}
+.scene-folio.odd {
+  left: auto;
+  right: 0.55in;
 }
 .scene h2 {
   margin: 0 0 0.12in;
@@ -407,10 +461,6 @@ const backTo = computed(() =>
   }
   .print .sheets > * {
     box-shadow: none !important;
-  }
-  .print .scene {
-    padding-top: 0.2in;
-    padding-bottom: 0.2in;
   }
   .print .cover {
     page: sheet;
