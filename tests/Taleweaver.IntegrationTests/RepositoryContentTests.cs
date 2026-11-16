@@ -3,6 +3,7 @@ using Taleweaver.Api.Common;
 using Taleweaver.Api.Content;
 using Taleweaver.Api.Engine;
 using Taleweaver.Api.Features.Games;
+using Taleweaver.Api.Storage;
 
 namespace Taleweaver.IntegrationTests;
 
@@ -23,6 +24,35 @@ public class RepositoryContentTests(RepositoryFactory factory) : IClassFixture<R
         report.Warnings.Select(w => w.Code).Should().BeEquivalentTo(
             ["Scenarios.BeyondCards", "Scenarios.BeyondCards", "Scenarios.TokenNeverPlaced", "Scenarios.JumpNeeded"]);
         report.Cards.Should().HaveCount(9);
+    }
+
+    [Fact]
+    public async Task ListScenarios_RepositoryFiles_NoneSkipped()
+    {
+        // A scenario file the API cannot read is skipped with a mere log line: the Python checker does not see it
+        var root = AppContext.BaseDirectory;
+        while (!Directory.Exists(Path.Combine(root, "scenarios")))
+        {
+            root = Path.GetDirectoryName(root)!;
+        }
+
+        var files = Directory.EnumerateFiles(Path.Combine(root, "scenarios"), "*.json", SearchOption.AllDirectories).Count();
+
+        var scenarios = await _client.GetFromJsonAsync<List<ScenarioSummary>>("/api/scenarios", JsonDefaults.Options, TestContext.Current.CancellationToken);
+
+        scenarios.Should().HaveCount(files, "each file of scenarios/ must deserialize (see the API log for the one skipped)");
+    }
+
+    [Fact]
+    public async Task ValidateScenario_CaveSickleQueen_NoError()
+    {
+        var token = TestContext.Current.CancellationToken;
+        var scenario = await _client.GetFromJsonAsync<Scenario>("/api/scenarios/be1/the-cave-sickle-queen", JsonDefaults.Options, token);
+
+        var response = await _client.PostAsJsonAsync("/api/scenarios/validate", scenario, JsonDefaults.Options, token);
+
+        var report = await response.Content.ReadFromJsonAsync<ScenarioReport>(JsonDefaults.Options, token);
+        report!.Errors.Should().BeEmpty();
     }
 
     [Fact]

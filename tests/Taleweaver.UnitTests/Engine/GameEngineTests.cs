@@ -85,6 +85,41 @@ public class GameEngineTests
         game.State.Log.Should().Contain(l => l.Code == "aiInstruction" && l.Text!["en"] == "Make a [Melee] ATK.");
     }
 
+    [Theory]
+    [InlineData("yes", "Is the Brute damaged?")]
+    [InlineData("no", null)]
+    public void AnswerAiCondition_ConditionalContinueDown_AsksItsQuestionAfterTheInstructions(string answer, string? next)
+    {
+        var catalog = new Catalog(
+        [
+            new Pack
+            {
+                Manifest = new PackManifest { Id = "hb", Name = En("Homebrew") },
+                Combatants =
+                [
+                    Card("brute-1-2-common", "brute", "1-2", ["hb:initiative/brute"], health: 10, steps:
+                    [
+                        Step("Is there an opponent adjacent?", "Make a [Melee] ATK.") with { ContinueDownIf = En("Is no ally within SOI?") },
+                        Step("Is the Brute damaged?", "Roar."),
+                    ]),
+                ],
+            },
+        ]);
+        var game = Game(catalog: catalog).Continue();
+        StartBruteTurn(game);
+        game.Answer("yes");
+        game.State.Prompt!.Question!["en"].Should().Be("Is no ally within SOI?");
+        game.State.Log.Should().Contain(l => l.Code == "aiInstruction" && l.Text!["en"] == "Make a [Melee] ATK.");
+
+        game.Answer(answer);
+
+        game.State.Prompt?.Question?["en"].Should().Be(next);
+        if (next is null)
+        {
+            game.Encounter.Activation.Should().BeNull();
+        }
+    }
+
     [Fact]
     public void AnswerAiCondition_NoTrueStepAfterBeingAttacked_GivesAggroAndItsMoveStep()
     {
@@ -119,6 +154,26 @@ public class GameEngineTests
         game.Encounter.Combatants.Where(c => c.Family == "imp").Select(c => (c.Number, c.Card)).Should().Equal(
             (1, "hb:combatant/imp-1-3-common"), (2, "hb:combatant/imp-1-3-common"), (3, "hb:combatant/imp-1-3-common"), (4, "hb:combatant/imp-4-6-common"));
         game.Encounter.InitiativeTrack.Should().Contain(["hb:initiative/imp-1-3", "hb:initiative/imp-4-6"]);
+    }
+
+    [Fact]
+    public void Spawn_WithEffects_FigureStartsWithThem()
+    {
+        var game = Game(spawn: new ScenarioAction { Do = "spawn", Family = "imp", Count = 2, Effects = ["burrowed"] }).Continue();
+
+        game.Do(GameCommand.ActivateToken("totem:red"));
+
+        game.Encounter.Combatants.Where(c => c.Family == "imp").Should().AllSatisfy(c => c.Effects.Should().Equal("burrowed"));
+    }
+
+    [Fact]
+    public void Spawn_OwnLootLevelBelowEveryCard_SpawnsNothing()
+    {
+        var game = Game(spawn: new ScenarioAction { Do = "spawn", Family = "imp", LootLevel = "mundane" }).Continue();
+
+        game.Do(GameCommand.ActivateToken("totem:red"));
+
+        game.Encounter.Combatants.Should().NotContain(c => c.Family == "imp");
     }
 
     [Fact]
@@ -291,7 +346,7 @@ public class GameEngineTests
         GameEngine.Apply(game.State, GameCommand.RevealArea("cellar"), game.Context).Error.Should().Be(GameEngine.Errors.UnknownArea("cellar"));
     }
 
-    private static EngineDriver Game(ScenarioAction? spawn = null)
+    private static EngineDriver Game(ScenarioAction? spawn = null, Catalog? catalog = null)
     {
         var scenario = new Scenario
         {
@@ -338,7 +393,7 @@ public class GameEngineTests
                 },
             ],
         };
-        return new EngineDriver(scenario, Catalog);
+        return new EngineDriver(scenario, catalog ?? Catalog);
     }
 
     private static Combatant Card(string name, string family, string activation, string[] initiative, int health, AiStep[] steps) => new()

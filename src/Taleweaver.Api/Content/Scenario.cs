@@ -213,6 +213,12 @@ public sealed record CombatantPlacement
     public string? InitiativeCard { get; init; }
 
     public Cell? At { get; init; }
+
+    /// <summary>Loot level of this figure's card when it differs from the encounter's ("Common Fragors").</summary>
+    public string? LootLevel { get; init; }
+
+    /// <summary>Effects the figure starts with ("burrowed").</summary>
+    public IReadOnlyList<string> Effects { get; init; } = [];
 }
 
 public sealed record HiddenCardReveal(string Code, string? Size);
@@ -375,6 +381,12 @@ public sealed record ScenarioAction
     public string? Figure { get; init; }
 
     public int? Count { get; init; }
+
+    /// <summary>spawn: loot level of the card when it differs from the encounter's.</summary>
+    public string? LootLevel { get; init; }
+
+    /// <summary>spawn: effects the figure starts with ("burrowed").</summary>
+    public IReadOnlyList<string>? Effects { get; init; }
 
     public int? Amount { get; init; }
 

@@ -132,6 +132,12 @@ public sealed record AiStep
 
     /// <summary>CONTINUE DOWN: after the instructions, evaluate the next step too.</summary>
     public bool ContinueDown { get; init; }
+
+    /// <summary>
+    /// "If there is no Totem on the board, CONTINUE DOWN": after the instructions the GM answers this question;
+    /// yes goes on to the next step. Takes the place of <see cref="ContinueDown"/>.
+    /// </summary>
+    public LocalizedText? ContinueDownIf { get; init; }
 }
 
 /// <summary><see cref="Kind"/> "ask": the GM answers yes/no; "auto": the app evaluates it; "always".</summary>

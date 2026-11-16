@@ -58,8 +58,8 @@ test('a GM creates a scenario in the workshop, branches it on the graph, and tes
 test('an official scenario is read only: the workshop duplicates it', async ({ page }) => {
   await page.goto('/workshop')
   const official = page.getByRole('region', { name: 'Scénarios officiels' })
-  await expect(official.getByText('lecture seule')).toBeVisible()
-  await official.getByRole('button', { name: 'Dupliquer' }).first().click()
+  await expect(official.getByText('lecture seule').first()).toBeVisible()
+  await official.getByRole('button', { name: 'Dupliquer Blight of Rhamsted' }).click()
   await expect(page).toHaveURL(/\/workshop\/blight-of-rhamsted-copie$/)
   // Every step of the original is on the graph, with its branches
   const graph = page.getByRole('application', { name: 'Graphe du scénario' })

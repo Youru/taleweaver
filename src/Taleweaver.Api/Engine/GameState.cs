@@ -195,6 +195,9 @@ public sealed class Activation
     public int Step { get; set; }
 
     public bool AnyStepTrue { get; set; }
+
+    /// <summary>The question asked is the step's ContinueDownIf, not its condition.</summary>
+    public bool AskingContinue { get; set; }
 }
 
 /// <summary>A question to the GM. The answer is one of <see cref="Options"/>, or a number when <see cref="Kind"/> is "number".</summary>

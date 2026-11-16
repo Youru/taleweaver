@@ -389,11 +389,16 @@ public static class ScenarioChecker
         {
             var placedList = placed.ToList();
             var spawns = actions.Where(a => a.Do == "spawn").ToList();
-            CheckFamilyCounts(encounter, placedList.Select(c => (c.Family, 1)).Concat(spawns.Select(a => (a.Family, a.Count ?? 1))));
-            var used = placedList.Select(c => (c.Ref, c.Family))
-                .Concat(spawns.Select(a => (a.Ref, a.Family)));
-            foreach (var (reference, family) in used)
+            CheckFamilyCounts(encounter, placedList.Select(c => (c.Family, c.LootLevel, 1)).Concat(spawns.Select(a => (a.Family, a.LootLevel, a.Count ?? 1))));
+            var used = placedList.Select(c => (c.Ref, c.Family, c.LootLevel))
+                .Concat(spawns.Select(a => (a.Ref, a.Family, a.LootLevel)));
+            foreach (var (reference, family, ownLevel) in used)
             {
+                if (ownLevel is not null && !LootLevels.IsKnown(ownLevel))
+                {
+                    Error("UnknownLootLevel", encounter.Id, $"{family ?? reference}: unknown loot level '{ownLevel}'");
+                }
+
                 if (reference is not null && catalog.FindCombatant(reference) is null)
                 {
                     Error("UnknownCombatant", encounter.Id, $"combatant not in the catalogue '{reference}'");
@@ -404,13 +409,13 @@ public static class ScenarioChecker
                     {
                         Error("UnknownFamily", encounter.Id, $"family not in the catalogue '{family}'");
                     }
-                    else if (catalog.CardFor(family, encounter.LootLevel) is { } card)
+                    else if (catalog.CardFor(family, ownLevel ?? encounter.LootLevel) is { } card)
                     {
                         Cards.Add(new CardChoice(encounter.Id, family, card.Id));
                     }
                     else
                     {
-                        Error("NoCardForLootLevel", encounter.Id, $"no '{family}' card of loot level ≤ {encounter.LootLevel}");
+                        Error("NoCardForLootLevel", encounter.Id, $"no '{family}' card of loot level ≤ {ownLevel ?? encounter.LootLevel}");
                     }
                 }
             }
@@ -420,16 +425,17 @@ public static class ScenarioChecker
         /// More figures of a family than its numbered cards at the loot level: a spawn fails while none is
         /// defeated. And a hidden card (a boss, often) is a spoiler worth knowing.
         /// </summary>
-        private void CheckFamilyCounts(Node encounter, IEnumerable<(string? Family, int Count)> wanted)
+        private void CheckFamilyCounts(Node encounter, IEnumerable<(string? Family, string? LootLevel, int Count)> wanted)
         {
-            foreach (var group in wanted.Where(w => w.Family is not null).GroupBy(w => w.Family!))
+            // A figure may name its own loot level: its cards are numbered apart
+            foreach (var group in wanted.Where(w => w.Family is not null).GroupBy(w => (Family: w.Family!, Level: w.LootLevel ?? encounter.LootLevel)))
             {
-                if (catalog.CardFor(group.Key, encounter.LootLevel) is not { } card)
+                if (catalog.CardFor(group.Key.Family, group.Key.Level) is not { } card)
                 {
                     continue;
                 }
 
-                var numbers = catalog.IntelligentCards(group.Key)
+                var numbers = catalog.IntelligentCards(group.Key.Family)
                     .Where(c => c.LootLevel == card.LootLevel)
                     .SelectMany(c => Engine.Session.ActivationNumbers(c.Activation))
                     .Distinct()
@@ -438,12 +444,12 @@ public static class ScenarioChecker
                 if (numbers > 0 && total > numbers)
                 {
                     Warn("BeyondCards", encounter.Id,
-                        $"{total} × {group.Key} planned (setup and spawns), but {numbers} numbered card(s) at level {card.LootLevel}: beyond that, a spawn fails while none is defeated");
+                        $"{total} × {group.Key.Family} planned (setup and spawns), but {numbers} numbered card(s) at level {card.LootLevel}: beyond that, a spawn fails while none is defeated");
                 }
 
                 if (card.Source?.StartsWith("hidden-cards", StringComparison.Ordinal) == true)
                 {
-                    Warn("HiddenCard", encounter.Id, $"{group.Key} → {card.Id} is a hidden card (spoiler, often a boss)");
+                    Warn("HiddenCard", encounter.Id, $"{group.Key.Family} → {card.Id} is a hidden card (spoiler, often a boss)");
                 }
             }
         }

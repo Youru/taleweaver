@@ -151,6 +151,7 @@ const error = computed(() => {
               <div class="actions">
                 <Button
                   :label="t('workshop.duplicate')"
+                  :aria-label="t('workshop.duplicateScenario', { title: pick(scenario.title, language) })"
                   icon="pi pi-copy"
                   severity="secondary"
                   :loading="save.isPending.value"

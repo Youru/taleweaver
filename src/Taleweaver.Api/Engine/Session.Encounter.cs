@@ -209,6 +209,13 @@ internal sealed partial class Session
         var activation = Encounter.Activation!;
         var figure = Find(activation.Figures[0])!;
         var step = StepsOf(figure)[activation.Step];
+        if (activation.AskingContinue)
+        {
+            activation.AskingContinue = false;
+            activation.Step = isTrue ? activation.Step + 1 : int.MaxValue;
+            return;
+        }
+
         if (!isTrue)
         {
             activation.Step++;
@@ -222,6 +229,13 @@ internal sealed partial class Session
             Log("aiInstruction", instruction.Text, Args(("instance", figure.Instance), ("target", instruction.Target?.Priority)));
         }
 
+        if (step.ContinueDownIf is { } question)
+        {
+            activation.AskingContinue = true;
+            Ask(PromptKinds.AiCondition, question, [new PromptOption("yes"), new PromptOption("no")], instance: figure.Instance);
+            return;
+        }
+
         activation.Step = step.ContinueDown ? activation.Step + 1 : int.MaxValue;
     }
 
@@ -230,6 +244,7 @@ internal sealed partial class Session
         activation.Figures.RemoveAt(0);
         activation.Step = 0;
         activation.AnyStepTrue = false;
+        activation.AskingContinue = false;
     }
 
     private List<AiStep> StepsOf(CombatantState figure)
@@ -252,6 +267,8 @@ internal sealed partial class Session
         Instance = placement.Instance,
         Figure = placement.Figure,
         Count = 1,
+        LootLevel = placement.LootLevel,
+        Effects = placement.Effects,
         At = placement.At is { } at ? System.Text.Json.JsonSerializer.SerializeToElement(at, JsonDefaults.Options) : null,
     };
 
@@ -261,7 +278,7 @@ internal sealed partial class Session
     /// </summary>
     private void Spawn(ScenarioAction action, bool fromSetup, string? initiativeCard = null)
     {
-        var lootLevel = EncounterNode.LootLevel;
+        var lootLevel = action.LootLevel ?? EncounterNode.LootLevel;
         for (var i = 0; i < (action.Count ?? 1); i++)
         {
             var figure = action.Ref is not null ? NamedFigure(action) : FamilyFigure(action.Family!, lootLevel);
@@ -278,6 +295,7 @@ internal sealed partial class Session
             }
 
             figure.Figure = action.Figure ?? figure.Figure;
+            figure.Effects.AddRange((action.Effects ?? []).Except(figure.Effects));
             figure.Position = i == 0 ? Locate(action.At) : null;
             var existing = Encounter.Combatants.FindIndex(c => c.Instance == figure.Instance);
             if (existing >= 0)

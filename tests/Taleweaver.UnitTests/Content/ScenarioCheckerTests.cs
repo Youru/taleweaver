@@ -110,6 +110,25 @@ public class ScenarioCheckerTests
         report.Errors.Should().ContainSingle().Which.Code.Should().Be("Scenarios.NoCardForLootLevel");
     }
 
+    [Theory]
+    [InlineData("common", null)]
+    [InlineData("rare", null)]
+    [InlineData("legendary", "Scenarios.UnknownLootLevel")]
+    public void Check_FigureWithItsOwnLootLevel_ChoosesItsCardFromIt(string level, string? error)
+    {
+        // The encounter is mundane, where the brute has no card; the figure names its own level
+        var encounter = Encounter() with
+        {
+            LootLevel = "mundane",
+            Setup = new Setup { Combatants = [new CombatantPlacement { Family = "brute", LootLevel = level }] },
+        };
+
+        var report = ScenarioChecker.Check(Scenario(encounter), Catalog);
+
+        report.Errors.Select(e => e.Code).Where(c => c != "Scenarios.NoCardForLootLevel" || error is null).Should()
+            .BeEquivalentTo(error is null ? [] : new[] { error });
+    }
+
     [Fact]
     public void Check_SpawnOfUnknownFamily_ReportsError()
     {
