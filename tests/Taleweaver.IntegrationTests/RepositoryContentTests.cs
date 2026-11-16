@@ -48,4 +48,14 @@ public class RepositoryContentTests(RepositoryFactory factory) : IClassFixture<R
         dice.Values.Should().AllSatisfy(d => d.Faces.Should().HaveCount(6));
         dice["blue"].Faces.Average(f => f.Value).Should().Be(7.5);
     }
+
+    [Fact]
+    public async Task GetEffects_RealPacks_ListsTheElevenEffectsOfTheRules()
+    {
+        var effects = await _client.GetFromJsonAsync<List<RuleEntry>>("/api/catalog/effects", JsonDefaults.Options, TestContext.Current.CancellationToken);
+
+        effects!.Select(e => e.Id).Should().BeEquivalentTo(
+            "condemn", "darkness", "disease", "paralyze", "poison", "wilt", "barrier", "courage", "haste", "tether", "nemesis");
+        effects!.Single(e => e.Id == "poison").Condition.Should().Be("status");
+    }
 }

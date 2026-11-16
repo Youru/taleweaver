@@ -153,6 +153,9 @@ public sealed class AdventurerFigure
     public required string Name { get; set; }
 
     public Cell? Position { get; set; }
+
+    /// <summary>Effects on the adventurer this encounter (the AI aims at them: "an opponent with Darkness").</summary>
+    public List<string> Effects { get; set; } = [];
 }
 
 public sealed class BoardToken

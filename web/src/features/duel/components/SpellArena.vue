@@ -15,6 +15,8 @@ import DicePool from './DicePool.vue'
 import DiePicker from './DiePicker.vue'
 import OddsStrip from './OddsStrip.vue'
 import CardReminders from './CardReminders.vue'
+import EffectNotes from './EffectNotes.vue'
+import { effectMods } from '../lib/effects'
 import StatField from './StatField.vue'
 
 /**
@@ -46,6 +48,8 @@ watch(casting, ([die]) => die && emit('remember', props.attacker, { casting: die
 watch(conviction, (value) => emit('remember', props.target, { conviction: value }))
 watch(spellLike, (value) => value && (empower.value = false))
 
+/** What the Effects change: Paralyze stops the caster; Nemesis, Wilt and Tether change the Damage. */
+const mods = computed(() => effectMods(props.attacker.effects, props.target.effects, true))
 const setup = computed<SpellSetup>(() => ({
   casting: spellLike.value ? null : (casting.value[0] ?? null),
   force: force.value,
@@ -122,6 +126,7 @@ function apply(instance: string, amount: number) {
     </section>
 
     <section class="center" :aria-label="t('duel.roll')">
+      <EffectNotes :notes="mods.notes" />
       <OddsStrip v-if="showOdds" :items="oddsItems" :missing="!odds ? t('duel.unknownDice') : undefined" />
       <div class="tray-head">
         <h4>{{ t('duel.trayTitle') }}</h4>

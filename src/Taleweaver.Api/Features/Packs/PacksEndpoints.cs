@@ -7,7 +7,8 @@ public static class PacksEndpoints
             .AddScoped<GetCombatant.Handler>()
             .AddScoped<SearchCatalog.Handler>()
             .AddScoped<GetBoardPieces.Handler>()
-            .AddScoped<GetDice.Handler>();
+            .AddScoped<GetDice.Handler>()
+            .AddScoped<GetEffects.Handler>();
 
     public static IEndpointRouteBuilder MapPacksEndpoints(this IEndpointRouteBuilder app)
     {
@@ -18,6 +19,7 @@ public static class PacksEndpoints
         SearchCatalog.Map(catalog);
         GetBoardPieces.Map(catalog);
         GetDice.Map(catalog);
+        GetEffects.Map(catalog);
         return app;
     }
 }

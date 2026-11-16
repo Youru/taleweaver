@@ -51,6 +51,8 @@ export interface Fighter {
   portrait?: string
   /** The combatant card (URL), to read it during the duel. */
   card?: string
+  /** Effects on the figure (catalogue ids: "darkness", "barrier"…), as the GM reported them. */
+  effects: string[]
 }
 
 const numberOrNull = (value: number | string | undefined) => (typeof value === 'number' ? value : null)
@@ -90,6 +92,7 @@ export function fighters(
         position: c.position,
         portrait: figure(c.figure, c.family),
         card: assetUrl(card?.image),
+        effects: c.effects,
       }
     })
   const adventurers = encounter.adventurers.map((a): Fighter => {
@@ -108,6 +111,7 @@ export function fighters(
       damage: 0,
       position: a.position,
       portrait: figure(a.name.toLowerCase()),
+      effects: a.effects ?? [],
     }
   })
   return [...combatants, ...adventurers]

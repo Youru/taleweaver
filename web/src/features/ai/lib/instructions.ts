@@ -1,5 +1,5 @@
 import type { Cell } from '@/features/games'
-import { byDistance, opponentsOf, SOI } from './conditions'
+import { byDistance, EFFECTS, opponentsOf, SOI } from './conditions'
 import { between, reachable, sight, type Board, type BoardFigure, type Reach } from './grid'
 
 /** Who an Attack or a Spell goes to, as the AI step words it. */
@@ -7,6 +7,13 @@ export type TargetRule =
   | { kind: 'nearest' | 'farthest' | 'same' | 'each' | 'any' }
   /** A criterion the board does not show ("the opponent with the most Damage"): the GM decides. */
   | { kind: 'criterion'; text: string }
+  /**
+   * Opponents with (or without) an Effect first, as the GM reported them ("prioritizing an opponent
+   * with Darkness"); `rest`: what else the card says, left to the GM.
+   */
+  | { kind: 'effect'; effect: string; has: boolean; rest?: string }
+  /** "the opponent with the most Effects". */
+  | { kind: 'mostEffects' }
 
 /** How a MOVE is worded on the card (rulebook p. 62). */
 export type MoveRule =
@@ -34,7 +41,16 @@ function targetRule(rest: string): TargetRule {
   if (/farthest/.test(rest)) return { kind: 'farthest' }
   if (/nearest/.test(rest)) return { kind: 'nearest' }
   const criterion = /(?:against|prioritizing) (?:the |an )?(?:adjacent )?opponent (with .+|without .+)/.exec(rest)
-  if (criterion?.[1]) return { kind: 'criterion', text: criterion[1].replace(/\.$/, '') }
+  if (criterion?.[1]) {
+    const text = criterion[1].replace(/\.$/, '')
+    if (/^with the most effects\b/.test(text)) return { kind: 'mostEffects' }
+    const effect = /^(with|without) (\w+)\b(.*)$/.exec(text)
+    if (effect && EFFECTS.includes(effect[2]!)) {
+      const rest = effect[3]!.replace(/^[\s,]+/, '').trim()
+      return { kind: 'effect', effect: effect[2]!, has: effect[1] === 'with', ...(rest ? { rest: text } : {}) }
+    }
+    return { kind: 'criterion', text }
+  }
   return { kind: 'any' }
 }
 
@@ -144,12 +160,19 @@ function attackAdvice(
   if (rule.kind === 'nearest') ordered = eligible
   if (rule.kind === 'farthest')
     ordered = [...eligible].sort((a, b) => b.range - a.range || a.figure.initiative - b.figure.initiative)
+  if (rule.kind === 'effect') {
+    const holds = (f: BoardFigure) => (f.effects ?? []).includes(rule.effect) === rule.has
+    ordered = [...byInitiative.filter((o) => holds(o.figure)), ...byInitiative.filter((o) => !holds(o.figure))]
+  }
+  if (rule.kind === 'mostEffects')
+    ordered = [...byInitiative].sort((a, b) => (b.figure.effects?.length ?? 0) - (a.figure.effects?.length ?? 0))
   if (rule.kind === 'same' && previous) {
     const same = eligible.find((o) => o.figure.id === previous.id)
     ordered = same ? [same, ...byInitiative.filter((o) => o !== same)] : byInitiative
   }
   const candidates = ordered.map((o) => ({ ...candidate(o), penalty: seen.get(o.figure.id)?.penalty || undefined }))
-  const decided = rule.kind !== 'criterion' && rule.kind !== 'each'
+  const criterion = rule.kind === 'criterion' ? rule.text : rule.kind === 'effect' ? rule.rest : undefined
+  const decided = !criterion && rule.kind !== 'each'
   return {
     kind: 'attack',
     spell: action.spell,
@@ -157,7 +180,7 @@ function attackAdvice(
     candidates,
     each: rule.kind === 'each',
     target: decided ? candidates[0] : undefined,
-    criterion: rule.kind === 'criterion' ? rule.text : undefined,
+    criterion,
   }
 }
 

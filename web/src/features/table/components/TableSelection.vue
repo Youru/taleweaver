@@ -6,9 +6,9 @@ import Button from 'primevue/button'
 import Chip from 'primevue/chip'
 import InputGroup from 'primevue/inputgroup'
 import InputNumber from 'primevue/inputnumber'
-import InputText from 'primevue/inputtext'
+import Select, { type SelectChangeEvent } from 'primevue/select'
 import Tag from 'primevue/tag'
-import type { Combatant } from '@/features/catalog'
+import { useEffects, type Combatant } from '@/features/catalog'
 import type { EncounterCommand, EncounterState } from '@/features/games'
 import type { ScenarioNode } from '@/features/scenarios'
 import { pick } from '@/shared/lib/localized'
@@ -69,7 +69,7 @@ const taken = computed(() =>
 )
 
 const amount = ref<number | null>(null)
-const effect = ref('')
+const effect = ref<string | null>('')
 watch(
   () => props.selection,
   () => {
@@ -85,11 +85,57 @@ function damage(sign: 1 | -1) {
   amount.value = null
 }
 
+/** Who the Effects go on (a combatant still in play, or an adventurer), and those it has. */
+const effectTarget = computed(() =>
+  combatant.value && !combatant.value.defeated
+    ? combatant.value.instance
+    : adventurer.value
+      ? props.selection.id
+      : undefined,
+)
+const figureEffects = computed(
+  () => combatant.value?.effects ?? props.encounter.adventurers.find((a) => a.name === adventurer.value)?.effects ?? [],
+)
+
+/** The Effects of the rules, for the list; a home-made one can still be typed. */
+const effects = useEffects()
+const effectById = computed(() => new Map((effects.data.value ?? []).map((e) => [e.id, e])))
+const effectOptions = computed(() =>
+  (effects.data.value ?? [])
+    .filter((e) => !figureEffects.value.includes(e.id))
+    .map((e) => ({
+      value: e.id,
+      label: pick(e.name, language.value),
+      text: pick(e.text, language.value),
+      polarity: e.polarity,
+      status: e.condition === 'status',
+    })),
+)
+/** "Poison", "poison" or a home-made effect, as the engine keeps it (the catalogue id when known). */
+function effectId(typed: string): string {
+  const value = typed.trim().toLowerCase()
+  const known = (effects.data.value ?? []).find(
+    (e) => e.id === value || pick(e.name, language.value).toLowerCase() === value,
+  )
+  return known?.id ?? value
+}
+const effectLabel = (id: string) => {
+  const known = effectById.value.get(id)
+  return known ? pick(known.name, language.value) : id
+}
+const effectTitle = (id: string) => pick(effectById.value.get(id)?.text, language.value)
+const effectClass = (id: string) => `effect-${effectById.value.get(id)?.polarity ?? 'other'}`
+
 function addEffect() {
-  const value = effect.value.trim().toLowerCase()
-  if (combatant.value && value)
-    emit('command', { type: 'effect', instance: combatant.value.instance, effect: value, active: true })
+  const value = effectId(effect.value ?? '')
+  if (effectTarget.value && value)
+    emit('command', { type: 'effect', instance: effectTarget.value, effect: value, active: true })
   effect.value = ''
+}
+
+/** Picked in the list: added at once (typing waits for Enter or +). */
+function pickEffect(event: SelectChangeEvent) {
+  if (event.originalEvent?.type !== 'input' && effectById.value.has(String(event.value))) addEffect()
 }
 </script>
 
@@ -141,32 +187,56 @@ function addEffect() {
           @click="damage(-1)"
         />
       </InputGroup>
+    </template>
 
+    <template v-if="effectTarget">
       <div class="effects">
         <Chip
-          v-for="e in combatant.effects"
+          v-for="e in figureEffects"
           :key="e"
-          :label="e"
+          :label="effectLabel(e)"
+          :title="effectTitle(e)"
+          :class="effectClass(e)"
           removable
           :aria-label="t('play.removeEffect', { effect: e })"
-          @remove="emit('command', { type: 'effect', instance: combatant.instance, effect: e, active: false })"
+          @remove="emit('command', { type: 'effect', instance: effectTarget!, effect: e, active: false })"
         />
         <form @submit.prevent="addEffect">
           <InputGroup>
-            <InputText
+            <Select
               v-model="effect"
+              :options="effectOptions"
+              option-label="label"
+              option-value="value"
+              editable
               size="small"
               :placeholder="t('play.effect')"
               :aria-label="t('play.effect')"
               :disabled="locked"
-            />
+              @change="pickEffect"
+              @keydown.enter.prevent="addEffect"
+            >
+              <template #option="{ option }">
+                <span class="effect-option">
+                  <span>
+                    <strong>{{ option.label }}</strong>
+                    <Tag
+                      :value="t(option.polarity === 'positive' ? 'play.positive' : 'play.negative')"
+                      :severity="option.polarity === 'positive' ? 'success' : 'danger'"
+                    />
+                    <Tag v-if="option.status" :value="t('play.statusEffect')" severity="secondary" />
+                  </span>
+                  <small>{{ option.text }}</small>
+                </span>
+              </template>
+            </Select>
             <Button
               type="submit"
               icon="pi pi-plus"
               size="small"
               severity="secondary"
               :aria-label="t('play.addEffect')"
-              :disabled="locked || !effect.trim()"
+              :disabled="locked || !effect?.trim()"
             />
           </InputGroup>
         </form>
@@ -297,6 +367,29 @@ header {
   flex-wrap: wrap;
   align-items: center;
   gap: 0.35rem;
+}
+.effect-option {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  max-width: 22rem;
+  white-space: normal;
+}
+.effect-option > span {
+  display: flex;
+  gap: 0.35rem;
+  align-items: center;
+}
+.effect-option small {
+  color: var(--p-text-muted-color);
+}
+.effect-positive {
+  background: var(--p-green-100);
+  color: var(--p-green-800);
+}
+.effect-negative {
+  background: var(--p-red-100);
+  color: var(--p-red-800);
 }
 .effects form {
   flex: 1 1 10rem;

@@ -6,7 +6,7 @@ using Taleweaver.Api.Features.Games;
 
 namespace Taleweaver.Api.Features.Encounters;
 
-/// <summary>Adds or removes an Effect (poison, burn…) on a combatant; STATUS effects are recalled at its turn.</summary>
+/// <summary>Adds or removes an Effect (poison, barrier…) on a combatant or an adventurer ("adventurer:Rook"); STATUS effects are recalled at its turn.</summary>
 public static class SetEffect
 {
     public sealed record Request(string Effect, bool Active = true);

@@ -4,6 +4,7 @@ import { shortId } from './ids'
 
 const messages: Record<string, string> = {
   'log.turn': 'Tour : {who}',
+  'log.statusEffects': 'à résoudre d’abord : {effects}',
   'log.gainItem': 'Objet gagné : {item}',
   'log.hiddenText': 'Texte caché',
   'log.unknown': '{code}',
@@ -25,6 +26,17 @@ describe('formatLog', () => {
 
     expect(line.title).toBe('Tour : Rook')
     expect(line.tone).toBe('round')
+  })
+
+  it('recalls the STATUS Effects to resolve at the start of the turn', () => {
+    const line = formatLog(
+      { code: 'turn', args: { card: 'adventurer:Rook', adventurer: 'Rook', statusEffects: 'poison' } },
+      'fr',
+      translate,
+      has,
+    )
+
+    expect(line.title).toBe('Tour : Rook · à résoudre d’abord : poison')
   })
 
   it('shortens the initiative card of a combatant turn', () => {

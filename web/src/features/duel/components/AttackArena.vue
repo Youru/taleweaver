@@ -8,6 +8,7 @@ import type { Dice } from '../api/types'
 import type { SymbolAbility } from '../lib/abilities'
 import { attackOdds, hasBlackDie, resolveAttack, rolledDice, type AttackRoll, type AttackSetup } from '../lib/attack'
 import { readFaces } from '../lib/dice'
+import { effectMods } from '../lib/effects'
 import type { AdventurerSheet, Fighter } from '../lib/fighters'
 import { decimal, percent } from '../lib/format'
 import { dieIcon, statIcon, symbolIcon, type SymbolName } from '../lib/icons'
@@ -18,6 +19,7 @@ import GameIcon from './GameIcon.vue'
 import ManualRoll from './ManualRoll.vue'
 import OddsStrip from './OddsStrip.vue'
 import CardReminders from './CardReminders.vue'
+import EffectNotes from './EffectNotes.vue'
 import StatField from './StatField.vue'
 
 /**
@@ -57,19 +59,35 @@ watch(pool, (value) => emit('remember', props.attacker, { pool: value }))
 watch([defense, armor], ([d, a]) => emit('remember', props.target, { defense: d, armor: a }))
 
 const alwaysEmpowered = computed(() => hasBlackDie({ pool: pool.value }))
+/** What the Effects on both figures change (Darkness, Barrier, Courage, Nemesis, Wilt…). */
+const mods = computed(() => effectMods(props.attacker.effects, props.target.effects))
+watch(
+  () => mods.value.noDodge,
+  (noDodge) => {
+    if (noDodge) dodge.value = false
+  },
+  { immediate: true },
+)
 const setup = computed<AttackSetup | undefined>(() =>
   defense.value === null
     ? undefined
     : {
         pool: pool.value,
         empower: empower.value || alwaysEmpowered.value,
-        toHit: (flank.value ? 1 : 0) - (throughAlly.value ? 1 : 0) - (hindering.value ? 1 : 0) + otherToHit.value,
-        physical: physical.value,
+        toHit:
+          (flank.value ? 1 : 0) -
+          (throughAlly.value ? 1 : 0) -
+          (hindering.value ? 1 : 0) +
+          otherToHit.value +
+          mods.value.toHit,
+        physical: physical.value + mods.value.physical,
         pierce: pierce.value,
         abilities: props.attacker.abilities,
         defense: defense.value,
-        armor: armor.value,
-        dodge: dodge.value,
+        armor: armor.value + mods.value.armor,
+        dodge: dodge.value && !mods.value.noDodge,
+        irreducible: mods.value.irreducible,
+        symbols: mods.value.symbols,
       },
 )
 const remaining = computed(() =>
@@ -183,6 +201,7 @@ function costIcons(ability: SymbolAbility): SymbolName[] {
     </section>
 
     <section class="center" :aria-label="t('duel.roll')">
+      <EffectNotes :notes="mods.notes" />
       <OddsStrip
         v-if="showOdds"
         :items="oddsItems"
@@ -246,6 +265,7 @@ function costIcons(ability: SymbolAbility): SymbolName[] {
             </li>
             <li>{{ t('duel.stepArmor', { physical: outcome.physical, armor: outcome.armor }) }}</li>
             <li v-if="outcome.magic">{{ t('duel.stepMagic', { magic: outcome.magic }) }}</li>
+            <li v-if="outcome.irreducible">{{ t('duel.stepIrreducible', { n: outcome.irreducible }) }}</li>
           </template>
           <li v-if="!outcome.hit || outcome.final === 0" class="note">{{ t('duel.counter') }}</li>
           <li v-if="outcome.hit" class="note">{{ t('duel.difference', { n: outcome.difference }) }}</li>
@@ -275,7 +295,7 @@ function costIcons(ability: SymbolAbility): SymbolName[] {
       <StatField v-model="defense" :label="t('duel.defense')" :icon="statIcon('defense')" :max="40" nullable />
       <StatField v-model="armor" :label="t('duel.armor')" :icon="statIcon('armor')" :max="20" />
       <div class="chips">
-        <ChipToggle v-model="dodge" :label="t('duel.dodge')" :icon="dieIcon('black')" />
+        <ChipToggle v-if="!mods.noDodge" v-model="dodge" :label="t('duel.dodge')" :icon="dieIcon('black')" />
       </div>
       <CardReminders :fighter="target" />
     </section>

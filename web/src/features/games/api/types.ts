@@ -129,4 +129,6 @@ export interface BoardToken {
 export interface AdventurerFigure {
   name: string
   position?: Cell
+  /** Effects on the adventurer this encounter (catalogue ids, or home-made). */
+  effects?: string[]
 }

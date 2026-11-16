@@ -14,6 +14,27 @@ export type Condition =
   | { kind: 'moveAndAttack'; range: number }
   | { kind: 'moveTowardsAlly' }
   | { kind: 'hasDamage' }
+  /**
+   * A figure within SOI with (or without) an Effect: any Effect when `effect` is not given. `who`:
+   * any figure (the acting one too), another ally, or an opponent.
+   */
+  | { kind: 'effectWithin'; who: 'figure' | 'ally' | 'opponent'; effect?: string; has: boolean }
+
+/** The Effects of the rules (packs/um1/rules.json), as the cards name them. */
+export const EFFECTS = [
+  'barrier',
+  'condemn',
+  'courage',
+  'darkness',
+  'disease',
+  'haste',
+  'nemesis',
+  'paralyze',
+  'poison',
+  'tether',
+  'wilt',
+]
+const effectWord = new RegExp(`^(${EFFECTS.join('|')})$`)
 
 const word = /(?:range|reach)\s*(\d+)/
 
@@ -33,6 +54,16 @@ export function parseCondition(text: string): Condition | undefined {
   if (/^can [^?]*move (to be )?adjacent to an opponent\??$/.test(t)) return { kind: 'moveAndAttack', range: 1 }
   if (/^can [^?]*move towards an ally\??$/.test(t)) return { kind: 'moveTowardsAlly' }
   if (/^does [^?]* have damage\??$/.test(t)) return { kind: 'hasDamage' }
+  // "Is there a figure within SOI with an Effect?", "Is there another ally within SOI without Barrier?"
+  const effect =
+    /^is there (?:a|an|another) (figure|ally|opponent) (?:within soi )?(with|without) (an effect|\w+)(?: within soi)?\??$/.exec(
+      t,
+    )
+  if (effect && /within soi/.test(t)) {
+    const [, who, has, what] = effect as unknown as [string, 'figure' | 'ally' | 'opponent', string, string]
+    if (what === 'an effect') return { kind: 'effectWithin', who, has: has === 'with' }
+    if (effectWord.test(what)) return { kind: 'effectWithin', who, effect: what, has: has === 'with' }
+  }
   // Anything with a second clause or a criterion the board does not show is left to the GM.
   if (!/opponent/.test(t) || /\band\b|\bally\b|token|esper|effect|barrier|damage|health/.test(t)) return undefined
   const count = /more than one/.test(t) ? 2 : 1
@@ -67,6 +98,8 @@ export function byDistance(from: BoardFigure, figures: BoardFigure[]) {
     .sort((a, b) => a.range - b.range || a.figure.initiative - b.figure.initiative)
 }
 
+const capitalize = (value: string) => value.charAt(0).toUpperCase() + value.slice(1)
+
 const listed = (items: { figure: BoardFigure; range: number }[]) =>
   items.map((i) => `${i.figure.name} (${i.range})`).join(', ')
 
@@ -91,6 +124,34 @@ export function suggest(
         return { answer: true, reason: { key: 'within', args: { list: listed(within) } } }
       const nearest = all[0]!
       return { answer: false, reason: { key: 'nearest', args: { name: nearest.figure.name, n: nearest.range } } }
+    }
+    case 'effectWithin': {
+      const pool =
+        condition.who === 'figure'
+          ? board.figures
+          : condition.who === 'ally'
+            ? alliesOf(board, acting)
+            : opponentsOf(board, acting)
+      const holds = (f: BoardFigure) => {
+        const effects = f.effects ?? []
+        const has = condition.effect ? effects.includes(condition.effect) : effects.length > 0
+        return has === condition.has
+      }
+      const near = byDistance(acting, pool).filter(
+        (o) => o.range <= SOI && (o.figure.id === acting.id || sight(board, acting, o.figure, true).clear),
+      )
+      const found = near.filter((o) => holds(o.figure))
+      const effect = condition.effect ? capitalize(condition.effect) : ''
+      const any = condition.effect ? '' : 'Any'
+      if (found.length)
+        return {
+          answer: true,
+          reason: { key: `${condition.has ? 'with' : 'without'}${any}Effect`, args: { effect, list: listed(found) } },
+        }
+      return {
+        answer: false,
+        reason: { key: `none${condition.has ? 'With' : 'Without'}${any}Effect`, args: { effect } },
+      }
     }
     case 'moveAndAttack': {
       if (movement === undefined) return undefined

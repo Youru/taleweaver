@@ -20,6 +20,10 @@ export interface AttackSetup {
   armor: number
   /** The target DODGEs: it rolls the black die, +1 Defense per shield, nothing on the skull (step 4). */
   dodge: boolean
+  /** IRREDUCIBLE DMG added on a hit, Armor aside (Wilt on the target: +2). */
+  irreducible?: number
+  /** Symbols gained on top of the roll (Courage: a shield and a book). */
+  symbols?: Symbols
 }
 
 /** What the table rolled. */
@@ -53,6 +57,7 @@ export interface AttackOutcome {
   /** Armor left after ARMOR PIERCING. */
   armor: number
   magic: number
+  irreducible: number
   /** Damage tokens for the target. */
   final: number
 }
@@ -79,6 +84,7 @@ export function resolveAttack(setup: AttackSetup, roll: AttackRoll): AttackOutco
     physical: 0,
     armor: setup.armor,
     magic: 0,
+    irreducible: 0,
     final: 0,
   }
   if (roll.skull) return miss
@@ -97,10 +103,23 @@ export function resolveAttack(setup: AttackSetup, roll: AttackRoll): AttackOutco
     const physical = difference + setup.physical + sum('physical')
     const armor = Math.max(0, setup.armor - setup.pierce - sum('pierce'))
     const magic = sum('magic')
-    const final = Math.max(0, physical - armor) + magic
+    const irreducible = setup.irreducible ?? 0
+    const final = Math.max(0, physical - armor) + magic + irreducible
     // Most Final Damage; on a tie, the hit with the larger difference (it feeds Follow Up Forces).
     if (!best.hit || final > best.final || (final === best.final && difference > best.difference)) {
-      best = { hit: true, skull: false, attack, defense, difference, spent: [], physical, armor, magic, final }
+      best = {
+        hit: true,
+        skull: false,
+        attack,
+        defense,
+        difference,
+        spent: [],
+        physical,
+        armor,
+        magic,
+        irreducible,
+        final,
+      }
       bestUse = [...use]
     }
   }
@@ -119,7 +138,8 @@ export function resolveAttack(setup: AttackSetup, roll: AttackRoll): AttackOutco
     }
     use[index] = 0
   }
-  search(0, { shield: roll.shield, book: roll.book, star: roll.star })
+  const extra = setup.symbols ?? { shield: 0, book: 0, star: 0 }
+  search(0, { shield: roll.shield + extra.shield, book: roll.book + extra.book, star: roll.star + extra.star })
 
   return {
     ...best,

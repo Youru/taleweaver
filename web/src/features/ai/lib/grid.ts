@@ -78,6 +78,8 @@ export interface BoardFigure {
   damage: number
   /** Place on the Initiative Track: ties go to the figure closer to its front (rulebook p. 62). */
   initiative: number
+  /** Effects on the figure, as the GM reported them (catalogue ids: "darkness", "barrier"…). */
+  effects?: string[]
 }
 
 export const key = (c: Cell) => `${c.x},${c.y}`

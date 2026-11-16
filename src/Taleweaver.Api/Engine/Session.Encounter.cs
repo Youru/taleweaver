@@ -137,7 +137,10 @@ internal sealed partial class Session
         }
 
         var card = encounter.InitiativeTrack[encounter.CurrentTurn];
-        Log("turn", args: Args(("card", card), ("adventurer", card.StartsWith(AdventurerCard, StringComparison.Ordinal) ? card[AdventurerCard.Length..] : null)));
+        var adventurer = card.StartsWith(AdventurerCard, StringComparison.Ordinal) ? card[AdventurerCard.Length..] : null;
+        var statusEffects = Encounter.Adventurers.FirstOrDefault(a => a.Name == adventurer)?.Effects.Where(IsStatusEffect).ToList() ?? [];
+        Log("turn", args: Args(("card", card), ("adventurer", adventurer),
+            ("statusEffects", statusEffects.Count > 0 ? string.Join(", ", statusEffects) : null)));
         var figures = Alive().Where(c => c.InitiativeCards.Contains(card)).OrderBy(c => c.Number).Select(c => c.Instance).ToList();
         if (figures.Count > 0)
         {
@@ -430,9 +433,13 @@ internal sealed partial class Session
         return Result.Success();
     }
 
+    /// <summary>On a combatant, or an adventurer ("adventurer:Rook"); a figure has at most one of each Effect.</summary>
     private Result SetEffect(string? instance, string? effect, bool active)
     {
-        if (Find(instance) is not { Defeated: false } figure)
+        var effects = instance?.StartsWith(AdventurerCard, StringComparison.Ordinal) == true
+            ? Encounter.Adventurers.FirstOrDefault(a => a.Name == instance[AdventurerCard.Length..])?.Effects
+            : Find(instance) is { Defeated: false } figure ? figure.Effects : null;
+        if (effects is null)
         {
             return GameEngine.Errors.UnknownCombatant(instance);
         }
@@ -442,13 +449,13 @@ internal sealed partial class Session
             return GameEngine.Errors.InvalidAnswer(effect);
         }
 
-        figure.Effects.Remove(effect);
+        effects.Remove(effect);
         if (active)
         {
-            figure.Effects.Add(effect);
+            effects.Add(effect);
         }
 
-        Log(active ? "effectAdded" : "effectRemoved", args: Args(("instance", figure.Instance), ("effect", effect)));
+        Log(active ? "effectAdded" : "effectRemoved", args: Args(("instance", instance), ("effect", effect)));
         return Result.Success();
     }
 

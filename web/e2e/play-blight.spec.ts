@@ -101,6 +101,19 @@ test('a GM deals damage, then undoes it', async ({ page }) => {
   await page.getByRole('button', { name: 'Annuler la dernière action' }).click()
   await expect(page.getByText('0 / 12 PV').first()).toBeVisible()
   await expect(page.getByText('5 / 12 PV')).toHaveCount(0)
+
+  // An Effect from the rules' list, with its text; then one typed for the scenario
+  const selection = page.getByRole('region', { name: 'Sélection : fragor-1' })
+  await selection.getByRole('combobox', { name: 'Effet' }).press('ArrowDown')
+  await page.getByRole('option', { name: /Poison/ }).click()
+  const poison = selection.getByLabel('Retirer poison')
+  await expect(poison).toBeVisible()
+  await expect(poison).toHaveAttribute('title', /PURPLE/)
+  await expect(poison).toContainText('Poison')
+  await selection.getByRole('combobox', { name: 'Effet' }).fill('Enraciné')
+  await selection.getByRole('combobox', { name: 'Effet' }).press('Enter')
+  await expect(selection.getByText('enraciné', { exact: true })).toBeVisible()
+  await expect(selection.getByLabel('Retirer enraciné')).toBeVisible()
 })
 
 test('a GM sees the setup on the table and activates a totem from it', async ({ page }) => {

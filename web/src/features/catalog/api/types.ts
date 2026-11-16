@@ -35,3 +35,14 @@ export interface Effect {
   id: string
   name: LocalizedText
 }
+
+/** An Effect of the rules (Poison, Barrier…), from the catalogue. */
+export interface GameEffect {
+  id: string
+  name: LocalizedText
+  text?: LocalizedText
+  /** positive or negative */
+  polarity?: string
+  /** "status": resolves at the start of the figure's turn; "passive": always on. */
+  condition?: string
+}

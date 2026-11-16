@@ -67,6 +67,8 @@ export function formatLog(
   const fixed = entry.code === 'answer' && args.answer ? `prompt.${args.answer}` : null
   if (fixed && hasMessage(fixed)) args.answer = translate(fixed, {})
   const key = `log.${entry.code}`
-  const title = hasMessage(key) ? translate(key, args) : translate('log.unknown', { code: entry.code })
+  let title = hasMessage(key) ? translate(key, args) : translate('log.unknown', { code: entry.code })
+  // STATUS Effects resolve at the start of the figure's turn (Poison, Condemn, Haste)
+  if (args.statusEffects) title += ` · ${translate('log.statusEffects', { effects: args.statusEffects })}`
   return { title, text: pick(entry.text, language), tone: tones[entry.code] ?? 'info' }
 }

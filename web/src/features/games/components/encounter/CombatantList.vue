@@ -70,7 +70,12 @@ function share(figure: CombatantState): number {
           </span>
           <span class="tags">
             <Tag v-if="figure.aggro" :value="t('play.aggro')" severity="danger" />
-            <Tag v-for="effect in figure.effects" :key="effect" :value="effect" severity="secondary" />
+            <Tag
+              v-for="effect in figure.effects"
+              :key="effect"
+              :value="effect.charAt(0).toUpperCase() + effect.slice(1)"
+              severity="secondary"
+            />
             <Tag v-if="!figure.position" :value="t('play.notPlaced')" severity="warn" />
           </span>
           <span class="hp">

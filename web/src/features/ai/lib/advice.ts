@@ -36,6 +36,9 @@ export function readBoard(layout: BoardLayout, encounter: EncounterState): Board
         size: f.size,
         damage: combatant?.damage ?? 0,
         initiative: places.length ? Math.min(...places) : track.length,
+        effects: combatant
+          ? combatant.effects
+          : (encounter.adventurers.find((a) => `adventurer:${a.name}` === f.id)?.effects ?? []),
       }
     })
   // The Terrain printed on the tiles in view, then the Terrain tokens laid over it: what they cover

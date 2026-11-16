@@ -223,6 +223,28 @@ public class GameEngineTests
     }
 
     [Fact]
+    public void SetEffect_OnAnAdventurer_KeepsItOnceAndRemovesIt()
+    {
+        var game = Game().Continue();
+
+        game.Do(GameCommand.SetEffect("adventurer:Rook", "darkness", true)).Do(GameCommand.SetEffect("adventurer:Rook", "darkness", true));
+        game.Encounter.Adventurers.Single(a => a.Name == "Rook").Effects.Should().Equal("darkness");
+
+        game.Do(GameCommand.SetEffect("adventurer:Rook", "darkness", false));
+        game.Encounter.Adventurers.Single(a => a.Name == "Rook").Effects.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void SetEffect_OnAnUnknownAdventurer_IsRefused()
+    {
+        var game = Game().Continue();
+
+        var act = () => game.Do(GameCommand.SetEffect("adventurer:Nobody", "poison", true));
+
+        act.Should().Throw<Exception>();
+    }
+
+    [Fact]
     public void Move_DuringAnAiQuestion_MovesTheFigureAndKeepsTheQuestion()
     {
         var game = Game().Continue();

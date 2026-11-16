@@ -258,3 +258,53 @@ describe('printed terrain', () => {
     expect(Object.fromEntries(terrain)).toEqual({ '11,0': 'obstructing', '6,0': 'dangerous', '6,5': 'water' })
   })
 })
+
+describe('effects', () => {
+  const loa = fig('loa-1', 'combatant', 0, 0)
+  const rook = fig('adventurer:Rook', 'adventurer', 3, 0, { effects: ['darkness'] })
+  const zeke = fig('adventurer:Zeke', 'adventurer', 1, 2)
+  const ally = fig('earth-loa-1', 'combatant', 0, 2, { effects: ['barrier'] })
+
+  it('reads the conditions about Effects within SOI', () => {
+    expect(parseCondition('Is there a figure within SOI with an Effect?')).toEqual({
+      kind: 'effectWithin',
+      who: 'figure',
+      has: true,
+    })
+    expect(parseCondition('Is there a figure with an Effect within SOI?')).toMatchObject({ kind: 'effectWithin' })
+    expect(parseCondition('Is there another ally within SOI without Barrier?')).toEqual({
+      kind: 'effectWithin',
+      who: 'ally',
+      effect: 'barrier',
+      has: false,
+    })
+  })
+
+  it('answers them from the Effects the GM reported', () => {
+    const any = parseCondition('Is there a figure within SOI with an Effect?')!
+    expect(suggest(any, board(loa, rook, zeke), loa, 4)?.answer).toBe(true)
+    expect(suggest(any, board(loa, zeke), loa, 4)?.answer).toBe(false)
+    const noBarrier = parseCondition('Is there another ally within SOI without Barrier?')!
+    expect(suggest(noBarrier, board(loa, ally), loa, 4)?.answer).toBe(false)
+    expect(suggest(noBarrier, board(loa, { ...ally, effects: [] }), loa, 4)?.answer).toBe(true)
+  })
+
+  it('aims first at the opponent with (or without) the Effect the card names', () => {
+    const plan = (text: string) => planTurn([text], { board: board(loa, rook, zeke), acting: loa, movement: 0 })[0]?.[0]
+    expect(plan('Make a [Ranged] 6 ATK, prioritizing an opponent with Darkness.')).toMatchObject({
+      target: { id: 'adventurer:Rook' },
+    })
+    expect(
+      plan('Cast a SPELL 6, prioritizing the opponent with the lowest Conviction Value without Darkness.'),
+    ).toBeDefined()
+    expect(plan('Cast a SPELL 6, prioritizing an opponent without Darkness. Inflict Darkness.')).toMatchObject({
+      target: { id: 'adventurer:Zeke' },
+    })
+    // A second priority the board does not show stays with the GM
+    expect(
+      plan(
+        'Make a [Ranged] 6 ATK, prioritizing an opponent with Darkness and a secondary priority of the most Damage.',
+      ),
+    ).toMatchObject({ target: undefined, candidates: [{ id: 'adventurer:Rook' }, { id: 'adventurer:Zeke' }] })
+  })
+})
