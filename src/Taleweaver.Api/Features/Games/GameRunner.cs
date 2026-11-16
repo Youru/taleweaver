@@ -17,7 +17,7 @@ public sealed record GameView(string Id, string Scenario, IReadOnlyList<string> 
 /// The I/O around the pure engine, shared by the Games and Encounters features: load the game and its
 /// scenario, apply the command, save. The engine itself never touches the stores.
 /// </summary>
-public sealed class GameRunner(IGameStore games, IContentStore content, CatalogProvider catalogs, IOptions<ContentOptions> options, TimeProvider time)
+public sealed class GameRunner(IGameStore games, IContentStore content, CatalogProvider catalogs, TimeProvider time)
 {
     public static class Errors
     {
@@ -42,7 +42,7 @@ public sealed class GameRunner(IGameStore games, IContentStore content, CatalogP
         {
             Id = Guid.NewGuid().ToString("N"),
             Scenario = scenarioId,
-            EnabledPacks = options.Value.EnabledPacks,
+            EnabledPacks = context.Value.Catalog.Packs.Select(p => p.Id).ToList(),
             Party = party,
             Seed = seed,
             CreatedAt = now,

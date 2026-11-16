@@ -23,7 +23,7 @@ public static class RepositoryContent
         throw new InvalidOperationException("Repository root (packs/um1/pack.json) not found.");
     });
 
-    private static readonly Lazy<Task<Catalog>> SharedCatalog = new(async () => new Catalog(await CreateStore().GetPacksAsync(CancellationToken.None)));
+    private static readonly Lazy<Task<Catalog>> SharedCatalog = new(async () => new Catalog(PackSelection.Choose(await CreateStore().GetPacksAsync(CancellationToken.None), []).Enabled));
 
     public static string Root => RootPath.Value;
 

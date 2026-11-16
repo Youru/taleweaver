@@ -12,7 +12,7 @@ cd taleweaver && dotnet run --project src/Taleweaver.Api
 
 - API sur http://localhost:5145.
 - Document OpenAPI sur `/openapi/v1.json` (Development).
-- Le contenu est lu depuis la racine du dépôt : section `Content` de `appsettings.json` (`RootPath`, `EnabledPacks`).
+- Le contenu est lu depuis la racine du dépôt : section `Content` de `appsettings.json` (`RootPath`, `EnabledPacks` : vide = tous les packs de `packs/`, écartés si une dépendance manque ; un pack peut remplacer des cartes d'un autre via `overrides`).
 
 ## Front (`web/`)
 

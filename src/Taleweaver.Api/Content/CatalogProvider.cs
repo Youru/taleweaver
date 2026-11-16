@@ -10,8 +10,7 @@ public sealed class CatalogProvider(IContentStore store, IOptions<ContentOptions
     private readonly Lazy<Task<Catalog>> _catalog = new(async () =>
     {
         var packs = await store.GetPacksAsync(CancellationToken.None);
-        var enabled = options.Value.EnabledPacks;
-        return new Catalog(enabled.Length == 0 ? packs : packs.Where(p => enabled.Contains(p.Id)));
+        return new Catalog(PackSelection.Choose(packs, options.Value.EnabledPacks).Enabled);
     });
 
     public Task<Catalog> GetAsync(CancellationToken cancellationToken) => _catalog.Value.WaitAsync(cancellationToken);

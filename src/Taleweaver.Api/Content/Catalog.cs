@@ -13,7 +13,21 @@ public sealed class Catalog
     public Catalog(IEnumerable<Pack> packs)
     {
         Packs = packs.ToList();
-        _combatants = Packs.SelectMany(p => p.Combatants).ToDictionary(c => c.Id);
+
+        // Packs come dependencies first: a later pack replaces a card only when its manifest says so
+        // (overrides: corrected "1.2" cards keep their original id)
+        _combatants = [];
+        foreach (var pack in Packs)
+        {
+            foreach (var combatant in pack.Combatants)
+            {
+                if (!_combatants.ContainsKey(combatant.Id) || pack.Manifest.Overrides.Contains(combatant.Id))
+                {
+                    _combatants[combatant.Id] = combatant;
+                }
+            }
+        }
+
         _families = _combatants.Values.ToLookup(c => c.Family);
         _ids = Packs.SelectMany(AllIds).ToHashSet();
     }
@@ -42,8 +56,13 @@ public sealed class Catalog
             .Where(c => c.LootLevel is null or LootLevels.Any
                         || (LootLevels.IsKnown(c.LootLevel) && encounterRank >= 0 && LootLevels.Rank(c.LootLevel) <= encounterRank))
             .OrderByDescending(c => LootLevels.Rank(c.LootLevel))
+            .ThenBy(c => FirstActivation(c.Activation))
             .FirstOrDefault();
     }
+
+    /// <summary>The first activation number printed ("1-3" → 1, "7-9" → 7): the first group comes first.</summary>
+    private static int FirstActivation(string? activation) =>
+        activation is not null && int.TryParse(new string(activation.TrimStart().TakeWhile(char.IsDigit).ToArray()), out var first) ? first : int.MaxValue;
 
     private static IEnumerable<string> AllIds(Pack pack) =>
         pack.Combatants.Select(c => c.Id)

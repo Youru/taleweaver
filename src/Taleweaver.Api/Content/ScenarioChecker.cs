@@ -65,6 +65,7 @@ public static class ScenarioChecker
         var run = new Run(catalog);
         run.CheckNodes(scenario);
         run.CheckCatalogReferences(scenario);
+        run.CheckCardPacks(scenario);
         return new ScenarioReport(
             run.Errors,
             run.Warnings,
@@ -73,6 +74,16 @@ public static class ScenarioChecker
 
     private sealed class Run(Catalog catalog)
     {
+        /// <summary>An enemy named by its family may take its card from another pack: that pack is used too.</summary>
+        public void CheckCardPacks(Scenario scenario)
+        {
+            foreach (var card in Cards.Where(c => ContentId.Parse(c.CombatantId).Pack is { } pack && !scenario.Packs.Contains(pack)).DistinctBy(c => c.Family))
+            {
+                Warn("PackNotDeclared", card.Encounter,
+                    $"{card.Family} → {card.CombatantId}: content of pack '{ContentId.Parse(card.CombatantId).Pack}' is used: add it to \"packs\"");
+            }
+        }
+
         public List<ScenarioIssue> Errors { get; } = [];
 
         public List<ScenarioIssue> Warnings { get; } = [];
@@ -217,9 +228,29 @@ public static class ScenarioChecker
         private static string? Extra(ScenarioAction action, string key) =>
             action.Extra?.TryGetValue(key, out var value) == true && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
 
-        /// <summary>Every "pack:kind/name" string of a catalogue kind must exist in the enabled packs.</summary>
+        /// <summary>
+        /// Every "pack:kind/name" string of a catalogue kind must exist in the enabled packs; the packs the
+        /// scenario needs are enabled, and it declares those it uses (data-model §2.1).
+        /// </summary>
         public void CheckCatalogReferences(Scenario scenario)
         {
+            var enabled = catalog.Packs.Select(p => p.Id).ToHashSet();
+            foreach (var needed in scenario.Packs.Where(p => !enabled.Contains(p) && p != Scenario.HomebrewPack))
+            {
+                Warn("PackNotEnabled", "packs", $"pack '{needed}' is not enabled (or a pack it depends on is missing): its content is unknown");
+            }
+
+            var used = Strings(JsonSerializer.SerializeToElement(scenario, JsonDefaults.Options))
+                .Select(s => ContentId.Parse(s))
+                .Where(id => id is { Pack: { } pack, Kind: { } kind } && enabled.Contains(pack) && CatalogKinds.Contains(kind))
+                .Select(id => id.Pack!)
+                .Distinct()
+                .Order(StringComparer.Ordinal);
+            foreach (var undeclared in used.Where(p => !scenario.Packs.Contains(p)))
+            {
+                Warn("PackNotDeclared", "packs", $"content of pack '{undeclared}' is used: add it to \"packs\"");
+            }
+
             var packs = catalog.Packs.Select(p => p.Id).Concat(scenario.Packs).ToHashSet();
             var json = JsonSerializer.SerializeToElement(scenario, JsonDefaults.Options);
             var references = Strings(json)

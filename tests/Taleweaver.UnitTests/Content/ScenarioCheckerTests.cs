@@ -386,6 +386,26 @@ public class ScenarioCheckerTests
         report.Warnings.Should().ContainSingle().Which.Code.Should().Be("Scenarios.JumpNeeded");
     }
 
+    [Fact]
+    public void Check_FamilyWhoseCardIsInAnUndeclaredPack_ReportsPackNotDeclared()
+    {
+        var encounter = Encounter() with { Setup = new Setup { Combatants = [new CombatantPlacement { Family = "brute", At = new Cell(1, 1) }] } };
+
+        var report = ScenarioChecker.Check(Scenario(encounter) with { Packs = [] }, Catalog);
+
+        report.Warnings.Should().Contain(w => w.Code == "Scenarios.PackNotDeclared" && w.Message.Contains("hb:combatant/brute-common"));
+    }
+
+    [Fact]
+    public void Check_PackNotEnabledOrNotDeclared_ReportsWarnings()
+    {
+        var scenario = Scenario(Encounter()) with { Packs = ["be1"] };
+
+        var report = ScenarioChecker.Check(scenario, Catalog);
+
+        report.Warnings.Select(w => w.Code).Should().Contain(["Scenarios.PackNotEnabled", "Scenarios.PackNotDeclared"]);
+    }
+
     [Theory]
     [InlineData(0, true)]
     [InlineData(180, false)]
