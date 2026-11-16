@@ -1,4 +1,4 @@
-import { between, reachable, sight, type Board, type BoardFigure } from './grid'
+import { between, climb, inReach, reachable, sight, type Board, type BoardFigure } from './grid'
 
 /** SOI has a base Range of 4 (rulebook p. 43). */
 export const SOI = 4
@@ -10,8 +10,8 @@ export type Condition =
   | { kind: 'always' }
   /** At least `count` opponents within `max` squares (and at least `min` away), seen when `sight` says so. */
   | { kind: 'opponentsWithin'; max: number; min: number; count: number; sight?: 'attack' | 'soi' }
-  /** An opponent within `range` after a move of the figure's Movement. */
-  | { kind: 'moveAndAttack'; range: number }
+  /** An opponent within `range` after a move of the figure's Movement (a Reach unless `ranged`). */
+  | { kind: 'moveAndAttack'; range: number; ranged?: boolean }
   | { kind: 'moveTowardsAlly' }
   | { kind: 'hasDamage' }
   /**
@@ -49,7 +49,9 @@ export function parseCondition(text: string): Condition | undefined {
   if (/^otherwise/.test(t)) return { kind: 'always' }
   if (/^can [^?]*move and attack an opponent( within (range|reach) \d+)?\??$/.test(t)) {
     const m = word.exec(t)
-    return { kind: 'moveAndAttack', range: m ? Number(m[1]) : 1 }
+    return m?.[0].startsWith('range')
+      ? { kind: 'moveAndAttack', range: Number(m[1]), ranged: true }
+      : { kind: 'moveAndAttack', range: m ? Number(m[1]) : 1 }
   }
   if (/^can [^?]*move (to be )?adjacent to an opponent\??$/.test(t)) return { kind: 'moveAndAttack', range: 1 }
   if (/^can [^?]*move towards an ally\??$/.test(t)) return { kind: 'moveTowardsAlly' }
@@ -119,7 +121,11 @@ export function suggest(
       const all = byDistance(acting, opponentsOf(board, acting))
       if (!all.length) return { answer: false, reason: { key: 'noOpponent', args: {} } }
       const seen = (o: BoardFigure) => !condition.sight || sight(board, acting, o, condition.sight === 'soi').clear
-      const within = all.filter((o) => o.range <= condition.max && o.range >= condition.min && seen(o.figure))
+      // Side by side, figures are Adjacent only with an Elevation change of 1 or less (rulebook p. 22)
+      const adjacent = (o: BoardFigure) => condition.max !== 1 || climb(board, acting, o) <= 1
+      const within = all.filter(
+        (o) => o.range <= condition.max && o.range >= condition.min && seen(o.figure) && adjacent(o.figure),
+      )
       if (within.length >= condition.count)
         return { answer: true, reason: { key: 'within', args: { list: listed(within) } } }
       const nearest = all[0]!
@@ -162,7 +168,10 @@ export function suggest(
       const reached = byDistance(acting, opponents).filter((o) =>
         squares.some((s) => {
           const there = { ...acting, position: s.at }
-          return between(there, o.figure) <= condition.range && sight(board, there, o.figure).clear
+          const near = condition.ranged
+            ? between(there, o.figure) <= condition.range
+            : inReach(board, there, o.figure, condition.range)
+          return near && sight(board, there, o.figure).clear
         }),
       )
       if (reached.length)

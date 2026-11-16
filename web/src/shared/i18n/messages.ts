@@ -549,10 +549,11 @@ export const messages = {
     },
     ai: {
       penalty: '{n} au jet d’attaque (terrain gênant ou allié sur la ligne)',
+      higher: '+1 au jet d’attaque (plus haut que la cible)',
       advice: 'Suggestions du plateau',
       suggestion: 'Suggestion : {answer}',
       caveat:
-        'Ligne de vue et terrain d’après les tuiles (relevé à l’œil) et les jetons posés ; l’élévation n’est pas connue : vérifiez sur la table.',
+        'Ligne de vue, terrain et élévation d’après les tuiles (relevé à l’œil) et les jetons posés : vérifiez sur la table.',
       reason: {
         damage: '{n} dégâts subis',
         noOpponent: 'aucun adversaire sur la table',
@@ -1184,10 +1185,11 @@ export const messages = {
     },
     ai: {
       penalty: '{n} to the Attack roll (Hindering Terrain or ally in the way)',
+      higher: '+1 to the Attack roll (higher than the target)',
       advice: 'Board suggestions',
       suggestion: 'Suggestion: {answer}',
       caveat:
-        'Line of Sight and terrain from the tiles (surveyed by eye) and the tokens laid; Elevation is not known: check on the table.',
+        'Line of Sight, Terrain and Elevation from the tiles (surveyed by eye) and the tokens laid: check on the table.',
       reason: {
         damage: '{n} Damage taken',
         noOpponent: 'no opponent on the table',

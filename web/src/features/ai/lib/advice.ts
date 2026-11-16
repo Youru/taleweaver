@@ -3,7 +3,7 @@ import type { Combatant } from '@/features/catalog'
 import type { Cell, EncounterState, LogEntry, Prompt } from '@/features/games'
 import type { BoardLayout } from '@/features/table'
 import { parseCondition, suggest, type Suggestion } from './conditions'
-import { key, printedTerrain, terrainOf, type Board, type BoardFigure, type Terrain } from './grid'
+import { key, printedElevation, printedTerrain, terrainOf, type Board, type BoardFigure, type Terrain } from './grid'
 import { planTurn, type Advice } from './instructions'
 
 /** What the table shows of the AI's plan: where the acting figure should go, and whom it targets. */
@@ -52,7 +52,15 @@ export function readBoard(layout: BoardLayout, encounter: EncounterState): Board
       for (let x = token.x; x < token.x + token.w; x++)
         for (let y = token.y; y < token.y + token.h; y++) terrain.set(key({ x, y }), type)
   }
-  return { squares, figures, terrain }
+  // Elevation printed on the tiles, then the scenario's Elevation areas, more precise where given
+  const elevation = new Map<string, number>()
+  for (const tile of layout.tiles)
+    if (!tile.hidden) for (const [at, level] of printedElevation(tile)) elevation.set(at, level)
+  for (const area of layout.elevation)
+    if (area.level)
+      for (let x = area.x; x < area.x + area.w; x++)
+        for (let y = area.y; y < area.y + area.h; y++) elevation.set(key({ x, y }), area.level)
+  return { squares, figures, terrain, elevation }
 }
 
 /**
@@ -63,8 +71,8 @@ const starts = new Map<string, Cell>()
 
 /**
  * The AI helper: answers the pending AI condition from the positions on the table, and works out the
- * targets and moves of the instructions given this turn, with the Terrain tokens and Line of Sight
- * (not the walls printed on the tiles, nor Elevation). It only suggests: the GM still answers and
+ * targets and moves of the instructions given this turn, with the Terrain (printed and tokens), the
+ * Elevation and Line of Sight. It only suggests: the GM still answers and
  * moves the figures.
  */
 export function useAiAdvice(

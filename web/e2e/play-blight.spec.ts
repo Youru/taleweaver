@@ -77,7 +77,7 @@ test('the AI helper answers from the table, then shows the target or the move', 
   }
   expect(suggested).toBe(true)
   await expect(move.first()).toBeVisible()
-  await expect(turn.getByText(/^Ligne de vue et terrain d’après les tuiles/)).toBeVisible()
+  await expect(turn.getByText(/^Ligne de vue, terrain et élévation d’après les tuiles/)).toBeVisible()
 
   // A suggested move is drawn on the table and played in one click
   await expect(page.locator('g.hint rect').first()).toBeVisible()

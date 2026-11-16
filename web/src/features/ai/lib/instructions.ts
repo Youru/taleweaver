@@ -1,6 +1,6 @@
 import type { Cell } from '@/features/games'
 import { byDistance, EFFECTS, opponentsOf, SOI } from './conditions'
-import { between, reachable, sight, type Board, type BoardFigure, type Reach } from './grid'
+import { between, inReach, reachable, sight, type Board, type BoardFigure, type Reach } from './grid'
 
 /** Who an Attack or a Spell goes to, as the AI step words it. */
 export type TargetRule =
@@ -25,7 +25,9 @@ export type MoveRule =
   | { kind: 'away'; n: number }
 
 export type Action =
-  { kind: 'attack'; spell: boolean; range: number; target: TargetRule } | { kind: 'move'; rule: MoveRule }
+  /** `melee`: a Reach (or Adjacent), shortened by Elevation changes (rulebook p. 22). */
+  | { kind: 'attack'; spell: boolean; range: number; melee?: boolean; target: TargetRule }
+  | { kind: 'move'; rule: MoveRule }
 
 /** The sentences of an instruction ("Make a [Melee] ATK. THEN: MOVE …"), questions left out. */
 function sentences(text: string): string[] {
@@ -87,14 +89,22 @@ export function parseInstruction(text: string): Action[] {
     if (attack) {
       const reach = /reach (\d+)/.exec(s)
       const range = attack[1] === 'ranged' ? Number(attack[2] ?? 1) : reach ? Number(reach[1]) : 1
-      actions.push({ kind: 'attack', spell: false, range, target: targetRule(attack[3] ?? '') })
+      const melee = attack[1] === 'melee'
+      actions.push({
+        kind: 'attack',
+        spell: false,
+        range,
+        ...(melee && { melee }),
+        target: targetRule(attack[3] ?? ''),
+      })
       continue
     }
     const spell = /\bspell \d+(.*)/.exec(s)
     if (spell) {
       const rest = spell[1] ?? ''
-      const range = /adjacent/.test(rest) ? 1 : /line of sight/.test(rest) ? 999 : SOI
-      actions.push({ kind: 'attack', spell: true, range, target: targetRule(rest) })
+      const adjacent = /adjacent/.test(rest)
+      const range = adjacent ? 1 : /line of sight/.test(rest) ? 999 : SOI
+      actions.push({ kind: 'attack', spell: true, range, ...(adjacent && { melee: true }), target: targetRule(rest) })
       continue
     }
     const move = parseMove(s)
@@ -110,6 +120,8 @@ export interface Candidate {
   range: number
   /** Penalty to the Attack roll from Hindering Terrain or allies in the way (0 or less). */
   penalty?: number
+  /** Higher than the target: +1 to the Attack roll (rulebook p. 22). */
+  higher?: boolean
 }
 
 export type Advice =
@@ -151,7 +163,9 @@ function attackAdvice(
   const soi = action.spell && action.range === SOI
   const seen = new Map(opponentsOf(board, acting).map((o) => [o.id, sight(board, acting, o, soi)]))
   const eligible = byDistance(acting, opponentsOf(board, acting)).filter(
-    (o) => o.range <= action.range && seen.get(o.figure.id)?.clear,
+    (o) =>
+      (action.melee ? inReach(board, acting, o.figure, action.range) : o.range <= action.range) &&
+      seen.get(o.figure.id)?.clear,
   )
   // Ties, and any target the card leaves open, go to the figure closer to the front of the Initiative Track.
   const byInitiative = [...eligible].sort((a, b) => a.figure.initiative - b.figure.initiative)
@@ -170,7 +184,14 @@ function attackAdvice(
     const same = eligible.find((o) => o.figure.id === previous.id)
     ordered = same ? [same, ...byInitiative.filter((o) => o !== same)] : byInitiative
   }
-  const candidates = ordered.map((o) => ({ ...candidate(o), penalty: seen.get(o.figure.id)?.penalty || undefined }))
+  const candidates = ordered.map((o) => {
+    const view = seen.get(o.figure.id)
+    return {
+      ...candidate(o),
+      penalty: view?.penalty || undefined,
+      ...(!action.spell && view?.higher && { higher: true }),
+    }
+  })
   const criterion = rule.kind === 'criterion' ? rule.text : rule.kind === 'effect' ? rule.rest : undefined
   const decided = !criterion && rule.kind !== 'each'
   return {

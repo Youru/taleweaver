@@ -32,6 +32,7 @@ function choices(a: Extract<Advice, { kind: 'attack' }>): Candidate[] {
         <span v-else-if="a.target">
           {{ t('ai.target', { name: a.target.name, n: a.target.range }) }}
           <strong v-if="a.target.penalty" class="penalty">{{ t('ai.penalty', { n: a.target.penalty }) }}</strong>
+          <strong v-if="a.target.higher" class="higher">{{ t('ai.higher') }}</strong>
         </span>
         <span v-else-if="a.criterion">
           {{ t('ai.targetCriterion', { criterion: a.criterion, list: list(a.candidates) }) }}
@@ -97,5 +98,9 @@ function choices(a: Extract<Advice, { kind: 'attack' }>): Candidate[] {
 .penalty {
   margin-left: 0.3rem;
   color: #b45309;
+}
+.higher {
+  margin-left: 0.3rem;
+  color: var(--p-green-700);
 }
 </style>

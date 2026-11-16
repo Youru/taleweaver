@@ -2,8 +2,8 @@ import type { Cell } from '@/features/games'
 
 /**
  * The board as the AI helper sees it: the squares of the tiles in view, their Terrain (printed on the
- * tiles, surveyed by eye, then the Terrain tokens laid on them) and the figures. Elevation is not
- * known: every answer stays a suggestion the GM checks on the table.
+ * tiles, surveyed by eye, then the Terrain tokens laid on them), their Elevation and the figures.
+ * Every answer stays a suggestion the GM checks on the table.
  */
 export interface Board {
   /** "x,y" of every square of a revealed tile. */
@@ -11,6 +11,8 @@ export interface Board {
   figures: BoardFigure[]
   /** Terrain of the board (printed, then tokens), by "x,y". */
   terrain?: Map<string, Terrain>
+  /** Elevation of the board (printed on the tiles, then the scenario's areas), by "x,y"; 1 when absent. */
+  elevation?: Map<string, number>
 }
 
 /** The Terrain types that change movement or Line of Sight (rulebook p. 21). */
@@ -61,6 +63,44 @@ export function printedTerrain(tile: { x: number; y: number; rotation: number; p
     }),
   )
   return terrain
+}
+
+/** The Elevation printed on a laid tile, by "x,y" of the board: `rows` of digits, tile not rotated. */
+export function printedElevation(tile: { x: number; y: number; rotation: number; elevation?: string[] }) {
+  const levels = new Map<string, number>()
+  const rows = tile.elevation ?? []
+  rows.forEach((row, y) =>
+    [...row].forEach((digit, x) => {
+      const level = Number(digit)
+      if (!level) return
+      const at = rotate(x, y, tile.rotation, rows.length)
+      levels.set(key({ x: tile.x + at.x, y: tile.y + at.y }), level)
+    }),
+  )
+  return levels
+}
+
+/** Elevation of a square: 1, the lowest, when nothing says otherwise (rulebook p. 22). */
+export const levelOf = (board: Board, c: Cell) => board.elevation?.get(key(c)) ?? 1
+
+/**
+ * The smallest Elevation change between two figures (for large bases, the most favourable pair of
+ * squares).
+ */
+export function climb(board: Board, a: BoardFigure, b: BoardFigure): number {
+  let best = Infinity
+  for (const p of footprint(a.position, a.size))
+    for (const q of footprint(b.position, b.size))
+      best = Math.min(best, Math.abs(levelOf(board, p) - levelOf(board, q)))
+  return best
+}
+
+/**
+ * Whether a Melee Attack with `reach` gets to the target (rulebook p. 22): figures side by side are
+ * Adjacent only with an Elevation change of 1 or less, and each change beyond 1 takes 1 off the Reach.
+ */
+export function inReach(board: Board, a: BoardFigure, b: BoardFigure, reach: number): boolean {
+  return between(a, b) <= reach - Math.max(0, climb(board, a, b) - 1)
 }
 
 export type Side = 'combatant' | 'adventurer'
@@ -128,6 +168,16 @@ export function reachable(board: Board, mover: BoardFigure, movement: number): R
       return !!f && f.side !== mover.side
     })
   const occupied = (at: Cell) => footprint(at, mover.size).some((c) => owner.has(key(c)))
+  /**
+   * Elevation (rulebook p. 22): up a change of 1 at most, down a change of 2 at most (3 defeats). A
+   * large base needs one of its squares to make an allowed step.
+   */
+  const climbable = (from: Cell, to: Cell) =>
+    footprint(from, mover.size).some((c, i) => {
+      const there = footprint(to, mover.size)[i]!
+      const change = levelOf(board, there) - levelOf(board, c)
+      return change <= 1 && change >= -2
+    })
   /** Leaving Hindering or Water Terrain, or an ally's space, costs 2 (these do not stack). */
   const slow = (at: Cell) => footprint(at, mover.size).some((c) => terrain(c) === 'hindering' || terrain(c) === 'water')
 
@@ -146,7 +196,7 @@ export function reachable(board: Board, mover: BoardFigure, movement: number): R
     ] as const) {
       const next = { x: at.x + dx, y: at.y + dy }
       const total = cost + leaving
-      if (total > movement || !fits(next) || blocked(next)) continue
+      if (total > movement || !fits(next) || blocked(next) || !climbable(at, next)) continue
       if (total >= (best.get(key(next)) ?? Infinity)) continue
       best.set(key(next), total)
       queue.push({ at: next, cost: total })
@@ -165,6 +215,8 @@ export interface Sight {
   clear: boolean
   /** -1 through (or into) Hindering Terrain, -1 through allies; never more than -2 (rulebook p. 43). */
   penalty: number
+  /** The viewer stands higher than the target: +1 to its Attack rolls (rulebook p. 22). */
+  higher?: boolean
 }
 
 /**
@@ -209,8 +261,10 @@ export function lineCells(a: Cell, b: Cell): Cell[][] {
 /**
  * Line of Sight from `viewer` to `target` (rulebook p. 43): blocked by Obstructing Terrain, by the
  * edges of the tiles and by opponents; allies and Hindering Terrain only give -1 to the Attack roll.
- * With `soi` (Spells), only Obstructing Terrain and the tiles' edges count. For large bases, any
- * pair of squares will do.
+ * Elevation (p. 22): on the same level, the line may cross lower squares but not higher ones; between
+ * two levels, it only crosses squares lower than the higher of the two (so the higher figure must
+ * stand on the edge), and figures below that level are ignored. With `soi` (Spells), only
+ * Obstructing Terrain and the tiles' edges count. For large bases, any pair of squares will do.
  */
 export function sight(board: Board, viewer: BoardFigure, target: BoardFigure, soi = false): Sight {
   const owner = new Map<string, BoardFigure>()
@@ -219,11 +273,16 @@ export function sight(board: Board, viewer: BoardFigure, target: BoardFigure, so
   const terrain = (c: Cell) => board.terrain?.get(key(c))
   const own = new Set(footprint(viewer.position, viewer.size).map(key))
 
-  /** What a square does to the line: blocks it, or the penalties it adds. */
-  const effect = (c: Cell) => {
+  /** What a square does to a line between levels `from` and `to`: blocks it, or the penalties it adds. */
+  const effect = (c: Cell, from: number, to: number) => {
     if (own.has(key(c))) return { blocks: false, hindering: false, ally: false }
-    const f = owner.get(key(c))
-    const blocks = !board.squares.has(key(c)) || terrain(c) === 'obstructing' || (!soi && !!f && f.side !== viewer.side)
+    const level = levelOf(board, c)
+    const top = Math.max(from, to)
+    const tooHigh = !soi && (from === to ? level > top : level >= top)
+    // Between two levels, the figures below the higher one do not count
+    const f = from !== to && level < top ? undefined : owner.get(key(c))
+    const blocks =
+      !board.squares.has(key(c)) || terrain(c) === 'obstructing' || tooHigh || (!soi && !!f && f.side !== viewer.side)
     return {
       blocks,
       hindering: !soi && terrain(c) === 'hindering',
@@ -237,9 +296,11 @@ export function sight(board: Board, viewer: BoardFigure, target: BoardFigure, so
       let hindering = !soi && terrain(to) === 'hindering'
       let ally = false
       let clear = true
+      const up = levelOf(board, from)
+      const down = levelOf(board, to)
       for (const choices of lineCells(from, to)) {
         // The players pick the square that suits them best.
-        const options = choices.map(effect).filter((e) => !e.blocks)
+        const options = choices.map((c) => effect(c, up, down)).filter((e) => !e.blocks)
         if (!options.length) {
           clear = false
           break
@@ -252,7 +313,10 @@ export function sight(board: Board, viewer: BoardFigure, target: BoardFigure, so
       }
       if (!clear) continue
       const penalty = 0 - Number(hindering) - Number(ally)
-      if (!bestSight || penalty > bestSight.penalty) bestSight = { clear: true, penalty }
+      const higher = !soi && up > down
+      const score = (s: Sight) => s.penalty + Number(!!s.higher)
+      const found: Sight = higher ? { clear: true, penalty, higher } : { clear: true, penalty }
+      if (!bestSight || score(found) > score(bestSight)) bestSight = found
     }
   return bestSight ?? { clear: false, penalty: 0 }
 }

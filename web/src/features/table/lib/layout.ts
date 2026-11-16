@@ -31,6 +31,8 @@ export interface TileShape {
   rotation: number
   /** The printed terrain of the side (see TilePiece), only when the rotation is known. */
   printed?: string[]
+  /** The printed Elevation of the side (digits, as `printed`), only when the rotation is known. */
+  elevation?: string[]
   /** Under the fog of war: drawn as fog, everything on it is hidden. */
   hidden?: FogArea
 }
@@ -133,6 +135,7 @@ export function boardLayout(
       h: piece?.h ?? 6,
       rotation: tile.rotation ?? 0,
       printed: tile.rotation == null ? undefined : piece?.terrain,
+      elevation: tile.rotation == null ? undefined : piece?.elevation,
       hidden: area && !revealed.has(area.id) ? area : undefined,
     })
   }

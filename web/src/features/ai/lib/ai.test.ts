@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { parseCondition, suggest } from './conditions'
 import {
+  inReach,
   lineCells,
+  printedElevation,
   printedTerrain,
   range,
   reachable,
@@ -106,7 +108,7 @@ describe('instructions', () => {
     expect(
       parseInstruction('Make a [Melee] ATK. THEN: MOVE to be at up to Range 4 from an adjacent opponent.'),
     ).toEqual([
-      { kind: 'attack', spell: false, range: 1, target: { kind: 'any' } },
+      { kind: 'attack', spell: false, range: 1, melee: true, target: { kind: 'any' } },
       { kind: 'move', rule: { kind: 'range', n: 4, upTo: true, pick: 'nearest', withinMovement: false } },
     ])
     expect(parseInstruction('Make a [Ranged] 4 ATK against the farthest opponent within Range.')).toEqual([
@@ -306,5 +308,73 @@ describe('effects', () => {
         'Make a [Ranged] 6 ATK, prioritizing an opponent with Darkness and a secondary priority of the most Damage.',
       ),
     ).toMatchObject({ target: undefined, candidates: [{ id: 'adventurer:Rook' }, { id: 'adventurer:Zeke' }] })
+  })
+})
+
+/** The board with Elevation: `rows` of digits from the top-left square (the rest is at 1). */
+function withElevation(b: Board, rows: string[]): Board {
+  const elevation = new Map<string, number>()
+  rows.forEach((row, y) => [...row].forEach((d, x) => elevation.set(`${x},${y}`, Number(d))))
+  return { ...b, elevation }
+}
+
+describe('elevation', () => {
+  it('reads the printed Elevation of a laid tile, turned with it', () => {
+    const rows = ['311111', '111111', '111111', '111111', '111111', '111111']
+    const levels = printedElevation({ x: 6, y: 0, rotation: 90, elevation: rows })
+    expect(levels.get('11,0')).toBe(3)
+    expect(levels.get('6,0')).toBe(1)
+  })
+
+  it('sees down from the edge of a height, with +1 to the Attack roll, but not from further back', () => {
+    const edge = fig('sickle-1', 'combatant', 1, 0)
+    const back = fig('sickle-2', 'combatant', 0, 0)
+    const below = fig('adventurer:Rook', 'adventurer', 4, 0)
+    // Squares 0 and 1 at 3, the rest at 1
+    const b = withElevation(board(edge, below), ['33'])
+    expect(sight(b, edge, below)).toEqual({ clear: true, penalty: 0, higher: true })
+    expect(sight(b, below, edge)).toEqual({ clear: true, penalty: 0 })
+    expect(sight(withElevation(board(back, below), ['33']), back, below).clear).toBe(false)
+    // Same level: through lower squares, not over higher ones
+    const left = fig('sickle-3', 'combatant', 0, 0)
+    const right = fig('adventurer:Remi', 'adventurer', 4, 0)
+    expect(sight(withElevation(board(left, right), ['22122']), left, right).clear).toBe(true)
+    expect(sight(withElevation(board(left, right), ['11211']), left, right).clear).toBe(false)
+    // A Spell's SOI ignores Elevation
+    expect(sight(withElevation(board(left, right), ['11211']), left, right, true).clear).toBe(true)
+  })
+
+  it('ignores the figures below the higher level when looking down', () => {
+    const edge = fig('sickle-1', 'combatant', 1, 0)
+    const target = fig('adventurer:Rook', 'adventurer', 4, 0)
+    const between = fig('adventurer:Remi', 'adventurer', 3, 0)
+    expect(sight(withElevation(board(edge, target, between), ['33']), edge, target).clear).toBe(true)
+    expect(sight(board(edge, target, between), edge, target).clear).toBe(false)
+  })
+
+  it('makes side by side figures Adjacent only with a change of 1 or less, and shortens Reach', () => {
+    const sickle = fig('sickle-1', 'combatant', 0, 0)
+    const rook = fig('adventurer:Rook', 'adventurer', 1, 0)
+    const far = fig('adventurer:Remi', 'adventurer', 2, 0)
+    expect(inReach(withElevation(board(sickle, rook), ['12']), sickle, rook, 1)).toBe(true)
+    expect(inReach(withElevation(board(sickle, rook), ['13']), sickle, rook, 1)).toBe(false)
+    expect(inReach(withElevation(board(sickle, rook), ['13']), sickle, rook, 2)).toBe(true)
+    expect(inReach(withElevation(board(sickle, far), ['113']), sickle, far, 2)).toBe(false)
+    const b = withElevation(board(sickle, rook), ['13'])
+    const [melee] = planTurn(['Make a [Melee] ATK on the nearest opponent.'], { board: b, acting: sickle })
+    expect(melee?.[0]).toMatchObject({ kind: 'attack', candidates: [] })
+    const [ranged] = planTurn(['Make a [Ranged] 3 ATK on the nearest opponent.'], { board: b, acting: sickle })
+    expect(ranged?.[0]).toMatchObject({ kind: 'attack', target: { id: 'adventurer:Rook' } })
+    expect(suggest(parseCondition('Is there an opponent adjacent?')!, b, sickle, 0)?.answer).toBe(false)
+  })
+
+  it('climbs a change of 1, drops a change of 2, never more', () => {
+    const sickle = fig('sickle-1', 'combatant', 1, 0)
+    const reached = (rows: string[]) =>
+      new Set(reachable(withElevation(board(sickle), rows), sickle, 1).map((s) => `${s.at.x},${s.at.y}`))
+    expect(reached(['232'])).toEqual(new Set(['1,0', '0,0', '2,0', '1,1']))
+    expect(reached(['141']).has('0,0')).toBe(false)
+    expect(reached(['242']).has('0,0')).toBe(true)
+    expect(reached(['141']).has('1,1')).toBe(false)
   })
 })
