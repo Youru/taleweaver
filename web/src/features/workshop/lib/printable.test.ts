@@ -65,26 +65,32 @@ describe('the printed encounter', () => {
     ])
   })
 
-  it('gives the end conditions their reward and where they lead, and prints the hidden rules', () => {
+  it('gives the end conditions their reward and where they lead, the later wins as alternate, and prints the hidden rules', () => {
     expect(sheet.ends).toEqual([
       { kind: 'win', text: 'All dead', reward: '10 gold', next: 'After' },
-      { kind: 'win', text: 'Sealed', reward: '', next: undefined, later: true },
+      { kind: 'win', alternate: true, text: 'Sealed', reward: '', next: undefined, later: true },
     ])
     expect(sheet.hiddenRules).toEqual([{ name: 'Cracks', text: 'The seal cracks.' }])
   })
 
-  it('prints the hidden text of the tokens that have one', () => {
+  it('prints the hidden text of the tokens that have one, with the picture of their colour', () => {
     expect(sheet.hidden).toEqual([
       {
         group: 'totem',
         entries: [
-          { key: 'totem:blue', label: 'Blue Totem', activation: 'In line of sight.', text: ['A Fragor appears.'] },
+          {
+            key: 'totem:blue',
+            label: 'Blue Totem',
+            image: 'b.png',
+            activation: 'In line of sight.',
+            text: ['A Fragor appears.'],
+          },
         ],
       },
     ])
   })
 })
 
-it('reads the steps from the start, following the exits', () => {
+it('reads the start first, then the steps in the order of the file', () => {
   expect(readingOrder(scenario).map((n) => n.id)).toEqual(['intro', 'fight', 'after'])
 })

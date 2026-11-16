@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
@@ -21,8 +21,8 @@ import { encounterSheet, readingOrder } from '../lib/printable'
 import { useEndingLabel } from '../lib/endings'
 
 /**
- * The scenario on paper: one encounter page, the whole booklet (cover, steps numbered §1, §2… in
- * reading order, one page per encounter), or the cards of the hidden texts. "Download the PDF" has
+ * The scenario on paper: one encounter, the whole booklet (cover, steps numbered §1, §2… in
+ * reading order, each encounter on its setup sheet and as many Continued sheets as its texts need), or the cards of the hidden texts. "Download the PDF" has
  * the API make the file (shown once complete); "Print" opens the browser's dialog.
  */
 const { t } = useI18n()
@@ -75,13 +75,6 @@ function choose(value: string) {
   void router.replace({
     query: value === '@booklet' ? query : value === '@cards' ? { ...query, what: 'cards' } : { ...query, node: value },
   })
-}
-
-// Pages whose content does not fit
-const overflowing = reactive(new Set<string>())
-function onOverflow(id: string, over: boolean) {
-  if (over) overflowing.add(id)
-  else overflowing.delete(id)
 }
 
 /** What a scene leads to, in words: "§3 · The ambush". */
@@ -170,9 +163,6 @@ const backTo = computed(() =>
     <Message v-if="pdf.error.value" severity="error" closable class="no-print" @close="pdf.reset()">
       {{ t('workshop.print.downloadFailed', { message: pdf.error.value.message }) }}
     </Message>
-    <Message v-if="overflowing.size" severity="warn" class="no-print">
-      {{ t('workshop.print.overflow', { list: [...overflowing].join(', ') }) }}
-    </Message>
 
     <div v-if="draft.isPending.value || pieces.isPending.value" class="center no-print">
       <ProgressSpinner :aria-label="t('common.loading')" />
@@ -219,7 +209,6 @@ const backTo = computed(() =>
             :veiled="veiled"
             :number="what === 'booklet' ? numberOf(node.id) : undefined"
             :page-of="numberOfCaption"
-            @overflow="onOverflow"
           />
           <section v-else class="scene">
             <h2>
@@ -290,7 +279,7 @@ const backTo = computed(() =>
   gap: 0.4in;
   align-items: center;
 }
-.sheets > * {
+.sheets > :not(.encounter) {
   box-shadow: 0 2px 12px rgb(0 0 0 / 0.25);
 }
 .cover,

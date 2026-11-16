@@ -15,6 +15,8 @@ export interface EncounterSheet {
   name: string
   intro: string
   location?: string
+  /** The encounter's loot level ("mundane"…), printed under the north arrow and beside the Loot title. */
+  lootLevel?: string
   northArrow: number
   setup: SetupLine[]
   ends: PrintedEnd[]
@@ -32,6 +34,8 @@ export interface SetupLine {
 
 export interface PrintedEnd {
   kind: 'win' | 'lose'
+  /** A win condition after the first one: "Alternate win condition". */
+  alternate?: boolean
   text: string
   reward: string
   /** Where it leads: a step's caption, or an ending ("@victory"…). */
@@ -50,6 +54,8 @@ export interface HiddenEntry {
   key: string
   /** The token's colour, or its name when it has none. */
   label: string
+  /** The token's picture (asset path), printed before the label as in the books. */
+  image?: string
   /** How it is activated: printed in the clear. */
   activation: string
   /** What it reveals: printed under the red filter. */
@@ -111,8 +117,10 @@ export function encounterSheet(
     const step = scenario.nodes.find((n) => n.id === target)
     return step ? captionOf(step, language) : target
   }
+  let wins = 0
   const ends = (node.endConditions ?? []).map((e) => ({
     kind: e.kind === 'lose' ? ('lose' as const) : ('win' as const),
+    ...(e.kind !== 'lose' && wins++ > 0 ? { alternate: true } : {}),
     text: text(e.text),
     reward: text(e.reward),
     next: caption(e.next),
@@ -123,7 +131,10 @@ export function encounterSheet(
 
   // Every token with something to read: those of the map, and those described without being on it
   const keys = [...new Set([...map.tokens.map((t) => tokenKey(t.type, t.color)), ...Object.keys(tokenRulesOf(node))])]
-  const typeOfKey = (key: string) => map.tokens.find((t) => tokenKey(t.type, t.color) === key)?.type
+  // A token described without being on the map ("loot:yellow") takes the type of its category
+  const typeOfKey = (key: string) =>
+    map.tokens.find((t) => tokenKey(t.type, t.color) === key)?.type ??
+    Object.keys(pieces?.tokens ?? {}).find((type) => type.split('/').pop() === key.split(':')[0])
   const sections = new Map<string, HiddenEntry[]>()
   for (const key of keys) {
     const rule = tokenRulesOf(node)[key]
@@ -140,9 +151,11 @@ export function encounterSheet(
       : type
         ? tokenName(type)
         : key
+    const piece = type ? pieces?.tokens[type] : undefined
+    const image = (color && piece?.colors?.[color]) || piece?.image
     sections.set(group, [
       ...(sections.get(group) ?? []),
-      { key, label: capitalize(label), activation, text: hiddenText },
+      { key, label: capitalize(label), ...(image ? { image } : {}), activation, text: hiddenText },
     ])
   }
   const hidden = [...sections].sort(([a], [b]) => rank(a) - rank(b)).map(([group, entries]) => ({ group, entries }))
@@ -152,6 +165,7 @@ export function encounterSheet(
     name: text(node.name) || node.id,
     intro: text(node.intro),
     location: node.locationType,
+    lootLevel: node.lootLevel,
     northArrow: Number((node.map as { northArrow?: number } | undefined)?.northArrow ?? 0),
     setup: lines,
     ends,
@@ -170,26 +184,15 @@ const rank = (group: string) => {
 
 const capitalize = (value: string) => value.charAt(0).toUpperCase() + value.slice(1)
 
-/** The steps of the scenario in reading order: from the start, following each exit. */
+/**
+ * The steps of the scenario in reading order: the start first, then the order of the file, which is
+ * the author's (the official books do not follow the exits: The Cave Sickle Queen prints the
+ * alternate path, Sickle Spelunking, before Damp Depths).
+ */
 export function readingOrder(scenario: DraftScenario): DraftNode[] {
-  const byId = new Map(scenario.nodes.map((n) => [n.id, n]))
-  const seen = new Set<string>()
-  const order: DraftNode[] = []
-  const visit = (id: string | undefined) => {
-    const node = id ? byId.get(id) : undefined
-    if (!node || seen.has(node.id)) return
-    seen.add(node.id)
-    order.push(node)
-    const next: (string | undefined)[] = [
-      node.next as string | undefined,
-      ...(node.endConditions ?? []).map((e) => e.next),
-      ...(node.mechanics ?? []).flatMap((a) =>
-        (a.options ?? []).flatMap((o) => (o.actions ?? []).filter((x) => x.do === 'goToNode').map((x) => x.node)),
-      ),
-    ]
-    next.forEach(visit)
-  }
-  visit(scenario.start)
-  scenario.nodes.forEach((n) => visit(n.id))
-  return order
+  const start = scenario.nodes.find((n) => n.id === scenario.start)
+  return start ? [start, ...scenario.nodes.filter((n) => n !== start)] : [...scenario.nodes]
 }
+
+/** Setup groups printed beside the first half of a large map; the others go beside the second half. */
+export const FIRST_HALF_GROUPS = ['tiles', 'terrain']
