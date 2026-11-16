@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 import type { BoardPieces } from '@/features/table'
 import { assetUrl } from '@/shared/api/assets'
 import type { DraftNode } from '../api/types'
-import { FIRST_HALF_GROUPS, type EncounterSheet } from '../lib/printable'
+import { FIRST_HALF_GROUPS, setupColumns, type EncounterSheet } from '../lib/printable'
 import { useEndingLabel } from '../lib/endings'
 import { extentOf, mapOf, setupOf, TILE } from '../lib/map'
 import PrintMap from './PrintMap.vue'
@@ -115,7 +115,8 @@ const folio = (index: number) => (props.firstPage ? props.firstPage + index : un
       </header>
       <section class="intro" :class="{ bare: !part.first }">
         <p v-if="part.first">{{ sheet.intro }}</p>
-        <div class="compass">
+        <!-- A large encounter has its north arrow on its second sheet: the intro takes the whole width -->
+        <div v-if="!part.first || parts.length === 1" class="compass">
           <img
             class="north"
             :src="art('top/vector-smart-object.png')"
@@ -128,7 +129,7 @@ const folio = (index: number) => (props.firstPage ? props.firstPage + index : un
         </div>
       </section>
 
-      <div v-if="hasMap" class="map" :class="part.columns ? (part.first ? 'left' : 'right') : undefined">
+      <div v-if="hasMap" class="map">
         <PrintMap :node="node" :pieces="pieces" :columns="part.columns" />
       </div>
 
@@ -137,9 +138,14 @@ const folio = (index: number) => (props.firstPage ? props.firstPage + index : un
           <span>{{ part.first ? t('workshop.print.setup') : t('workshop.print.setupContinued') }}</span>
         </h2>
         <div class="setup-groups">
-          <div v-for="line in part.setup" :key="line.group" class="setup-group">
-            <h4>{{ t(`workshop.print.group.${line.group}`) }}</h4>
-            <p v-for="item in line.items" :key="item">{{ item }}</p>
+          <div v-for="(column, c) in setupColumns(part.setup)" :key="c" class="setup-column">
+            <div v-for="cell in column" :key="`${cell.group}-${cell.continued}`" class="setup-group">
+              <h4>
+                {{ t(`workshop.print.group.${cell.group}`) }}
+                <small v-if="cell.continued">{{ t('workshop.print.groupContinued') }}</small>
+              </h4>
+              <p v-for="item in cell.items" :key="item">{{ item }}</p>
+            </div>
           </div>
         </div>
       </section>
@@ -247,7 +253,8 @@ const folio = (index: number) => (props.firstPage ? props.firstPage + index : un
   background-size: cover;
   color: var(--ink);
   font-family: var(--print-body-font);
-  font-size: 9.5pt;
+  /* Sizes of the books: body 9 pt, intro 12 pt, title 26 pt, headings 12 pt */
+  font-size: 9pt;
   line-height: 1.22;
   display: flex;
   flex-direction: column;
@@ -280,12 +287,12 @@ h1 {
   font-family: var(--print-title-font);
   font-variant: small-caps;
   font-weight: 700;
-  font-size: 30pt;
+  font-size: 26pt;
   letter-spacing: 0.02em;
   line-height: 1;
 }
 h1 small {
-  font-size: 0.62em;
+  font-size: 14pt;
 }
 .location {
   flex: none;
@@ -316,7 +323,7 @@ h1 small {
   margin: 0;
   font-family: 'Palatino Linotype', 'Book Antiqua', Georgia, serif;
   font-style: italic;
-  font-size: 10.5pt;
+  font-size: 12pt;
   line-height: 1.28;
   white-space: pre-line;
 }
@@ -353,13 +360,6 @@ h1 small {
   min-height: 0;
   margin: 0.06in 0.45in 0;
 }
-/* A half of a large map runs to the fold: the left half to the right edge, the right half to the left one */
-.map.left {
-  margin-right: 0;
-}
-.map.right {
-  margin-left: 0;
-}
 
 /* Setup box: a rounded panel, the title between two rules, the groups over three columns */
 .setup {
@@ -385,18 +385,21 @@ h1 small {
   border-top: 1.5px solid var(--ink);
 }
 .setup-groups {
-  columns: 3;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
   column-gap: 0.25in;
-  font-size: 8.5pt;
+  font-size: 9pt;
   line-height: 1.2;
 }
 .setup-group {
-  break-inside: avoid;
   margin-bottom: 0.06in;
+}
+.setup-group h4 small {
+  font-size: 7pt;
 }
 .setup-group h4 {
   margin: 0;
-  font-size: 8.5pt;
+  font-size: 9pt;
   font-weight: 700;
   text-transform: uppercase;
 }
@@ -425,7 +428,7 @@ h2 {
   border-bottom: 1.5px solid var(--ink);
   font-family: var(--print-title-font);
   font-variant: small-caps;
-  font-size: 13pt;
+  font-size: 12pt;
   font-weight: 700;
   break-after: avoid;
 }

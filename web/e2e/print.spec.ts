@@ -15,7 +15,7 @@ test('a GM prints Blight of Rhamsted: the booklet, an encounter page, the cards,
   await expect(page.getByRole('article', { name: /^Page de / })).toHaveCount(3)
   await expect(encounter.getByRole('img', { name: 'Diagramme de la rencontre' }).locator('image').first()).toBeVisible()
   await expect(encounter.getByText('Mise en place')).toBeVisible()
-  await expect(encounter.getByText('UM47, UM59, UM55, UM53, UM35')).toBeVisible()
+  await expect(encounter.getByText('UM35, UM47, UM53, UM55, UM59')).toBeVisible()
   await encounter.screenshot({ path: test.info().outputPath('encounter-page.png') })
   // Page numbers, as in the books: the rewards send to a page, and the booklet is marked paged for the PDF
   await expect(page.getByText(/^Suite : .+, p\. \d+$/).first()).toBeVisible()

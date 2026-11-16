@@ -184,9 +184,10 @@ const figures = computed(() =>
   stroke-width: 8;
   stroke-dasharray: 18 10;
 }
+/* The starting zone as the books draw it: darkened, framed in cyan */
 .zone.startingZone rect {
-  fill: rgb(191 219 254 / 0.35);
-  stroke: #1d9bf0;
+  fill: rgb(0 0 0 / 0.55);
+  stroke: #3fb6d8;
   stroke-dasharray: none;
 }
 .zone text {
