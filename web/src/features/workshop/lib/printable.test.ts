@@ -51,7 +51,10 @@ const scenario: DraftScenario = {
       setup: {
         combatants: [{ family: 'fragor', at: { x: 5, y: 5 } }, { ref: 'um1:combatant/blighted-terror-common' }],
       },
-      tokens: { 'totem:blue': { activation: { en: 'In line of sight.' }, events: ['ev'] } },
+      tokens: {
+        'totem:blue': { activation: { en: 'In line of sight.' }, events: ['ev'] },
+        'exit:blue': { activation: { en: 'Ends their turn on it.' }, events: [] },
+      },
       events: [
         { id: 'ev', trigger: { on: 'tokenActivated', token: 'totem:blue' }, hiddenText: { en: 'A Fragor appears.' } },
       ],
@@ -81,7 +84,7 @@ describe('the printed encounter', () => {
     expect(sheet.hiddenRules).toEqual([{ name: 'Cracks', text: 'The seal cracks.' }])
   })
 
-  it('prints the hidden text of the tokens that have one, with the picture of their colour', () => {
+  it('prints the hidden text of the tokens that have one (not an exit), with the picture of their colour', () => {
     expect(sheet.hidden).toEqual([
       {
         group: 'totem',

@@ -180,7 +180,8 @@ export function encounterSheet(
     const rule = tokenRulesOf(node)[key]
     const hiddenText = hiddenBlocks(eventsOfToken(node, key).flatMap((e) => eventTexts(e, language)))
     const activation = text(rule?.activation)
-    if (!hiddenText.length && !activation) continue
+    // A token with nothing hidden (an exit: its condition is a win condition) is not listed, as in the books
+    if (!hiddenText.length) continue
     const type = typeOfKey(key)
     const [short, color] = key.split(':')
     const group = type ? categoryOf(type) : (short ?? 'encounter')
