@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { BoardPieces } from '@/features/table'
 import type { DraftScenario } from '../api/types'
-import { encounterSheet, readingOrder, setupColumns, terrainName } from './printable'
+import { encounterSheet, readingOrder, setupColumns, terrainFrame, terrainName } from './printable'
 
 const pieces: BoardPieces = {
   tiles: { 'um1:tile/um1': { name: 'UM1', w: 6, h: 6 } },
@@ -158,4 +158,12 @@ it('keeps the groups whole when they fit three columns', () => {
   ])
 
   expect(columns.map((c) => c.map((cell) => cell.group))).toEqual([['totem'], ['objective'], ['loot']])
+})
+
+it('frames each terrain in the colour of its kind, as the books draw it', () => {
+  expect(terrainFrame('um1:token/terrain/obstructing-long')).toBe(terrainFrame('be1:token/terrain/obstructing-3x1'))
+  expect(terrainFrame('um1:token/terrain/dangerous')).not.toBe(terrainFrame('be1:token/terrain/bug-creep'))
+  expect(terrainFrame('um1:token/terrain/water-long-dark')).not.toBe(terrainFrame('um1:token/terrain/water'))
+  expect(terrainFrame('um1:token/terrain/water-large-light')).toBe(terrainFrame('um1:token/terrain/water'))
+  expect(terrainFrame('um1:token/totem')).toBeUndefined()
 })

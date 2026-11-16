@@ -5,9 +5,13 @@ import type { BoardPieces } from '@/features/table'
 import { assetUrl } from '@/shared/api/assets'
 import type { DraftNode } from '../api/types'
 import { extentOf, mapOf, setupOf, START_ZONE, TILE, tokenRect } from '../lib/map'
+import { terrainFrame, TOKEN_COLORS } from '../lib/printable'
 
 /**
- * The diagram of an encounter for print: tiles, terrain, tokens, figures and the starting zone.
+ * The diagram of an encounter for print: tiles, terrain, tokens, figures and the starting zone,
+ * drawn as the books do: each terrain token framed in the colour of its kind, each coloured token
+ * ringed in its colour. A piece without a picture (BE1's tokens, cut out of no sheet yet) is drawn
+ * all the same: its frame or its colour, and its name.
  * `columns` shows only some columns of squares (one half of a large map, printed across two pages):
  * the black frame is then left open on the side of the cut, so the two halves join. `span` is the
  * width given to every half, so that both print at the same scale; each half sits against the cut.
@@ -51,25 +55,38 @@ const tiles = computed(() =>
     href: assetUrl(props.pieces?.tiles[tile.ref]?.image),
   })),
 )
+const nameOf = (name: { en?: string } | Record<string, string> | undefined) =>
+  (name as Record<string, string> | undefined)?.en ?? Object.values(name ?? {})[0] ?? ''
+/** A name's font size, so that it holds within `squares` squares (at most 15 px). */
+const fit = (label: string, squares: number) => Math.min(15, (squares * S * 0.8) / Math.max(1, label.length * 0.55))
+// Terrain first, then the round tokens on top (a totem on a Bug Creep stays visible)
 const tokens = computed(() =>
-  map.value.tokens.map((token) => {
-    const piece = props.pieces?.tokens[token.type]
-    const r = tokenRect(token)
-    return {
-      id: token.id,
-      r,
-      turned: r.h > r.w,
-      round: !!piece && piece.category !== 'terrain',
-      href: assetUrl((token.color && piece?.colors?.[token.color]) || piece?.image),
-    }
-  }),
+  map.value.tokens
+    .map((token) => {
+      const piece = props.pieces?.tokens[token.type]
+      const r = tokenRect(token)
+      const round = !!piece && piece.category !== 'terrain'
+      return {
+        id: token.id,
+        r,
+        turned: r.h > r.w,
+        round,
+        href: assetUrl((token.color && piece?.colors?.[token.color]) || piece?.image),
+        frame: round ? undefined : terrainFrame(token.type),
+        ring: (token.color && TOKEN_COLORS[token.color]) || '#f5f5f5',
+        label: nameOf(piece?.name).replace(/\s+\d+\s*[xX]\s*\d+$/, ''),
+      }
+    })
+    .sort((a, b) => Number(a.round) - Number(b.round)),
 )
 const figures = computed(() =>
   setup.value.combatants.flatMap((c, i) => {
     if (!c.at || !c.family) return []
     const n =
       (props.pieces?.figures[c.family]?.baseSize ?? props.pieces?.families[c.family]?.baseSize) === '2x2' ? 2 : 1
-    return [{ key: i, x: c.at.x, y: c.at.y, n, href: assetUrl(props.pieces?.figures[c.family]?.image) }]
+    const href = assetUrl(props.pieces?.figures[c.family]?.image)
+    const label = nameOf(props.pieces?.families[c.family]?.name) || c.family
+    return [{ key: i, x: c.at.x, y: c.at.y, n, href, label }]
   }),
 )
 </script>
@@ -141,12 +158,50 @@ const figures = computed(() =>
               : undefined
           "
         />
+        <!-- No picture: the colour of a round token, a dark square for terrain, and the name -->
+        <circle
+          v-if="!token.href && token.round"
+          class="blank"
+          :cx="(token.r.x + token.r.w / 2) * S"
+          :cy="(token.r.y + token.r.h / 2) * S"
+          :r="token.r.w * S * 0.44"
+          :style="{ fill: token.ring }"
+        />
+        <rect
+          v-if="!token.href && !token.round"
+          class="blank"
+          :x="token.r.x * S + 6"
+          :y="token.r.y * S + 6"
+          :width="token.r.w * S - 12"
+          :height="token.r.h * S - 12"
+          :style="{ fill: token.frame ?? '#555' }"
+        />
+        <!-- A framed terrain is told by its frame (and the setup list); a round token by its name -->
+        <text
+          v-if="!token.href && !token.frame"
+          class="name"
+          :x="(token.r.x + token.r.w / 2) * S"
+          :y="(token.r.y + token.r.h / 2) * S"
+          :style="{ fontSize: `${fit(token.label, token.r.w)}px` }"
+        >
+          {{ token.label }}
+        </text>
+        <rect
+          v-if="token.frame"
+          class="frame"
+          :x="token.r.x * S + 5"
+          :y="token.r.y * S + 5"
+          :width="token.r.w * S - 10"
+          :height="token.r.h * S - 10"
+          :style="{ stroke: token.frame }"
+        />
         <circle
           v-if="token.round"
           class="token-ring"
           :cx="(token.r.x + token.r.w / 2) * S"
           :cy="(token.r.y + token.r.h / 2) * S"
           :r="token.r.w * S * 0.44"
+          :style="{ stroke: token.ring }"
         />
       </g>
       <g v-for="f in figures" :key="f.key">
@@ -161,6 +216,15 @@ const figures = computed(() =>
           preserveAspectRatio="xMinYMid slice"
           :clip-path="`url(#${clipId})`"
         />
+        <text
+          v-if="!f.href"
+          class="name"
+          :x="(f.x + f.n / 2) * S"
+          :y="(f.y + f.n / 2) * S"
+          :style="{ fontSize: `${fit(f.label, f.n)}px` }"
+        >
+          {{ f.label }}
+        </text>
         <circle class="ring" :cx="(f.x + f.n / 2) * S" :cy="(f.y + f.n / 2) * S" :r="f.n * S * 0.44" />
       </g>
     </g>
@@ -204,8 +268,27 @@ const figures = computed(() =>
 }
 .token-ring {
   fill: none;
-  stroke: #f5f5f5;
-  stroke-width: 6;
+  stroke-width: 7;
+}
+/* The frame of a terrain token, as the books draw it */
+.frame {
+  fill: none;
+  stroke-width: 8;
+  rx: 6;
+}
+.blank {
+  fill-opacity: 0.3;
+}
+.name {
+  fill: #fff;
+  font-family: var(--print-body-font);
+  font-size: 15px;
+  font-weight: 700;
+  text-anchor: middle;
+  dominant-baseline: middle;
+  paint-order: stroke;
+  stroke: #000;
+  stroke-width: 4px;
 }
 .base {
   fill: #e5e5e5;

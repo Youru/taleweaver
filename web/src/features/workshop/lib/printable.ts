@@ -314,3 +314,37 @@ export function readingOrder(scenario: DraftScenario): DraftNode[] {
 
 /** Setup groups printed beside the first half of a large map; the others go beside the second half. */
 export const FIRST_HALF_GROUPS = ['tiles', 'terrain']
+
+/**
+ * The frame the books draw round a terrain token, by its kind (The Cave Sickle Queen): dark red for
+ * Obstructing, grey for Dangerous, amber for Bug Creep, blue for water, light blue for a waterfall.
+ * Undefined: no frame (the token's own picture is enough).
+ */
+export function terrainFrame(type: string): string | undefined {
+  const kind = type.slice(type.lastIndexOf('/') + 1)
+  const frames: [RegExp, string][] = [
+    [/^obstructing/, '#9b1c1c'],
+    [/^dangerous/, '#b9b9b9'],
+    [/^bug-creep/, '#f0a43a'],
+    [/^waterfall/, '#a9c6d6'],
+    [/^water-.*dark|^water-dark/, '#1f5f9a'],
+    [/^water/, '#2fa4dc'],
+    [/^hindering/, '#5f9e3a'],
+    [/^muck/, '#8a6a3a'],
+    [/^cave-entrance/, '#d9d2c3'],
+  ]
+  return frames.find(([pattern]) => pattern.test(kind))?.[1]
+}
+
+/** The ring the books draw round a coloured token (totem, loot, objective…), in its colour. */
+export const TOKEN_COLORS: Record<string, string> = {
+  blue: '#29a3dc',
+  red: '#c8202f',
+  green: '#a6c83c',
+  yellow: '#f2c21b',
+  orange: '#ef8a1c',
+  purple: '#7a4aa8',
+  pink: '#e8579b',
+  white: '#f2f2f2',
+  indigo: '#3f4aa8',
+}
