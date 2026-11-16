@@ -104,6 +104,13 @@ test('a GM draws the map of an encounter: tiles, tokens, enemies and the start, 
   await page.mouse.click(at.x, at.y)
   const board = page.getByRole('application', { name: 'Carte de la rencontre' })
   await expect(board.getByRole('button', { name: 'Tuile UM47 en 0, 0' })).toBeVisible()
+  // Laid once: the palette lets go of it, and neither it nor its other side can be laid again
+  await expect(palette.getByRole('button', { name: 'Poser la tuile UM47' })).toBeDisabled()
+  await palette.getByPlaceholder('Filtrer').fill('UM48')
+  await expect(palette.getByRole('button', { name: 'Poser la tuile UM48' })).toBeDisabled()
+  at = await square(page, 6, 0)
+  await page.mouse.click(at.x, at.y)
+  await expect(board.getByRole('button', { name: /^Tuile UM4[78] en 6, 0/ })).toHaveCount(0)
 
   // A blue objective, then an enemy
   await palette.getByRole('button', { name: 'Jetons', exact: true }).click()

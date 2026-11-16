@@ -36,6 +36,13 @@ describe('map editor', () => {
     expect(map.northArrow).toBe(0)
   })
 
+  it('lays each tile once, front or back', () => {
+    const map = addTile(mapOf(encounter()), 'um1:tile/um1', { x: 0, y: 0 }, 'um1:tile/um2')
+    expect(addTile(map, 'um1:tile/um1', { x: 6, y: 0 }, 'um1:tile/um2')).toBe(map)
+    expect(addTile(map, 'um1:tile/um2', { x: 6, y: 0 }, 'um1:tile/um1')).toBe(map)
+    expect(addTile(map, 'um1:tile/um3', { x: 6, y: 0 }, 'um1:tile/um4').tiles).toHaveLength(2)
+  })
+
   it('gives tokens ids of their own and the key the rules use', () => {
     const map = mapOf(encounter())
     const first = addToken(map, { type: 'um1:token/objective', color: 'blue' }, { x: 2, y: 3 })

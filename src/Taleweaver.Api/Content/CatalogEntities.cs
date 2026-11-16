@@ -85,6 +85,30 @@ public sealed record Tile
     /// <summary>The Elevation of each square, as <see cref="Terrain"/> (digits); empty when the side is flat.</summary>
     public IReadOnlyList<string> Elevation { get; init; } = [];
 
+    /// <summary>
+    /// The colour of each square, measured on the image, as <see cref="Terrain"/>: <c>g</c> green,
+    /// <c>y</c> gold, ochre or brown, <c>b</c> blue, <c>r</c> red, <c>k</c> grey or dark.
+    /// </summary>
+    public IReadOnlyList<string> Palette { get; init; } = [];
+
+    /// <summary>The colour of each square once laid on the board, rotated as the tile; nothing while the rotation is unknown.</summary>
+    public IEnumerable<(Cell Cell, char Colour)> LaidPalette(MapTile laid)
+    {
+        if (laid.Rotation is not { } rotation)
+        {
+            yield break;
+        }
+
+        for (var y = 0; y < Palette.Count && y < SquaresPerSide; y++)
+        {
+            for (var x = 0; x < Palette[y].Length && x < SquaresPerSide; x++)
+            {
+                var (dx, dy) = Rotate(x, y, rotation);
+                yield return (new Cell(laid.X + dx, laid.Y + dy), Palette[y][x]);
+            }
+        }
+    }
+
     private static readonly Dictionary<char, string> TerrainKinds = new()
     {
         ['h'] = "hindering",

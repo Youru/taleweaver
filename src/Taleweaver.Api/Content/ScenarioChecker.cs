@@ -460,6 +460,65 @@ public static class ScenarioChecker
             }
         }
 
+        private static readonly Dictionary<char, string> ColourNames = new() { ['g'] = "green", ['y'] = "gold/ochre", ['b'] = "blue" };
+
+        /// <summary>
+        /// Colours that follow on: along the edge two tiles share, the main colour of the 2 squares deep
+        /// on one side should appear on the other (green moss against golden rock looks odd even in one
+        /// scenery). Grey and dark go with everything.
+        /// </summary>
+        private void CheckColours(string id, List<MapTile> laid, Dictionary<string, Tile> tiles)
+        {
+            var coloured = laid
+                .Select(t => (Laid: t, Tile: tiles.GetValueOrDefault(t.Ref)))
+                .Where(p => p.Tile is { Palette.Count: > 0 } && p.Laid.Rotation is not null)
+                .Select(p => (p.Laid, p.Tile!.Name, Grid: p.Tile.LaidPalette(p.Laid).ToDictionary(c => (c.Cell.X, c.Cell.Y), c => c.Colour)))
+                .ToList();
+            const int side = Tile.SquaresPerSide;
+            for (var i = 0; i < coloured.Count; i++)
+            {
+                for (var j = i + 1; j < coloured.Count; j++)
+                {
+                    var (a, nameA, gridA) = coloured[i];
+                    var (b, nameB, gridB) = coloured[j];
+                    IEnumerable<(int X, int Y)> band;
+                    if (Math.Abs(a.X - b.X) == side && Math.Abs(a.Y - b.Y) < side)
+                    {
+                        var edge = Math.Max(a.X, b.X);
+                        band = Enumerable.Range(Math.Max(a.Y, b.Y), Math.Min(a.Y, b.Y) + side - Math.Max(a.Y, b.Y))
+                            .SelectMany(y => new[] { edge - 2, edge - 1, edge, edge + 1 }.Select(x => (x, y)));
+                    }
+                    else if (Math.Abs(a.Y - b.Y) == side && Math.Abs(a.X - b.X) < side)
+                    {
+                        var edge = Math.Max(a.Y, b.Y);
+                        band = Enumerable.Range(Math.Max(a.X, b.X), Math.Min(a.X, b.X) + side - Math.Max(a.X, b.X))
+                            .SelectMany(x => new[] { edge - 2, edge - 1, edge, edge + 1 }.Select(y => (x, y)));
+                    }
+                    else
+                    {
+                        continue;
+                    }
+
+                    var cells = band.ToList();
+                    var onA = string.Concat(cells.Select(c => gridA.TryGetValue(c, out var v) ? v.ToString() : ""));
+                    var onB = string.Concat(cells.Select(c => gridB.TryGetValue(c, out var v) ? v.ToString() : ""));
+                    if (Dominant(onA) is { } colourA && Dominant(onB) is { } colourB && colourA != colourB
+                        && !onB.Contains(colourA) && !onA.Contains(colourB))
+                    {
+                        Warn("ColoursApart", id,
+                            $"edge that does not match: {nameA} ({ColourNames[colourA]}) against {nameB} ({ColourNames[colourB]}); group the tiles of one colour or turn one of them (npm run map-preview)");
+                    }
+                }
+            }
+        }
+
+        /// <summary>The colour (green, gold or blue) of at least 3 squares that has the most of them.</summary>
+        private static char? Dominant(string squares)
+        {
+            var best = ColourNames.Keys.Select(c => (Colour: c, Count: squares.Count(s => s == c))).MaxBy(p => p.Count);
+            return best.Count >= 3 ? best.Colour : null;
+        }
+
         /// <summary>
         /// The tiles of an encounter (map and diagrams): each one is in the box once, front or back; their
         /// sceneries should meet; and they hold together, or some figures could never reach the others.
@@ -487,6 +546,8 @@ public static class ScenarioChecker
             {
                 Warn("ThemesApart", id, $"sceneries that do not meet ({string.Join(", ", sceneries.Select(t => $"{t.Name} {t.Theme}"))}): check them with npm run map-preview");
             }
+
+            CheckColours(id, laid, tiles);
 
             if (laid.Count > 0)
             {

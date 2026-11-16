@@ -35,6 +35,8 @@ public class ScenarioCheckerTests
                 new Tile { Id = "hb:tile/t3", Name = "T3", Theme = "marsh" },
                 new Tile { Id = "hb:tile/wall", Name = "Wall", Theme = "cave", Terrain = [.. Enumerable.Repeat("...o..", 6)] },
                 new Tile { Id = "hb:tile/pit", Name = "Pit", Theme = "cave", Terrain = [.. Enumerable.Repeat("..dd..", 6)] },
+                new Tile { Id = "hb:tile/moss", Name = "Moss", Theme = "cave", Palette = [.. Enumerable.Repeat("gggkkk", 6)] },
+                new Tile { Id = "hb:tile/gold", Name = "Gold", Theme = "cave", Palette = [.. Enumerable.Repeat("kkkyyy", 6)] },
             ],
         },
     ]);
@@ -382,6 +384,22 @@ public class ScenarioCheckerTests
         var report = ScenarioChecker.Check(Scenario(Crossing("hb:tile/pit", 0)), Catalog);
 
         report.Warnings.Should().ContainSingle().Which.Code.Should().Be("Scenarios.JumpNeeded");
+    }
+
+    [Theory]
+    [InlineData(0, true)]
+    [InlineData(180, false)]
+    public void Check_ColoursAcrossAnEdge_WarnWhenNoneFollowsOn(int goldRotation, bool warned)
+    {
+        // Moss on the left of its tile; gold on the right of its own, or turned to face the moss's grey
+        var encounter = Encounter() with
+        {
+            Map = new BoardMap { Tiles = [new MapTile("hb:tile/gold", 0, 0, goldRotation), new MapTile("hb:tile/moss", 6, 0, 0)] },
+        };
+
+        var report = ScenarioChecker.Check(Scenario(encounter), Catalog);
+
+        report.Warnings.Any(w => w.Code == "Scenarios.ColoursApart").Should().Be(warned);
     }
 
     [Fact]

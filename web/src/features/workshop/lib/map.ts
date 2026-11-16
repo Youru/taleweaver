@@ -128,7 +128,12 @@ function fresh(used: Iterable<string>, prefix: string): string {
 
 // Tiles
 
-export function addTile(map: DraftMap, ref: string, at: { x: number; y: number }): DraftMap {
+/**
+ * Lays a tile; each one is in the box once, front or back: nothing changes when it, or its other side
+ * (`pairedSide`), is already on the board.
+ */
+export function addTile(map: DraftMap, ref: string, at: { x: number; y: number }, pairedSide?: string): DraftMap {
+  if (map.tiles.some((t) => t.ref === ref || (!!pairedSide && t.ref === pairedSide))) return map
   return { ...map, tiles: [...map.tiles, { ref, x: at.x, y: at.y, rotation: 0 }] }
 }
 

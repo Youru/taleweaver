@@ -148,7 +148,12 @@ function place(cell: { x: number; y: number }) {
   const current = tool.value
   if (!current) return
   if (current.kind === 'tile') {
-    changeMap((m) => addTile(m, current.ref, cell))
+    // One of each tile: once laid, it is selected (to turn it) and the palette lets go of it
+    tool.value = null
+    const laid = addTile(map.value, current.ref, cell, props.pieces?.tiles[current.ref]?.pairedSide)
+    if (laid === map.value) return
+    changeMap(() => laid)
+    selected.value = { kind: 'tile', index: laid.tiles.length - 1 }
   } else if (current.kind === 'token') {
     changeMap((m) => {
       const added = addToken(m, current, cell)
