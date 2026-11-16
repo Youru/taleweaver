@@ -45,7 +45,7 @@ public static class ScenarioChecker
     /// <summary>How an Adventurer activates a token (shown to the GM).</summary>
     public static readonly IReadOnlySet<string> TokenModes = new HashSet<string>
     {
-        "enter", "adjacent", "onSpaceEncounterAction", "adjacentEncounterAction", "endTurnOn", "none", "adventure",
+        "enter", "adjacent", "lineOfSight", "onSpaceEncounterAction", "adjacentEncounterAction", "endTurnOn", "none",
     };
 
     /// <summary>Sceneries that meet naturally; tiles of two groups in one encounter need a transition thought out.</summary>

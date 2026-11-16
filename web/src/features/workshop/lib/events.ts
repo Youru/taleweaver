@@ -39,6 +39,7 @@ export interface DraftEvent {
 export const TOKEN_MODES = [
   'enter',
   'adjacent',
+  'lineOfSight',
   'onSpaceEncounterAction',
   'adjacentEncounterAction',
   'endTurnOn',

@@ -315,6 +315,7 @@ export const messages = {
         mode: {
           enter: 'En entrant sur sa case',
           adjacent: 'En entrant sur une case adjacente',
+          lineOfSight: 'Dès qu’un aventurier le voit (totems)',
           onSpaceEncounterAction: 'Action de rencontre sur sa case',
           adjacentEncounterAction: 'Action de rencontre à côté',
           endTurnOn: 'En finissant son tour dessus',
@@ -957,6 +958,7 @@ export const messages = {
         mode: {
           enter: 'Entering its space',
           adjacent: 'Entering an adjacent space',
+          lineOfSight: 'As soon as an Adventurer sees it (Totems)',
           onSpaceEncounterAction: 'Encounter action on its space',
           adjacentEncounterAction: 'Encounter action next to it',
           endTurnOn: 'Ending the turn on it',

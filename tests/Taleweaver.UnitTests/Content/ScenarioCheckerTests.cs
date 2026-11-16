@@ -221,7 +221,7 @@ public class ScenarioCheckerTests
         var encounter = Encounter() with
         {
             Map = Board() with { Tokens = [new MapToken { Id = "o", Type = "hb:token/objective", Color = "red", X = 0, Y = 0 }] },
-            Tokens = new Dictionary<string, TokenRule> { ["objective:red"] = new() { Mode = "lineOfSight" } },
+            Tokens = new Dictionary<string, TokenRule> { ["objective:red"] = new() { Mode = "whenSeenTwice" } },
             Events = [Event(new ScenarioAction { Do = "warp" }) with { Trigger = new EventTrigger { On = "turnStart" } }],
         };
 
