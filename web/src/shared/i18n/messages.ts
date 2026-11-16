@@ -532,7 +532,7 @@ export const messages = {
       advice: 'Suggestions du plateau',
       suggestion: 'Suggestion : {answer}',
       caveat:
-        'Ligne de vue et terrain d’après les jetons posés ; les murs imprimés sur les tuiles et l’élévation ne sont pas connus : vérifiez sur la table.',
+        'Ligne de vue et terrain d’après les tuiles (relevé à l’œil) et les jetons posés ; l’élévation n’est pas connue : vérifiez sur la table.',
       reason: {
         damage: '{n} dégâts subis',
         noOpponent: 'aucun adversaire sur la table',
@@ -1138,7 +1138,7 @@ export const messages = {
       advice: 'Board suggestions',
       suggestion: 'Suggestion: {answer}',
       caveat:
-        'Line of Sight and terrain from the tokens laid; the walls printed on the tiles and Elevation are not known: check on the table.',
+        'Line of Sight and terrain from the tiles (surveyed by eye) and the tokens laid; Elevation is not known: check on the table.',
       reason: {
         damage: '{n} Damage taken',
         noOpponent: 'no opponent on the table',

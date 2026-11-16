@@ -75,7 +75,63 @@ public sealed record Tile
 
     public string? Image { get; init; }
 
-    public IReadOnlyList<JsonElement> Terrain { get; init; } = [];
+    /// <summary>
+    /// The terrain printed on this side, tile not rotated: 6 rows (top to bottom) of 6 squares (left to
+    /// right). <c>.</c> normal, <c>h</c> hindering, <c>w</c> water, <c>m</c> muck, <c>o</c> obstructing,
+    /// <c>d</c> dangerous, <c>s</c> special. Empty when not surveyed.
+    /// </summary>
+    public IReadOnlyList<string> Terrain { get; init; } = [];
+
+    /// <summary>The Elevation of each square, as <see cref="Terrain"/> (digits); empty when the side is flat.</summary>
+    public IReadOnlyList<string> Elevation { get; init; } = [];
+
+    private static readonly Dictionary<char, string> TerrainKinds = new()
+    {
+        ['h'] = "hindering",
+        ['w'] = "water",
+        ['m'] = "muck",
+        ['o'] = "obstructing",
+        ['d'] = "dangerous",
+        ['s'] = "special",
+    };
+
+    /// <summary>
+    /// The printed terrain of this side once laid on the board, rotated clockwise as the tile; nothing
+    /// while the rotation is unknown.
+    /// </summary>
+    public IEnumerable<(Cell Cell, string Kind)> PrintedTerrain(MapTile laid)
+    {
+        if (laid.Rotation is not { } rotation)
+        {
+            yield break;
+        }
+
+        for (var y = 0; y < Terrain.Count && y < SquaresPerSide; y++)
+        {
+            for (var x = 0; x < Terrain[y].Length && x < SquaresPerSide; x++)
+            {
+                if (TerrainKinds.TryGetValue(Terrain[y][x], out var kind))
+                {
+                    var (dx, dy) = Rotate(x, y, rotation);
+                    yield return (new Cell(laid.X + dx, laid.Y + dy), kind);
+                }
+            }
+        }
+    }
+
+    /// <summary>Where a square of the tile lands once the tile is turned clockwise by <paramref name="rotation"/> degrees.</summary>
+    public static (int X, int Y) Rotate(int x, int y, int rotation)
+    {
+        const int last = SquaresPerSide - 1;
+        var quarters = (((rotation / 90) % 4) + 4) % 4;
+        return quarters switch
+        {
+            1 => (last - y, x),
+            2 => (last - x, last - y),
+            3 => (y, last - x),
+            _ => (x, y),
+        };
+    }
 }
 
 public sealed record TileSize(int W, int H);

@@ -523,7 +523,22 @@ public static class ScenarioChecker
                 .SelectMany(b => b.Map.Tiles)
                 .SelectMany(t => new Rect(t.X, t.Y, Tile.SquaresPerSide, Tile.SquaresPerSide).Cells())
                 .ToHashSet();
+            var tiles = catalog.Packs.SelectMany(p => p.Tiles).ToDictionary(t => t.Id);
+            var printed = new Dictionary<Cell, (string Token, string Kind)>();
+            foreach (var laid in boards.SelectMany(b => b.Map.Tiles))
+            {
+                if (tiles.GetValueOrDefault(laid.Ref) is { } tile)
+                {
+                    foreach (var (cell, kind) in tile.PrintedTerrain(laid))
+                    {
+                        printed[cell] = ($"printed on {tile.Name}", kind);
+                    }
+                }
+            }
+
             var terrain = new Dictionary<Cell, (string Token, string Kind)>();
+            (string Token, string Kind)? Under(Cell cell) =>
+                terrain.TryGetValue(cell, out var token) ? token : printed.TryGetValue(cell, out var square) ? square : null;
             foreach (var (name, map, setup, replacesTerrain) in boards)
             {
                 var where = $"{id}/{name}";
@@ -570,11 +585,88 @@ public static class ScenarioChecker
                     {
                         Error("OffBoard", where, $"{who} #{i + 1} is off the tiles {at}");
                     }
-                    else if (terrain.TryGetValue(at, out var under) && BlockingTerrain.Contains(under.Kind))
+                    else if (Under(at) is { } under && BlockingTerrain.Contains(under.Kind))
                     {
                         Warn("OnBlockingTerrain", where, $"{who} #{i + 1} is placed on {under.Kind} ({under.Token}) at {at}");
                     }
                 }
+            }
+
+            CheckPassages(id, boards[0], board, cell => Under(cell)?.Kind);
+        }
+
+        /// <summary>
+        /// The adventurers can walk (orthogonal steps, around Obstructing and Dangerous Terrain, printed or
+        /// laid) from their starting zone to every token, figure and spawn zone of the map. Only the
+        /// printed terrain that was surveyed counts: an unsurveyed tile looks open.
+        /// </summary>
+        private void CheckPassages(string id, (string Name, BoardMap Map, Setup Setup, bool ReplacesTerrain) main, HashSet<Cell> board, Func<Cell, string?> kindAt)
+        {
+            bool Open(Cell c) => board.Contains(c) && !(kindAt(c) is { } kind && BlockingTerrain.Contains(kind));
+            bool Pit(Cell c) => board.Contains(c) && kindAt(c) == "dangerous";
+            (int X, int Y)[] steps = [(1, 0), (-1, 0), (0, 1), (0, -1)];
+            IEnumerable<Cell> Around(Cell c) => steps.Select(s => new Cell(c.X + s.X, c.Y + s.Y));
+
+            var start = main.Map.Zones.Where(z => z.Kind == "startingZone").SelectMany(z => z.Rect.Cells()).Where(Open).ToHashSet();
+            if (start.Count == 0)
+            {
+                return;
+            }
+
+            // On foot, then Jumping too (rulebook p. 68): in a straight line over 1 or 2 Dangerous
+            // spaces, out of a Normal space, onto an open one
+            HashSet<Cell> Walk(bool jump)
+            {
+                var reached = new HashSet<Cell>(start);
+                var queue = new Queue<Cell>(start);
+                while (queue.Count > 0)
+                {
+                    var at = queue.Dequeue();
+                    var next = Around(at).Where(Open).ToList();
+                    if (jump && kindAt(at) is null)
+                    {
+                        foreach (var (dx, dy) in steps)
+                        {
+                            for (var gap = 1; gap <= 2 && Pit(new Cell(at.X + dx * gap, at.Y + dy * gap)); gap++)
+                            {
+                                next.Add(new Cell(at.X + dx * (gap + 1), at.Y + dy * (gap + 1)));
+                            }
+                        }
+                    }
+
+                    foreach (var cell in next.Where(n => Open(n) && reached.Add(n)))
+                    {
+                        queue.Enqueue(cell);
+                    }
+                }
+
+                return reached;
+            }
+
+            var walked = Walk(jump: false);
+            var jumped = Walk(jump: true);
+
+            // A piece is reached when an adventurer can stand on it or next to it
+            bool Reached(HashSet<Cell> reached, IEnumerable<Cell> cells) => cells.Any(c => reached.Contains(c) || Around(c).Any(reached.Contains));
+            var targets = main.Map.Tokens
+                .Where(t => t.Type.Split('/') is not { Length: > 2 } kind || kind[^2] != "terrain")
+                .Select(t => (Name: $"token '{t.Id}'", Cells: t.Footprint.Cells().ToList()))
+                .Concat(main.Map.Zones.Where(z => z.Kind is "spawn" or "exit").Select(z => (Name: $"zone '{z.Id}'", Cells: z.Rect.Cells().ToList())))
+                .Concat(main.Setup.Combatants.Select((c, i) => (c, i)).Where(p => p.c.At is not null)
+                    .Select(p => (Name: $"{p.c.Instance ?? p.c.Family ?? p.c.Ref} #{p.i + 1}", Cells: new List<Cell> { p.c.At!.Value })))
+                .ToList();
+            var cut = targets.Where(t => !Reached(jumped, t.Cells)).Select(t => t.Name).ToList();
+            if (cut.Count > 0)
+            {
+                Warn("NoWayThrough", $"{id}/{main.Name}",
+                    $"no way from the starting zone to {string.Join(", ", cut)} (printed walls, Obstructing Terrain, pits too wide to Jump): check with npm run map-preview");
+            }
+
+            var leaps = targets.Where(t => !Reached(walked, t.Cells) && Reached(jumped, t.Cells)).Select(t => t.Name).ToList();
+            if (leaps.Count > 0)
+            {
+                Warn("JumpNeeded", $"{id}/{main.Name}",
+                    $"only by Jumping over Dangerous Terrain from the starting zone to {string.Join(", ", leaps)}: is it meant?");
             }
         }
 

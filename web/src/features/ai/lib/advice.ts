@@ -3,7 +3,7 @@ import type { Combatant } from '@/features/catalog'
 import type { Cell, EncounterState, LogEntry, Prompt } from '@/features/games'
 import type { BoardLayout } from '@/features/table'
 import { parseCondition, suggest, type Suggestion } from './conditions'
-import { key, terrainOf, type Board, type BoardFigure, type Terrain } from './grid'
+import { key, printedTerrain, terrainOf, type Board, type BoardFigure, type Terrain } from './grid'
 import { planTurn, type Advice } from './instructions'
 
 /** What the table shows of the AI's plan: where the acting figure should go, and whom it targets. */
@@ -38,8 +38,11 @@ export function readBoard(layout: BoardLayout, encounter: EncounterState): Board
         initiative: places.length ? Math.min(...places) : track.length,
       }
     })
-  // Terrain tokens: what they cover changes movement and Line of Sight
+  // The Terrain printed on the tiles in view, then the Terrain tokens laid over it: what they cover
+  // changes movement and Line of Sight
   const terrain = new Map<string, Terrain>()
+  for (const tile of layout.tiles)
+    if (!tile.hidden) for (const [at, type] of printedTerrain(tile)) terrain.set(at, type)
   for (const token of layout.tokens) {
     const type = terrainOf(token.type)
     if (type)

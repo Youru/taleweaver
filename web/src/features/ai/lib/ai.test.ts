@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { parseCondition, suggest } from './conditions'
-import { lineCells, range, reachable, sight, terrainOf, type Board, type BoardFigure, type Terrain } from './grid'
+import { lineCells, printedTerrain, range, reachable, rotate, sight, terrainOf, type Board, type BoardFigure, type Terrain } from './grid'
 import { parseInstruction, planTurn } from './instructions'
 
 /** A 12×6 board (two tiles) with nothing on it. */
@@ -230,5 +230,20 @@ describe('line of sight', () => {
     expect(suggest(condition, withTerrain(board(sickle, hidden), { '1,2': 'obstructing' }), sickle, 4)?.answer).toBe(
       false,
     )
+  })
+})
+
+describe('printed terrain', () => {
+  it('turns a square of the tile clockwise with the tile', () => {
+    expect(rotate(1, 0, 0)).toEqual({ x: 1, y: 0 })
+    expect(rotate(1, 0, 90)).toEqual({ x: 5, y: 1 })
+    expect(rotate(1, 0, 180)).toEqual({ x: 4, y: 5 })
+    expect(rotate(1, 0, 270)).toEqual({ x: 0, y: 4 })
+  })
+
+  it('reads the survey of a laid tile onto the board, special squares aside', () => {
+    const rows = ['o.....', '.....s', '......', '......', '......', 'd....w']
+    const terrain = printedTerrain({ x: 6, y: 0, rotation: 90, printed: rows })
+    expect(Object.fromEntries(terrain)).toEqual({ '11,0': 'obstructing', '6,0': 'dangerous', '6,5': 'water' })
   })
 })

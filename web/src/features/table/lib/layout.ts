@@ -29,6 +29,8 @@ export interface TileShape {
   h: number
   /** Degrees clockwise; 0 when unknown. */
   rotation: number
+  /** The printed terrain of the side (see TilePiece), only when the rotation is known. */
+  printed?: string[]
   /** Under the fog of war: drawn as fog, everything on it is hidden. */
   hidden?: FogArea
 }
@@ -130,6 +132,7 @@ export function boardLayout(
       w: piece?.w ?? 6,
       h: piece?.h ?? 6,
       rotation: tile.rotation ?? 0,
+      printed: tile.rotation == null ? undefined : piece?.terrain,
       hidden: area && !revealed.has(area.id) ? area : undefined,
     })
   }

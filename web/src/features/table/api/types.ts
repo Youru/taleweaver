@@ -19,6 +19,13 @@ export interface TilePiece {
   theme?: string
   /** The other side of the same tile. */
   pairedSide?: string
+  /**
+   * Terrain printed on the side, tile not rotated: rows top to bottom, one letter a square
+   * (. normal, h hindering, w water, m muck, o obstructing, d dangerous, s special). Surveyed by eye.
+   */
+  terrain?: string[]
+  /** Elevation of each square (digits), as `terrain`; absent when the side is flat. */
+  elevation?: string[]
 }
 
 export interface TokenPiece {

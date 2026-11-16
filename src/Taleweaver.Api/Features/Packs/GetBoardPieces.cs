@@ -13,7 +13,16 @@ public static class GetBoardPieces
         IReadOnlyDictionary<string, FigurePiece> Figures,
         IReadOnlyDictionary<string, FamilyPiece> Families);
 
-    public sealed record TilePiece(string Name, int W, int H, string? Image, string? Theme = null, string? PairedSide = null);
+    /// <summary>A tile side; <see cref="Terrain"/> and <see cref="Elevation"/>: printed squares, tile not rotated (see <see cref="Tile"/>).</summary>
+    public sealed record TilePiece(
+        string Name,
+        int W,
+        int H,
+        string? Image,
+        string? Theme = null,
+        string? PairedSide = null,
+        IReadOnlyList<string>? Terrain = null,
+        IReadOnlyList<string>? Elevation = null);
 
     public sealed record TokenPiece(LocalizedText Name, string Category, string? Size, string? Image, IReadOnlyDictionary<string, string>? Colors);
 
@@ -35,7 +44,15 @@ public static class GetBoardPieces
             {
                 foreach (var tile in pack.Tiles)
                 {
-                    tiles[tile.Id] = new TilePiece(tile.Name, tile.Size?.W ?? 6, tile.Size?.H ?? 6, tile.Image, tile.Theme, tile.PairedSide);
+                    tiles[tile.Id] = new TilePiece(
+                        tile.Name,
+                        tile.Size?.W ?? 6,
+                        tile.Size?.H ?? 6,
+                        tile.Image,
+                        tile.Theme,
+                        tile.PairedSide,
+                        tile.Terrain.Count > 0 ? tile.Terrain : null,
+                        tile.Elevation.Count > 0 ? tile.Elevation : null);
                 }
 
                 foreach (var token in pack.Tokens)

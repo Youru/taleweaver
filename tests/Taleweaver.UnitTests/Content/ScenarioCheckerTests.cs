@@ -33,6 +33,8 @@ public class ScenarioCheckerTests
                 new Tile { Id = "hb:tile/t1", Name = "T1", Theme = "forest", PairedSide = "hb:tile/t2" },
                 new Tile { Id = "hb:tile/t2", Name = "T2", Theme = "crypt", PairedSide = "hb:tile/t1" },
                 new Tile { Id = "hb:tile/t3", Name = "T3", Theme = "marsh" },
+                new Tile { Id = "hb:tile/wall", Name = "Wall", Theme = "cave", Terrain = [.. Enumerable.Repeat("...o..", 6)] },
+                new Tile { Id = "hb:tile/pit", Name = "Pit", Theme = "cave", Terrain = [.. Enumerable.Repeat("..dd..", 6)] },
             ],
         },
     ]);
@@ -53,6 +55,8 @@ public class ScenarioCheckerTests
             new ScenarioIssue("Scenarios.BeyondCards", "blight-found",
                 "4 × animate planned (setup and spawns), but 2 numbered card(s) at level mundane: beyond that, a spawn fails while none is defeated"),
             new ScenarioIssue("Scenarios.TokenNeverPlaced", "blight-found", "token 'loot:blue' is described but never placed"),
+            new ScenarioIssue("Scenarios.JumpNeeded", "blight-found/map",
+                "only by Jumping over Dangerous Terrain from the starting zone to token 'objective-red', token 'objective-blue', animate #1, animate #2, terror #3: is it meant?"),
         ]);
         report.Cards.Select(c => $"{c.Encounter} : {c.Family} → {c.CombatantId}").Should().Equal(
             "blight-found : animate → um1:combatant/animate-1-2-mundane",
@@ -341,6 +345,68 @@ public class ScenarioCheckerTests
         var report = ScenarioChecker.Check(Scenario(encounter), Catalog);
 
         report.Warnings.Should().BeEmpty();
+    }
+
+    /// <summary>A board of one tile: the adventurers start top left, an objective waits top right.</summary>
+    private static Node Crossing(string tile, int rotation) => Encounter() with
+    {
+        Map = new BoardMap
+        {
+            Tiles = [new MapTile(tile, 0, 0, rotation)],
+            Zones = [new Zone("start", "startingZone", new Rect(0, 0))],
+            Tokens = [new MapToken { Id = "goal", Type = "hb:token/objective", X = 5, Y = 0 }],
+        },
+        Setup = new Setup(),
+    };
+
+    [Fact]
+    public void Check_PrintedWallAcrossTheWay_ReportsNoWayThrough()
+    {
+        var report = ScenarioChecker.Check(Scenario(Crossing("hb:tile/wall", 0)), Catalog);
+
+        report.Warnings.Should().ContainSingle().Which.Code.Should().Be("Scenarios.NoWayThrough");
+    }
+
+    [Fact]
+    public void Check_PrintedWallTurnedAside_ReportsNothing()
+    {
+        // Turned a quarter, the wall runs across row 3: the top row stays open
+        var report = ScenarioChecker.Check(Scenario(Crossing("hb:tile/wall", 90)), Catalog);
+
+        report.Warnings.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Check_PitAcrossTheWay_ReportsJumpNeeded()
+    {
+        var report = ScenarioChecker.Check(Scenario(Crossing("hb:tile/pit", 0)), Catalog);
+
+        report.Warnings.Should().ContainSingle().Which.Code.Should().Be("Scenarios.JumpNeeded");
+    }
+
+    [Fact]
+    public void Check_FigureOnPrintedPit_ReportsWarning()
+    {
+        var encounter = Encounter() with
+        {
+            Map = new BoardMap { Tiles = [new MapTile("hb:tile/pit", 0, 0, 0)] },
+            Setup = new Setup { Combatants = [new CombatantPlacement { Family = "brute", At = new Cell(2, 4) }] },
+        };
+
+        var report = ScenarioChecker.Check(Scenario(encounter), Catalog);
+
+        report.Warnings.Should().ContainSingle().Which.Code.Should().Be("Scenarios.OnBlockingTerrain");
+    }
+
+    [Theory]
+    [InlineData(0, 1, 0)]
+    [InlineData(90, 5, 1)]
+    [InlineData(180, 4, 5)]
+    [InlineData(270, 0, 4)]
+    [InlineData(-90, 0, 4)]
+    public void Rotate_SquareOneRightOfTheCorner_TurnsClockwise(int rotation, int x, int y)
+    {
+        Tile.Rotate(1, 0, rotation).Should().Be((x, y));
     }
 
     private static ScenarioAction Reveal(string area) => new()

@@ -1,15 +1,15 @@
 import type { Cell } from '@/features/games'
 
 /**
- * The board as the AI helper sees it: the squares of the tiles in view, the Terrain tokens laid on
- * them, and the figures. The terrain printed on the tiles (red lines…) and Elevation are not known:
- * every answer stays a suggestion the GM checks on the table.
+ * The board as the AI helper sees it: the squares of the tiles in view, their Terrain (printed on the
+ * tiles, surveyed by eye, then the Terrain tokens laid on them) and the figures. Elevation is not
+ * known: every answer stays a suggestion the GM checks on the table.
  */
 export interface Board {
   /** "x,y" of every square of a revealed tile. */
   squares: Set<string>
   figures: BoardFigure[]
-  /** Terrain tokens on the board, by "x,y". */
+  /** Terrain of the board (printed, then tokens), by "x,y". */
   terrain?: Map<string, Terrain>
 }
 
@@ -20,6 +20,47 @@ export type Terrain = 'obstructing' | 'hindering' | 'water' | 'muck' | 'dangerou
 export function terrainOf(type: string | undefined): Terrain | undefined {
   if (!type?.includes(':token/terrain/')) return undefined
   return (['obstructing', 'hindering', 'water', 'muck', 'dangerous'] as const).find((t) => type.includes(t))
+}
+
+const PRINTED: Record<string, Terrain> = {
+  h: 'hindering',
+  w: 'water',
+  m: 'muck',
+  o: 'obstructing',
+  d: 'dangerous',
+}
+
+/** Where a square of a 6×6 tile lands once the tile is turned clockwise by `rotation` degrees. */
+export function rotate(x: number, y: number, rotation: number, size = 6): Cell {
+  const last = size - 1
+  switch ((((Math.round(rotation / 90) % 4) + 4) % 4) as 0 | 1 | 2 | 3) {
+    case 1:
+      return { x: last - y, y: x }
+    case 2:
+      return { x: last - x, y: last - y }
+    case 3:
+      return { x: y, y: last - x }
+    default:
+      return { x, y }
+  }
+}
+
+/**
+ * The Terrain printed on a laid tile, by "x,y" of the board: `rows` is the survey of the side, tile
+ * not rotated (". h w m o d s", one letter a square). Special squares carry no Terrain here.
+ */
+export function printedTerrain(tile: { x: number; y: number; rotation: number; printed?: string[] }) {
+  const terrain = new Map<string, Terrain>()
+  const rows = tile.printed ?? []
+  rows.forEach((row, y) =>
+    [...row].forEach((letter, x) => {
+      const type = PRINTED[letter]
+      if (!type) return
+      const at = rotate(x, y, tile.rotation, rows.length)
+      terrain.set(key({ x: tile.x + at.x, y: tile.y + at.y }), type)
+    }),
+  )
+  return terrain
 }
 
 export type Side = 'combatant' | 'adventurer'

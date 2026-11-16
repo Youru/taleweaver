@@ -21,7 +21,7 @@ public class RepositoryContentTests(RepositoryFactory factory) : IClassFixture<R
         var report = await response.Content.ReadFromJsonAsync<ScenarioReport>(JsonDefaults.Options, TestContext.Current.CancellationToken);
         report!.Errors.Should().BeEmpty();
         report.Warnings.Select(w => w.Code).Should().BeEquivalentTo(
-            ["Scenarios.BeyondCards", "Scenarios.BeyondCards", "Scenarios.TokenNeverPlaced"]);
+            ["Scenarios.BeyondCards", "Scenarios.BeyondCards", "Scenarios.TokenNeverPlaced", "Scenarios.JumpNeeded"]);
         report.Cards.Should().HaveCount(9);
     }
 
