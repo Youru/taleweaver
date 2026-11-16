@@ -11,7 +11,7 @@ import ToggleSwitch from 'primevue/toggleswitch'
 import { useBoardPieces } from '@/features/table'
 import { pick } from '@/shared/lib/localized'
 import { usePreferences } from '@/shared/lib/preferences'
-import { useDraft } from '../api/queries'
+import { useDraft, usePrintPdf } from '../api/queries'
 import type { DraftAction, DraftNode } from '../api/types'
 import { nameOf } from '../api/workshopApi'
 import EncounterPage from '../components/EncounterPage.vue'
@@ -22,8 +22,8 @@ import { useEndingLabel } from '../lib/endings'
 
 /**
  * The scenario on paper: one encounter page, the whole booklet (cover, steps numbered §1, §2… in
- * reading order, one page per encounter), or the cards of the hidden texts. "Print" opens the
- * browser's dialog, where "Save as PDF" makes the file; `npm run pdf` does it without the dialog.
+ * reading order, one page per encounter), or the cards of the hidden texts. "Download the PDF" has
+ * the API make the file (shown once complete); "Print" opens the browser's dialog.
  */
 const { t } = useI18n()
 const route = useRoute()
@@ -123,6 +123,14 @@ const cardPages = computed(() => {
 })
 
 const print = () => window.print()
+const pdf = usePrintPdf()
+const download = () =>
+  pdf.mutate({
+    scenario: scenarioId.value,
+    node: typeof route.query.node === 'string' ? route.query.node : undefined,
+    what: typeof route.query.what === 'string' ? route.query.what : undefined,
+    veiled: veiled.value ? undefined : '0',
+  })
 const backTo = computed(() =>
   scenarioId.value.startsWith('homebrew:')
     ? { name: 'workshop-editor', params: { name: nameOf(scenarioId.value) } }
@@ -149,9 +157,19 @@ const backTo = computed(() =>
         <span>{{ t('workshop.print.veiled') }}</span>
       </label>
       <span class="spacer" />
-      <Button :label="t('workshop.print.print')" icon="pi pi-print" @click="print" />
+      <Button
+        :label="pdf.isPending.value ? t('workshop.print.downloading') : t('workshop.print.download')"
+        icon="pi pi-download"
+        :loading="pdf.isPending.value"
+        :disabled="!scenario"
+        @click="download"
+      />
+      <Button :label="t('workshop.print.print')" icon="pi pi-print" severity="secondary" @click="print" />
     </div>
     <p class="hint no-print">{{ t('workshop.print.hint') }}</p>
+    <Message v-if="pdf.error.value" severity="error" closable class="no-print" @close="pdf.reset()">
+      {{ t('workshop.print.downloadFailed', { message: pdf.error.value.message }) }}
+    </Message>
     <Message v-if="overflowing.size" severity="warn" class="no-print">
       {{ t('workshop.print.overflow', { list: [...overflowing].join(', ') }) }}
     </Message>

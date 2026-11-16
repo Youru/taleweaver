@@ -1,6 +1,9 @@
+import { readFileSync } from 'node:fs'
 import { expect, test } from '@playwright/test'
 
-test('a GM prints Blight of Rhamsted: the booklet, an encounter page, the cards, and a PDF', async ({ page }) => {
+test('a GM prints Blight of Rhamsted: the booklet, an encounter page, the cards, and a PDF to download', async ({
+  page,
+}) => {
   await page.goto('/workshop')
   await page.getByRole('button', { name: 'Imprimer Blight of Rhamsted' }).click()
   await expect(page).toHaveURL(/\/workshop\/print\?scenario=/)
@@ -14,6 +17,16 @@ test('a GM prints Blight of Rhamsted: the booklet, an encounter page, the cards,
   await expect(encounter.getByText('Mise en place')).toBeVisible()
   await expect(encounter.getByText('UM47, UM59, UM55, UM53, UM35')).toBeVisible()
   await encounter.screenshot({ path: test.info().outputPath('encounter-page.png') })
+
+  // The PDF made by the API (Edge without a window), downloaded whole
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByRole('button', { name: 'Télécharger le PDF' }).click(),
+  ])
+  expect(download.suggestedFilename()).toBe('blight-of-rhamsted.pdf')
+  const file = test.info().outputPath('downloaded.pdf')
+  await download.saveAs(file)
+  expect(readFileSync(file).subarray(0, 5).toString()).toBe('%PDF-')
 
   // The PDF, as "Save as PDF" makes it
   await page.emulateMedia({ media: 'print' })

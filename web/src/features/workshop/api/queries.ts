@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import { computed, toValue, type MaybeRefOrGetter } from 'vue'
 import type { DraftScenario } from './types'
-import { workshopApi } from './workshopApi'
+import { saveFile } from '@/shared/api/http'
+import { nameOf, workshopApi, type PrintQuery } from './workshopApi'
 
 /** Same keys as the scenarios feature, so that the home page sees what the workshop saved. */
 export const workshopKeys = {
@@ -43,5 +44,15 @@ export function useDeleteDraft() {
   return useMutation({
     mutationFn: (id: string) => workshopApi.remove(id),
     onSuccess: () => client.invalidateQueries({ queryKey: workshopKeys.list() }),
+  })
+}
+
+/** Makes the PDF of the print page on the API, then hands it to the browser as a download. */
+export function usePrintPdf() {
+  return useMutation({
+    mutationFn: async (query: PrintQuery) => {
+      const { blob, fileName } = await workshopApi.pdf(query)
+      saveFile(blob, fileName ?? `${nameOf(query.scenario)}.pdf`)
+    },
   })
 }

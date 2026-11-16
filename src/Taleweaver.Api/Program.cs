@@ -5,6 +5,7 @@ using Taleweaver.Api.Features.Assets;
 using Taleweaver.Api.Features.Encounters;
 using Taleweaver.Api.Features.Games;
 using Taleweaver.Api.Features.Packs;
+using Taleweaver.Api.Features.Print;
 using Taleweaver.Api.Features.Scenarios;
 using Taleweaver.Api.Storage;
 
@@ -22,7 +23,7 @@ builder.Services.AddSingleton<IContentStore, JsonContentStore>();
 builder.Services.AddSingleton<IGameStore, JsonGameStore>();
 builder.Services.AddSingleton<CatalogProvider>();
 
-builder.Services.AddPacksFeature().AddScenariosFeature().AddGamesFeature().AddAssetsFeature();
+builder.Services.AddPacksFeature().AddScenariosFeature().AddGamesFeature().AddAssetsFeature().AddPrintFeature();
 
 var app = builder.Build();
 
@@ -32,7 +33,7 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
-app.MapPacksEndpoints().MapScenariosEndpoints().MapGamesEndpoints().MapEncountersEndpoints();
+app.MapPacksEndpoints().MapScenariosEndpoints().MapGamesEndpoints().MapEncountersEndpoints().MapPrintEndpoints();
 GetAsset.Map(app);
 
 app.Run();
