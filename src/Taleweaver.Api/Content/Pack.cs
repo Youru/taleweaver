@@ -43,6 +43,9 @@ public sealed record Pack
 
     public IReadOnlyList<TokenType> Tokens { get; init; } = [];
 
+    /// <summary>Other pictures this pack prints for the tokens of another pack (token id → images): BE1's cave-style Dangerous terrain.</summary>
+    public IReadOnlyDictionary<string, IReadOnlyList<string>> TokenImageVariants { get; init; } = new Dictionary<string, IReadOnlyList<string>>();
+
     public IReadOnlyList<InitiativeCard> InitiativeCards { get; init; } = [];
 
     public IReadOnlyList<Die> Dice { get; init; } = [];

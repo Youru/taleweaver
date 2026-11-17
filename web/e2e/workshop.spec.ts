@@ -118,6 +118,24 @@ test('a GM draws the map of an encounter: tiles, tokens, enemies and the start, 
   await palette.getByRole('button', { name: 'Poser le jeton Objective · bleu' }).click()
   at = await square(page, 3, 2)
   await page.mouse.click(at.x, at.y)
+  // BE1's cave-style Dangerous terrain, found by the words of its picture, then shown otherwise
+  await palette.getByPlaceholder('Filtrer').fill('dangerous hole')
+  await palette.getByRole('button', { name: 'Poser le jeton Dangerous 1X1 (dangerous 1x1 hole)' }).click()
+  at = await square(page, 1, 1)
+  await page.mouse.click(at.x, at.y)
+  await palette.getByRole('button', { name: 'Poser le jeton Dangerous 1X1 (dangerous 1x1 hole)' }).click()
+  await board.getByRole('button', { name: /^Jeton Dangerous 1X1 en 1, 1/ }).focus()
+  await page.keyboard.press('Enter')
+  const tokenInspector = page.getByRole('complementary', { name: 'Pièce sélectionnée' })
+  await expect(tokenInspector.getByRole('button', { name: 'Montrer dangerous 1x1 hole' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  )
+  await tokenInspector.getByRole('button', { name: 'Montrer dangerous 1x1 glow' }).click()
+  await expect(tokenInspector.getByRole('button', { name: 'Montrer dangerous 1x1 glow' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  )
   await palette.getByRole('button', { name: 'Ennemis', exact: true }).click()
   await palette.getByPlaceholder('Filtrer').fill('fragor')
   await palette.getByRole('button', { name: 'Poser un ennemi : Fragor' }).click()
@@ -148,7 +166,7 @@ test('a GM draws the map of an encounter: tiles, tokens, enemies and the start, 
 
   // Back to the graph, saved, then played: the board is the one drawn
   await page.getByRole('button', { name: 'Retour au graphe' }).click()
-  await expect(page.getByText('1 tuile · 1 jeton · 1 ennemi')).toBeVisible()
+  await expect(page.getByText('1 tuile · 2 jetons · 1 ennemi')).toBeVisible()
 
   // The objective reveals a hidden text and gives gold
   await page.getByRole('tab', { name: 'Jetons' }).click()

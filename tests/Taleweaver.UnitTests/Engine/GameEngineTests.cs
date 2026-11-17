@@ -367,6 +367,16 @@ public class GameEngineTests
         GameEngine.Apply(game.State, GameCommand.RevealArea("cellar"), game.Context).Error.Should().Be(GameEngine.Errors.UnknownArea("cellar"));
     }
 
+    [Fact]
+    public void EnterEncounter_TokenWithAChosenPicture_KeepsItOnTheBoard()
+    {
+        var game = Game();
+
+        game.Continue();
+
+        game.Encounter.Tokens.Single(t => t.Id == "t").Image.Should().Be("assets/hb/totem-old.png");
+    }
+
     private static EngineDriver Game(ScenarioAction? spawn = null, Catalog? catalog = null)
     {
         var scenario = new Scenario
@@ -388,7 +398,7 @@ public class GameEngineTests
                         Tiles = [new MapTile("hb:tile/meadow", 0, 0, 0, "hall"), new MapTile("hb:tile/meadow", 6, 0, 0, "crypt")],
                         Areas = [new FogArea("hall"), new FogArea("crypt", RevealedAtStart: false, Name: En("The Crypt"))],
                         Zones = [new Zone("start", "startingZone", new Rect(0, 4, 2, 2))],
-                        Tokens = [new MapToken { Id = "t", Type = "hb:token/totem", Color = "red" }],
+                        Tokens = [new MapToken { Id = "t", Type = "hb:token/totem", Color = "red", Image = "assets/hb/totem-old.png" }],
                     },
                     Tokens = new Dictionary<string, TokenRule> { ["totem:red"] = new() { Events = ["totem"] } },
                     Events =

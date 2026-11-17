@@ -192,6 +192,7 @@ public sealed record TokenType
     /// <summary>Coloured variants (objectives, exits, loot…): colour → image.</summary>
     public IReadOnlyDictionary<string, string>? Colors { get; init; }
 
+    /// <summary>Other pictures of the same token (another print, another sheet): a map token may pick one (<see cref="MapToken.Image"/>).</summary>
     public IReadOnlyList<string> ImageVariants { get; init; } = [];
 
     public string? Terrain { get; init; }

@@ -24,7 +24,14 @@ public static class GetBoardPieces
         IReadOnlyList<string>? Terrain = null,
         IReadOnlyList<string>? Elevation = null);
 
-    public sealed record TokenPiece(LocalizedText Name, string Category, string? Size, string? Image, IReadOnlyDictionary<string, string>? Colors);
+    /// <summary>A token type; <see cref="Variants"/>: its other pictures, from its pack and from the other enabled packs.</summary>
+    public sealed record TokenPiece(
+        LocalizedText Name,
+        string Category,
+        string? Size,
+        string? Image,
+        IReadOnlyDictionary<string, string>? Colors,
+        IReadOnlyList<string>? Variants = null);
 
     public sealed record FigurePiece(string Image, string? BaseSize);
 
@@ -57,7 +64,7 @@ public static class GetBoardPieces
 
                 foreach (var token in pack.Tokens)
                 {
-                    tokens[token.Id] = new TokenPiece(token.Name, token.Category, token.Size, token.Image, token.Colors);
+                    tokens[token.Id] = new TokenPiece(token.Name, token.Category, token.Size, token.Image, token.Colors, VariantsOf(catalog, token));
                 }
 
                 foreach (var combatant in pack.Combatants)
@@ -78,6 +85,16 @@ public static class GetBoardPieces
             }
 
             return new Response(tiles, tokens, figures, families);
+        }
+
+        /// <summary>The token's own variants, then those the enabled packs add to it.</summary>
+        private static IReadOnlyList<string>? VariantsOf(Catalog catalog, TokenType token)
+        {
+            var variants = token.ImageVariants
+                .Concat(catalog.Packs.SelectMany(p => p.TokenImageVariants.TryGetValue(token.Id, out var added) ? added : []))
+                .Distinct()
+                .ToList();
+            return variants.Count > 0 ? variants : null;
         }
     }
 

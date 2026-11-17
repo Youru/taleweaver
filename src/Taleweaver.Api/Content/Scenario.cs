@@ -134,6 +134,9 @@ public sealed record MapToken
 
     public string? Color { get; init; }
 
+    /// <summary>The picture this token shows, when not its type's (or its colour's): one of the type's variants.</summary>
+    public string? Image { get; init; }
+
     public int X { get; init; }
 
     public int Y { get; init; }

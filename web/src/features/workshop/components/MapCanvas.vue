@@ -3,7 +3,7 @@ import { computed, ref, useId, useTemplateRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 import Button from 'primevue/button'
-import { cellAt, fitBox, panBox, zoomBox, type BoardPieces, type ViewBox } from '@/features/table'
+import { cellAt, fitBox, panBox, tokenImage, zoomBox, type BoardPieces, type ViewBox } from '@/features/table'
 import { assetUrl } from '@/shared/api/assets'
 import { pick } from '@/shared/lib/localized'
 import { usePreferences } from '@/shared/lib/preferences'
@@ -25,7 +25,7 @@ import {
 /** What the next tap on the board lays down. */
 export type MapTool =
   | { kind: 'tile'; ref: string }
-  | { kind: 'token'; type: string; color?: string; size?: string }
+  | { kind: 'token'; type: string; color?: string; size?: string; image?: string }
   | { kind: 'combatant'; family: string }
   | { kind: 'zone'; zoneKind: string }
 
@@ -87,7 +87,7 @@ const tokens = computed(() =>
     return {
       token,
       r,
-      href: assetUrl((token.color && piece?.colors?.[token.color]) || piece?.image),
+      href: assetUrl(tokenImage(token, piece)),
       round: !!piece && piece.category !== 'terrain',
       turned: r.h > r.w,
       label: `${pick(piece?.name, language.value) || token.type}${token.color ? ` (${token.color})` : ''}`,

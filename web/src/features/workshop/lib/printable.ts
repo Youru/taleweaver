@@ -1,4 +1,4 @@
-import type { BoardPieces } from '@/features/table'
+import { tokenImage, type BoardPieces } from '@/features/table'
 import { pick, type Language, type LocalizedText } from '@/shared/lib/localized'
 import type { DraftNode, DraftScenario } from '../api/types'
 import { eventsOf, eventsOfToken, tokenRulesOf } from './events'
@@ -191,7 +191,9 @@ export function encounterSheet(
         ? tokenName(type)
         : key
     const piece = type ? pieces?.tokens[type] : undefined
-    const image = (color && piece?.colors?.[color]) || piece?.image
+    // The picture of the token laid on the map (a variant may have been chosen), else of its type
+    const laid = map.tokens.find((t) => tokenKey(t.type, t.color) === key)
+    const image = tokenImage(laid ?? { color }, piece)
     sections.set(group, [
       ...(sections.get(group) ?? []),
       { key, label: capitalize(label), ...(image ? { image } : {}), activation, text: hiddenText },

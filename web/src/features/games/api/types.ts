@@ -121,6 +121,8 @@ export interface BoardToken {
   /** Catalogue id ("um1:token/objective"). */
   type?: string
   color?: string
+  /** The picture chosen on the map, when not its type's (a variant). */
+  image?: string
   /** Squares covered, when the scenario gives them. */
   area?: Rect
   removed: boolean

@@ -35,6 +35,8 @@ export interface TokenPiece {
   image?: string
   /** One image per colour (objectives, totems, exits, loot…). */
   colors?: Record<string, string>
+  /** Its other pictures (another print, an expansion's version): a map token may show one. */
+  variants?: string[]
 }
 
 export interface FigurePiece {

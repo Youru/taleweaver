@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, useId } from 'vue'
 import { useI18n } from 'vue-i18n'
-import type { BoardPieces } from '@/features/table'
+import { tokenImage, type BoardPieces } from '@/features/table'
 import { assetUrl } from '@/shared/api/assets'
 import type { DraftNode } from '../api/types'
 import { extentOf, mapOf, setupOf, START_ZONE, TILE, tokenRect } from '../lib/map'
@@ -71,7 +71,7 @@ const tokens = computed(() =>
         r,
         turned: r.h > r.w,
         round,
-        href: assetUrl((token.color && piece?.colors?.[token.color]) || piece?.image),
+        href: assetUrl(tokenImage(token, piece)),
         frame: round ? undefined : terrainFrame(token.type),
         ring: (token.color && TOKEN_COLORS[token.color]) || '#f5f5f5',
         label: nameOf(piece?.name).replace(/\s+\d+\s*[xX]\s*\d+$/, ''),

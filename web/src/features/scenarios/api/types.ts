@@ -77,6 +77,8 @@ export interface MapToken {
   id: string
   type: string
   color?: string
+  /** The picture shown, when not its type's (a variant). */
+  image?: string
   x: number
   y: number
   w?: number

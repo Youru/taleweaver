@@ -2,6 +2,7 @@ import type { BoardToken, CombatantState, EncounterState } from '@/features/game
 import type { BoardMap, FogArea, ScenarioNode } from '@/features/scenarios'
 import { assetUrl } from '@/shared/api/assets'
 import type { BoardPieces } from '../api/types'
+import { tokenImage } from './tokenImage'
 
 /** Everything the table draws, in squares (x to the east, y to the south). */
 export interface BoardLayout {
@@ -161,7 +162,7 @@ export function boardLayout(
   const tokens = onBoard.flatMap((token): TokenShape[] => {
     if (!token.area || underFog(token.area.x, token.area.y)) return []
     const piece = token.type ? pieces?.tokens[token.type] : undefined
-    const image = (token.color && piece?.colors?.[token.color]) || piece?.image
+    const image = tokenImage(token, piece)
     return [
       {
         id: token.id,

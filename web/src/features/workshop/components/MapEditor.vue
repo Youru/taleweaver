@@ -8,7 +8,7 @@ import InputText from 'primevue/inputtext'
 import Select from 'primevue/select'
 import SelectButton from 'primevue/selectbutton'
 import ToggleSwitch from 'primevue/toggleswitch'
-import type { BoardPieces } from '@/features/table'
+import { tokenImage, tokenImages, type BoardPieces } from '@/features/table'
 import { assetUrl } from '@/shared/api/assets'
 import { pick } from '@/shared/lib/localized'
 import { usePreferences } from '@/shared/lib/preferences'
@@ -41,6 +41,7 @@ import {
   type MapItem,
   type Rect,
 } from '../lib/map'
+import { BOARD_CATEGORIES, tokenChoices, variantLabel } from '../lib/palette'
 import MapCanvas, { type MapTool } from './MapCanvas.vue'
 
 /**
@@ -90,39 +91,43 @@ const tilePieces = computed(() => {
     .filter((p) => matches(`${p.name} ${p.theme}`))
     .sort((a, b) => a.theme.localeCompare(b.theme) || a.name.localeCompare(b.name, undefined, { numeric: true }))
 })
-/** Pieces laid on the board by a scenario (not the trackers and effects kept beside it). */
-const BOARD_CATEGORIES = ['terrain', 'objective', 'totem', 'exit', 'loot', 'encounter', 'combatant']
-interface TokenChoice {
-  type: string
-  color?: string
-  size?: string
-  category: string
-  name: string
-  href?: string
-}
-const tokenPieces = computed<TokenChoice[]>(() =>
-  Object.entries(props.pieces?.tokens ?? {})
-    .filter(([, piece]) => BOARD_CATEGORIES.includes(piece.category))
-    .flatMap(([type, piece]): TokenChoice[] => {
-      const name = pick(piece.name, language.value) || type
-      const colors = Object.entries(piece.colors ?? {})
-      return colors.length
-        ? colors.map(([color, image]) => ({
-            type,
-            color,
-            size: piece.size,
-            category: piece.category,
-            name: `${name} · ${t(`workshop.map.color.${color}`, color)}`,
-            href: assetUrl(image),
-          }))
-        : [{ type, color: undefined, size: piece.size, category: piece.category, name, href: assetUrl(piece.image) }]
-    })
-    .filter((p) => matches(p.name))
-    .sort(
-      (a, b) =>
-        BOARD_CATEGORIES.indexOf(a.category) - BOARD_CATEGORIES.indexOf(b.category) || a.name.localeCompare(b.name),
-    ),
+// Tokens: every type, colour and picture (BE1's cave-style Dangerous…), sorted by category, filtered
+// by category, pack and the words searched (a variant is found by its file name: "hole", "eggs")
+const category = ref<string | null>(null)
+const pack = ref<string | null>(null)
+const categoryName = (c: string) => t(`workshop.map.category.${c}`, c)
+const tokenPieces = computed(() =>
+  tokenChoices(
+    props.pieces,
+    (type) => pick(props.pieces?.tokens[type]?.name, language.value) || type,
+    (color) => t(`workshop.map.color.${color}`, color),
+    categoryName,
+    { search: filter.value, category: category.value ?? undefined, pack: pack.value ?? undefined },
+  ),
 )
+const categoryOptions = computed(() => BOARD_CATEGORIES.map((value) => ({ value, label: categoryName(value) })))
+const packOptions = computed(() =>
+  [
+    ...new Set(
+      tokenChoices(
+        props.pieces,
+        (x) => x,
+        (x) => x,
+        (x) => x,
+      ).map((c) => c.pack),
+    ),
+  ]
+    .sort()
+    .map((value) => ({ value, label: value.toUpperCase() })),
+)
+/** The palette's tool for a choice: the image only when it is a variant (JSON-compared). */
+const tokenTool = (p: { type: string; color?: string; size?: string; image?: string }): MapTool => ({
+  kind: 'token',
+  type: p.type,
+  color: p.color,
+  size: p.size,
+  ...(p.image ? { image: p.image } : {}),
+})
 const enemyPieces = computed(() =>
   Object.entries(props.pieces?.families ?? {})
     .map(([family, piece]) => ({
@@ -239,6 +244,13 @@ const selectedRect = computed(() => (selected.value ? rectOf(board.value, select
 const tileName = (ref: string) => props.pieces?.tiles[ref]?.name ?? ref.split('/').pop() ?? ref
 const tokenName = (type: string) => pick(props.pieces?.tokens[type]?.name, language.value) || type
 const tokenColors = (type: string) => Object.keys(props.pieces?.tokens[type]?.colors ?? {})
+/** The other pictures of a token type (its own and its colours' are shown by the colour). */
+const tokenVariants = (type: string) => {
+  const piece = props.pieces?.tokens[type]
+  const own = new Set([piece?.image, ...Object.values(piece?.colors ?? {})])
+  return tokenImages(piece).filter((image) => !own.has(image))
+}
+const variantName = (image: string) => variantLabel(image)
 const familyOptions = computed(() => enemyPieces.value.map((p) => ({ value: p.family, label: p.name })))
 const areaOptions = computed(() =>
   map.value.areas.map((a) => ({ value: a.id, label: pick(a.name, language.value) || a.id })),
@@ -292,6 +304,28 @@ function newArea() {
         :aria-label="t('workshop.map.filter')"
         size="small"
       />
+      <div v-if="shelf === 'tokens'" class="filters">
+        <Select
+          v-model="category"
+          :options="categoryOptions"
+          option-label="label"
+          option-value="value"
+          show-clear
+          size="small"
+          :placeholder="t('workshop.map.allCategories')"
+          :aria-label="t('workshop.map.categoryFilter')"
+        />
+        <Select
+          v-model="pack"
+          :options="packOptions"
+          option-label="label"
+          option-value="value"
+          show-clear
+          size="small"
+          :placeholder="t('workshop.map.allPacks')"
+          :aria-label="t('workshop.map.packFilter')"
+        />
+      </div>
       <p class="help">{{ tool ? t('workshop.map.placing') : t('workshop.map.pickHelp') }}</p>
 
       <div v-if="shelf === 'tiles'" class="shelf tiles">
@@ -316,16 +350,20 @@ function newArea() {
       <div v-else-if="shelf === 'tokens'" class="shelf tokens">
         <button
           v-for="p in tokenPieces"
-          :key="`${p.type}|${p.color ?? ''}`"
+          :key="`${p.type}|${p.color ?? ''}|${p.image ?? ''}`"
           type="button"
           class="piece row"
-          :class="{ active: sameTool(tool, { kind: 'token', type: p.type, color: p.color, size: p.size }) }"
-          :aria-pressed="sameTool(tool, { kind: 'token', type: p.type, color: p.color, size: p.size })"
-          :aria-label="t('workshop.map.layToken', { name: p.name })"
-          @click="pickTool({ kind: 'token', type: p.type, color: p.color, size: p.size })"
+          :class="{ active: sameTool(tool, tokenTool(p)) }"
+          :aria-pressed="sameTool(tool, tokenTool(p))"
+          :aria-label="t('workshop.map.layToken', { name: p.variant ? `${p.name} (${p.variant})` : p.name })"
+          :title="p.pack.toUpperCase()"
+          @click="pickTool(tokenTool(p))"
         >
-          <img v-if="p.href" :src="p.href" alt="" loading="lazy" />
-          <span>{{ p.name }}</span>
+          <img v-if="p.href" :src="assetUrl(p.href)" alt="" loading="lazy" />
+          <span>
+            {{ p.name }}
+            <small v-if="p.variant">{{ p.variant }}</small>
+          </span>
         </button>
       </div>
 
@@ -520,6 +558,24 @@ function newArea() {
               @update:model-value="(v) => changeMap((m) => patchToken(m, token!.id, { color: v }))"
             />
           </label>
+          <fieldset v-if="tokenVariants(token.type).length" class="field images">
+            <legend>{{ t('workshop.map.tokenImage') }}</legend>
+            <button
+              v-for="choice in [undefined, ...tokenVariants(token.type)]"
+              :key="choice ?? ''"
+              type="button"
+              class="image-choice"
+              :class="{ active: (token.image ?? undefined) === choice }"
+              :aria-pressed="(token.image ?? undefined) === choice"
+              :aria-label="
+                choice ? t('workshop.map.chooseImage', { name: variantName(choice) }) : t('workshop.map.defaultImage')
+              "
+              :title="choice ? variantName(choice) : t('workshop.map.defaultImage')"
+              @click="changeMap((m) => patchToken(m, token!.id, { image: choice }))"
+            >
+              <img :src="assetUrl(choice ?? tokenImage({ color: token.color }, pieces?.tokens[token.type]))" alt="" />
+            </button>
+          </fieldset>
           <Button
             v-if="(token.w ?? 1) !== (token.h ?? 1)"
             :label="t('workshop.map.turnToken')"
@@ -709,6 +765,44 @@ function newArea() {
   object-position: left;
   display: grid;
   place-items: center;
+}
+.piece.row span {
+  display: flex;
+  flex-direction: column;
+}
+.filters {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.35rem;
+}
+.images {
+  display: flex;
+  flex-flow: row wrap;
+  gap: 0.3rem;
+  margin: 0;
+  padding: 0.3rem 0 0;
+  border: none;
+}
+.images legend {
+  padding: 0;
+  margin-bottom: 0.2rem;
+}
+.image-choice {
+  width: 2.6rem;
+  height: 2.6rem;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 4px;
+  background: none;
+  cursor: pointer;
+}
+.image-choice img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.image-choice.active {
+  border-color: #fbbf24;
 }
 .piece small {
   font-size: 0.65rem;

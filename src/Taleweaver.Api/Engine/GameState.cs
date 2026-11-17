@@ -170,6 +170,9 @@ public sealed class BoardToken
 
     public string? Color { get; set; }
 
+    /// <summary>The picture chosen on the map, when not its type's (a variant).</summary>
+    public string? Image { get; set; }
+
     /// <summary>Squares covered, when the scenario gives them.</summary>
     public Rect? Area { get; set; }
 

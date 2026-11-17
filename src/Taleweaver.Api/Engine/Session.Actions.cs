@@ -281,6 +281,7 @@ internal sealed partial class Session
                 Key = token.Color is null ? type : $"{type}:{token.Color}",
                 Type = token.Type,
                 Color = token.Color,
+                Image = token.Image,
                 Area = token.Footprint,
             });
         }

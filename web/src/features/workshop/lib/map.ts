@@ -26,6 +26,8 @@ export interface DraftToken {
   id: string
   type: string
   color?: string
+  /** The picture shown, when not its type's or its colour's: one of the type's variants. */
+  image?: string
   x: number
   y: number
   w?: number
@@ -168,7 +170,7 @@ export function overlappingTiles(map: DraftMap): Set<number> {
 
 export function addToken(
   map: DraftMap,
-  piece: { type: string; color?: string; size?: string },
+  piece: { type: string; color?: string; size?: string; image?: string },
   at: { x: number; y: number },
 ): { map: DraftMap; id: string } {
   const short = piece.type.replace(/^[^:]+:token\//, '').replace(/\//g, '-')
@@ -179,6 +181,7 @@ export function addToken(
   const { w, h } = sizeOf(piece.size)
   const token: DraftToken = { id, type: piece.type, x: at.x, y: at.y }
   if (piece.color) token.color = piece.color
+  if (piece.image) token.image = piece.image
   if (w !== 1 || h !== 1) Object.assign(token, { w, h })
   return { map: { ...map, tokens: [...map.tokens, token] }, id }
 }

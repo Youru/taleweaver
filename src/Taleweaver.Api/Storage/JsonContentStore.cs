@@ -147,6 +147,7 @@ public sealed class JsonContentStore(IOptions<ContentOptions> options, IHostEnvi
             ItemUpgrades = items?.ItemUpgrades ?? [],
             Tiles = tiles?.Tiles ?? [],
             Tokens = tokens?.Tokens ?? [],
+            TokenImageVariants = tokens?.ImageVariants ?? new Dictionary<string, IReadOnlyList<string>>(),
             InitiativeCards = initiative?.InitiativeCards ?? [],
             Dice = dice?.Dice ?? [],
             Rules = await File<PackRules>("rules"),
@@ -210,7 +211,9 @@ public sealed class JsonContentStore(IOptions<ContentOptions> options, IHostEnvi
 
     private sealed record TilesFile(IReadOnlyList<Tile> Tiles);
 
-    private sealed record TokensFile(IReadOnlyList<TokenType> Tokens);
+    private sealed record TokensFile(
+        IReadOnlyList<TokenType> Tokens,
+        IReadOnlyDictionary<string, IReadOnlyList<string>>? ImageVariants);
 
     private sealed record InitiativeFile(IReadOnlyList<InitiativeCard> InitiativeCards);
 

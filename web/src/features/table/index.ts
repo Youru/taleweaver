@@ -1,5 +1,6 @@
 export type { BoardPieces, FamilyPiece, FigurePiece, TokenPiece } from './api/types'
 export { useBoardPieces } from './api/queries'
+export { tokenImage, tokenImages } from './lib/tokenImage'
 export { boardLayout, type BoardLayout, type Selection } from './lib/layout'
 export { default as TableView } from './components/TableView.vue'
 export { default as TableSelection } from './components/TableSelection.vue'
