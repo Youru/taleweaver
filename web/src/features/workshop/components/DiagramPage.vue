@@ -51,7 +51,7 @@ const bullets = (text: string) => text.replace(/\s+◆/g, '\n◆')
         />
       </div>
       <div class="map">
-        <PrintMap :node="node" :pieces="pieces" :diagram="board" :under="under" />
+        <PrintMap :node="node" :pieces="pieces" :diagram="board" :under="under" :max-square="0.55" />
       </div>
       <div v-if="setup.length || rules.length" class="bottom">
         <section v-if="setup.length" class="setup">

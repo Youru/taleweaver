@@ -4,6 +4,7 @@ import {
   addDiagram,
   bookletDiagrams,
   diagramAsNode,
+  diagramContext,
   diagramNumber,
   diagramsOf,
   removeDiagram,
@@ -72,5 +73,38 @@ describe('diagrams', () => {
     })
     const withFigure = { ...edited, setup: { combatants: [{ family: 'fragor', at: { x: 1, y: 1 } }] } }
     expect(withDiagramBoard(diagram, withFigure).setup).toEqual(withFigure.setup)
+  })
+
+  it('keeps of the board only the tiles its new pieces lie on or touch by an edge', () => {
+    const board = {
+      tiles: [
+        tile('um1:tile/um21', 0),
+        tile('um1:tile/um19', 6),
+        { ref: 'um1:tile/um13', x: 0, y: 6 },
+        { ref: 'um1:tile/um51', x: 12, y: 6 },
+      ],
+      tokens: [
+        { id: 'totem', type: 'um1:token/totem', x: 1, y: 1 },
+        { id: 'far', type: 'um1:token/totem', x: 13, y: 7 },
+        { id: 'passage', type: 'be1:token/terrain/passage', x: 12, y: 2 },
+      ],
+      zones: [{ id: 'start', kind: 'startingZone', rect: { x: 0, y: 6, w: 1, h: 1 } }],
+      areas: [],
+    }
+    // A tile laid at (6, 6): under UM19, east of UM13, corner to corner with UM21, west of UM51
+    const added = {
+      map: { tiles: [{ ref: 'um1:tile/um5', x: 6, y: 6 }], tokens: [], zones: [], areas: [] },
+      setup: { combatants: [] },
+    }
+    const shown = diagramContext(board, added)
+    expect(shown.tiles.map((t) => t.ref)).toEqual(['um1:tile/um19', 'um1:tile/um13', 'um1:tile/um51'])
+    expect(shown.tokens.map((k) => k.id)).toEqual(['far'])
+    expect(shown.zones.map((z) => z.id)).toEqual(['start'])
+    // A figure next to the passage laid off the tiles brings it, and only it
+    const figure = {
+      map: { tiles: [], tokens: [], zones: [], areas: [] },
+      setup: { combatants: [{ family: 'fragor', at: { x: 13, y: 2 } }] },
+    }
+    expect(diagramContext(board, figure)).toMatchObject({ tiles: [], tokens: [{ id: 'passage' }], zones: [] })
   })
 })

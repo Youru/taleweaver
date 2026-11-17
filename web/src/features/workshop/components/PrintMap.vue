@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { figureArt, tokenImage, type BoardPieces } from '@/features/table'
 import { assetUrl } from '@/shared/api/assets'
 import type { DraftNode } from '../api/types'
+import { diagramContext } from '../lib/diagrams'
 import { extentOf, mapOf, setupOf, START_ZONE, TILE, tokenRect, type DraftMap, type DraftSetup } from '../lib/map'
 import { terrainFrame, TOKEN_COLORS } from '../lib/printable'
 
@@ -27,6 +28,8 @@ const props = defineProps<{
   diagram?: { map: DraftMap; setup: DraftSetup }
   /** The tiles the encounter's earlier diagrams added (the board this diagram builds on), faded too. */
   under?: DraftMap[]
+  /** At most this size of a square, in inches: a small diagram stays at the scale of the books. */
+  maxSquare?: number
 }>()
 
 const S = 100
@@ -41,13 +44,14 @@ const NONE: DraftSetup = { combatants: [] }
 const layers = computed(() =>
   props.diagram
     ? [
-        { key: 'base', faded: true, map: map.value, setup: NONE },
+        // Only the tiles the diagram adds to or touches, greyed: what is new is in colour
+        { key: 'base', faded: true, map: diagramContext(map.value, props.diagram), setup: NONE },
         // Their tiles and terrain: the tokens they laid have been taken or flipped since
         ...(props.under ?? []).map((m, i) => ({
           key: `under-${i}`,
           faded: true,
           terrainOnly: true,
-          map: { ...m, zones: [] },
+          map: { ...diagramContext(m, props.diagram!), zones: [] },
           setup: NONE,
         })),
         { key: 'diagram', faded: false, map: props.diagram.map, setup: props.diagram.setup },
@@ -85,6 +89,15 @@ const viewBox = computed(() => ({
   h: (size.value.height - size.value.y) * S + 2 * PAD,
 }))
 
+const limit = computed(() =>
+  props.maxSquare
+    ? {
+        maxWidth: `${(viewBox.value.w / S) * props.maxSquare}in`,
+        maxHeight: `${(viewBox.value.h / S) * props.maxSquare}in`,
+        margin: '0 auto',
+      }
+    : undefined,
+)
 const nameOf = (name: { en?: string } | Record<string, string> | undefined) =>
   (name as Record<string, string> | undefined)?.en ?? Object.values(name ?? {})[0] ?? ''
 /** A name's font size, so that it holds within `squares` squares (at most 15 px). */
@@ -140,6 +153,7 @@ const drawing = computed(() => layers.value.map(drawn))
     :viewBox="`${viewBox.x} ${viewBox.y} ${viewBox.w} ${viewBox.h}`"
     :preserveAspectRatio="columns ? (columns.from === size.x ? 'xMaxYMid meet' : 'xMinYMid meet') : 'xMidYMid meet'"
     role="img"
+    :style="limit"
     :aria-label="t('workshop.print.map')"
   >
     <defs>
@@ -294,10 +308,10 @@ const drawing = computed(() => layers.value.map(drawn))
 .ground {
   fill: #0b0b0b;
 }
-/* What is already on the table under a diagram, as the books print it: faded */
+/* What is already on the table under a diagram, as the books print it: greyed, only the new in colour */
 .faded {
-  opacity: 0.5;
-  filter: grayscale(0.8) sepia(0.35);
+  opacity: 0.8;
+  filter: grayscale(1) sepia(0.45) brightness(1.08) contrast(0.8);
 }
 .edge {
   fill: none;

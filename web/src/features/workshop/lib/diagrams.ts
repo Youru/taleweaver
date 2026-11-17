@@ -1,6 +1,6 @@
 import type { LocalizedText } from '@/shared/lib/localized'
 import type { DraftNode } from '../api/types'
-import { mapOf, setupOf, type DraftMap, type DraftSetup } from './map'
+import { mapOf, setupOf, TILE, tokenRect, type DraftMap, type DraftSetup } from './map'
 
 /**
  * A diagram of an encounter (§3.7.1 of the data model): the tiles, tokens and figures a hidden text
@@ -96,4 +96,40 @@ export function withDiagramBoard(diagram: DraftDiagram, edited: DraftNode): Draf
   if (setup && (setup.combatants?.length || Object.keys(setup).some((k) => k !== 'combatants'))) next.setup = setup
   else delete next.setup
   return next
+}
+
+type Box = { x: number; y: number; w: number; h: number }
+const overlaps = (a: Box, b: Box) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h
+
+/**
+ * What a diagram's page shows of the board already on the table, as the books do: only the tiles its
+ * new pieces lie on or touch (and the terrain laid off the tiles there, a passage), with what is on
+ * them. The rest of the encounter is left out: a diagram is a small addition, not the whole board.
+ */
+export function diagramContext(board: DraftMap, diagram: { map: DraftMap; setup: DraftSetup }): DraftMap {
+  // The new pieces, each grown by one square along x, then along y: what they touch by an edge
+  // (a tile met only at a corner is left out)
+  const near: Box[] = [
+    ...diagram.map.tiles.map((t) => ({ x: t.x, y: t.y, w: TILE, h: TILE })),
+    ...diagram.map.tokens.map(tokenRect),
+    ...diagram.setup.combatants.flatMap((c) => (c.at ? [{ x: c.at.x, y: c.at.y, w: 1, h: 1 }] : [])),
+  ].flatMap((r) => [
+    { x: r.x - 1, y: r.y, w: r.w + 2, h: r.h },
+    { x: r.x, y: r.y - 1, w: r.w, h: r.h + 2 },
+  ])
+  const touched = (r: Box) => near.some((n) => overlaps(n, r))
+  const tileBox = (t: { x: number; y: number }) => ({ x: t.x, y: t.y, w: TILE, h: TILE })
+  const tiles = board.tiles.filter((t) => touched(tileBox(t)))
+  const kept = tiles.map(tileBox)
+  const onBoard = (r: Box) => board.tiles.some((t) => overlaps(tileBox(t), r))
+  return {
+    ...board,
+    tiles,
+    // On a tile kept, or off the tiles and touched (a passage the diagram builds from)
+    tokens: board.tokens.filter((k) => {
+      const r = tokenRect(k)
+      return kept.some((t) => overlaps(t, r)) || (!onBoard(r) && touched(r))
+    }),
+    zones: board.zones.filter((z) => kept.some((t) => overlaps(t, z.rect))),
+  }
 }
