@@ -12,6 +12,8 @@ export interface DraftDiagram {
   label?: LocalizedText
   /** The diagrams already on the table when this one is laid: printed faded under it. */
   builtOn?: string[]
+  /** Its terrain replaces the terrain already on the board (pits turned to water). */
+  replacesTerrain?: boolean
   map?: Partial<DraftMap>
   setup?: Partial<DraftSetup>
   specialRules?: { id: string; name: LocalizedText; text: LocalizedText }[]

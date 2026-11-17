@@ -374,7 +374,7 @@ const num = (value: unknown) => (typeof value === 'number' ? value : undefined)
           />
 
           <Select
-            v-else-if="action.do === 'placeDiagram'"
+            v-else-if="action.do === 'placeDiagram' || action.do === 'navigate'"
             :model-value="str(action.diagram)"
             :options="diagramOptions"
             option-label="label"

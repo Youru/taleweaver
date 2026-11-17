@@ -192,6 +192,14 @@ function setBuiltOn(d: DraftDiagram, ids: string[] | undefined) {
     updateDiagram(props.node, d.id, () => next),
   )
 }
+function setReplacesTerrain(d: DraftDiagram, on: boolean) {
+  const next: DraftDiagram = { ...d, replacesTerrain: true }
+  if (!on) delete next.replacesTerrain
+  emit(
+    'change',
+    updateDiagram(props.node, d.id, () => next),
+  )
+}
 function patchDiagramRule(d: DraftDiagram, index: number, fields: Partial<DraftRule>) {
   patchDiagram(d.id, {
     specialRules: (d.specialRules ?? []).map((r, i) => (i === index ? { ...r, ...fields } : r)),
@@ -481,6 +489,16 @@ const untouched = computed(() =>
                   :title="t('workshop.builtOnHint')"
                   @update:model-value="(v: string[]) => setBuiltOn(d, v)"
                 />
+              </div>
+              <div class="toggle">
+                <ToggleSwitch
+                  :model-value="d.replacesTerrain === true"
+                  :input-id="`replaces-${d.id}`"
+                  @update:model-value="(v: boolean) => setReplacesTerrain(d, v)"
+                />
+                <label :for="`replaces-${d.id}`" :title="t('workshop.replacesTerrainHint')">{{
+                  t('workshop.replacesTerrain')
+                }}</label>
               </div>
               <div class="board">
                 <i class="pi pi-map" aria-hidden="true" />

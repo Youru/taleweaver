@@ -232,6 +232,8 @@ test('a GM adds a diagram to an encounter, draws it over the faded board and pri
   await expect(board.getByRole('button', { name: 'Tuile UM49 en 6, 0' })).toBeVisible()
   await page.getByRole('button', { name: 'Retour au graphe' }).click()
   await expect(fight.getByText('1 tuile · aucun jeton · aucun ennemi')).toHaveCount(2)
+  await fight.getByText('Son terrain remplace celui déjà posé').click()
+  await expect(fight.getByRole('switch', { name: 'Son terrain remplace celui déjà posé' })).toBeChecked()
   await fight.getByRole('heading', { name: 'Schémas' }).scrollIntoViewIfNeeded()
   await page.screenshot({ path: test.info().outputPath('diagrams.png') })
 
