@@ -374,7 +374,7 @@ public static class ScenarioChecker
                 }
             }
 
-            CheckTiles(id, boards.SelectMany(b => b.Map.Tiles).ToList());
+            CheckTiles(id, boards.SelectMany(b => b.Map.Tiles).ToList(), Bridges(boards.Select(b => b.Map)));
             CheckGeometry(id, boards.Select(b => (b.Name, b.Map, b.Setup, b.ReplacesTerrain)).ToList());
         }
 
@@ -560,7 +560,7 @@ public static class ScenarioChecker
         /// The tiles of an encounter (map and diagrams): each one is in the box once, front or back; their
         /// sceneries should meet; and they hold together, or some figures could never reach the others.
         /// </summary>
-        private void CheckTiles(string id, List<MapTile> laid)
+        private void CheckTiles(string id, List<MapTile> laid, HashSet<Cell> bridges)
         {
             var tiles = catalog.Packs.SelectMany(p => p.Tiles).ToDictionary(t => t.Id);
             foreach (var twice in laid.GroupBy(t => t.Ref).Where(g => g.Count() > 1))
@@ -588,20 +588,23 @@ public static class ScenarioChecker
 
             if (laid.Count > 0)
             {
-                var corners = laid.Select(t => (t.X, t.Y)).Distinct().ToList();
-                var reached = new HashSet<(int X, int Y)> { corners[0] };
-                var queue = new Queue<(int X, int Y)>(reached);
+                // Square by square: two tiles meet when they share part of an edge, or when terrain laid off
+                // the tiles joins them (the Passage tokens of the bounties, a Dangerous square between two)
+                var squares = laid.SelectMany(t => new Rect(t.X, t.Y, Tile.SquaresPerSide, Tile.SquaresPerSide).Cells()).ToHashSet();
+                squares.UnionWith(bridges);
+                var reached = new HashSet<Cell> { new(laid[0].X, laid[0].Y) };
+                var queue = new Queue<Cell>(reached);
                 while (queue.Count > 0)
                 {
                     var current = queue.Dequeue();
-                    foreach (var next in corners.Where(c => !reached.Contains(c) && Touch(current, c)))
+                    Cell[] around = [current with { X = current.X + 1 }, current with { X = current.X - 1 }, current with { Y = current.Y + 1 }, current with { Y = current.Y - 1 }];
+                    foreach (var next in around.Where(c => squares.Contains(c) && reached.Add(c)))
                     {
-                        reached.Add(next);
                         queue.Enqueue(next);
                     }
                 }
 
-                var alone = corners.Where(c => !reached.Contains(c)).ToList();
+                var alone = laid.Select(t => (t.X, t.Y)).Distinct().Where(c => !reached.Contains(new Cell(c.X, c.Y))).ToList();
                 if (alone.Count > 0)
                 {
                     Warn("TilesApart", id, $"tiles apart from the rest of the board at {string.Join(", ", alone.Select(c => $"({c.X}, {c.Y})"))}: no way through");
@@ -609,10 +612,11 @@ public static class ScenarioChecker
             }
         }
 
-        /// <summary>Two tiles meet when they share part of an edge.</summary>
-        private static bool Touch((int X, int Y) a, (int X, int Y) b) =>
-            (Math.Abs(a.X - b.X) == Tile.SquaresPerSide && Math.Abs(a.Y - b.Y) < Tile.SquaresPerSide)
-            || (Math.Abs(a.Y - b.Y) == Tile.SquaresPerSide && Math.Abs(a.X - b.X) < Tile.SquaresPerSide);
+        /// <summary>The squares of the terrain tokens: laid off the tiles, they extend the board (a Passage between two tiles).</summary>
+        private static HashSet<Cell> Bridges(IEnumerable<BoardMap> maps) =>
+            maps.SelectMany(m => m.Tokens).Where(IsTerrain).SelectMany(t => t.Footprint.Cells()).ToHashSet();
+
+        private static bool IsTerrain(MapToken token) => token.Type.Split('/') is { Length: > 2 } kind && kind[^2] == "terrain";
 
         /// <summary>The map and every diagram add up on the board: pieces must be on a tile, figures not on blocking terrain.</summary>
         private void CheckGeometry(string id, List<(string Name, BoardMap Map, Setup Setup, bool ReplacesTerrain)> boards)
@@ -621,6 +625,7 @@ public static class ScenarioChecker
                 .SelectMany(b => b.Map.Tiles)
                 .SelectMany(t => new Rect(t.X, t.Y, Tile.SquaresPerSide, Tile.SquaresPerSide).Cells())
                 .ToHashSet();
+            board.UnionWith(Bridges(boards.Select(b => b.Map)));
             var tiles = catalog.Packs.SelectMany(p => p.Tiles).ToDictionary(t => t.Id);
             var printed = new Dictionary<Cell, (string Token, string Kind)>();
             foreach (var laid in boards.SelectMany(b => b.Map.Tiles))

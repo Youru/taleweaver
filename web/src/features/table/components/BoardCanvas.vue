@@ -43,7 +43,11 @@ const svg = useTemplateRef<SVGSVGElement>('svg')
 const clipId = `figure-clip-${useId()}`
 const fogId = `fog-${useId()}`
 
-const full = computed(() => fitBox(props.layout.width * S, props.layout.height * S, S / 4))
+const full = computed(() => {
+  const { left, top, width, height } = props.layout
+  const box = fitBox((width - left) * S, (height - top) * S, S / 4)
+  return { ...box, x: box.x + left * S, y: box.y + top * S }
+})
 /** The focus, in SVG units, with a square of margin. */
 const focused = computed(() => {
   const f = props.focus

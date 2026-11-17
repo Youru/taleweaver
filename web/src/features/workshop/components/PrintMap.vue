@@ -31,21 +31,21 @@ const size = computed(() => extentOf({ map: map.value, setup: setup.value }))
 const PAD = 30
 /** The part shown: x and w of the squares drawn, and of the whole box (as wide as the widest half). */
 const frame = computed(() => {
-  const from = props.columns?.from ?? 0
+  const from = props.columns?.from ?? size.value.x
   const to = props.columns?.to ?? size.value.width
-  const left = from > 0 ? 0 : PAD
+  const left = from > size.value.x ? 0 : PAD
   const right = to < size.value.width ? 0 : PAD
   const shown = { x: from * S - left, w: (to - from) * S + left + right }
   const box = props.columns ? props.columns.span * S + PAD : shown.w
   // The left half sits at the right of its box, against the cut; the right half at the left
-  const x = props.columns && from === 0 ? shown.x - (box - shown.w) : shown.x
+  const x = props.columns && from === size.value.x ? shown.x - (box - shown.w) : shown.x
   return { shown, box: { x, w: box } }
 })
 const viewBox = computed(() => ({
   x: frame.value.box.x,
-  y: -PAD,
+  y: size.value.y * S - PAD,
   w: frame.value.box.w,
-  h: size.value.height * S + 2 * PAD,
+  h: (size.value.height - size.value.y) * S + 2 * PAD,
 }))
 
 const tiles = computed(() =>
@@ -96,7 +96,7 @@ const figures = computed(() =>
   <svg
     class="print-map"
     :viewBox="`${viewBox.x} ${viewBox.y} ${viewBox.w} ${viewBox.h}`"
-    :preserveAspectRatio="columns ? (columns.from === 0 ? 'xMaxYMid meet' : 'xMinYMid meet') : 'xMidYMid meet'"
+    :preserveAspectRatio="columns ? (columns.from === size.x ? 'xMaxYMid meet' : 'xMinYMid meet') : 'xMidYMid meet'"
     role="img"
     :aria-label="t('workshop.print.map')"
   >
@@ -109,7 +109,13 @@ const figures = computed(() =>
       </clipPath>
     </defs>
     <g :clip-path="`url(#${clipId}-frame)`">
-      <rect :x="-PAD" :y="-PAD" :width="size.width * S + 2 * PAD" :height="size.height * S + 2 * PAD" fill="#0b0b0b" />
+      <rect
+        :x="size.x * S - PAD"
+        :y="size.y * S - PAD"
+        :width="(size.width - size.x) * S + 2 * PAD"
+        :height="(size.height - size.y) * S + 2 * PAD"
+        fill="#0b0b0b"
+      />
       <g v-for="{ key, tile, href } in tiles" :key="key">
         <image
           v-if="href"

@@ -345,7 +345,17 @@ export function removeItem(
 }
 
 /** The squares the board covers (at least one tile's worth), to size the grid. */
-export function extentOf(board: { map: DraftMap; setup: DraftSetup }): { width: number; height: number } {
+/**
+ * The squares the pieces cover: `width` and `height` count from square 0 (the right and bottom edges);
+ * `x` and `y` are the left and top edges, beyond 0 when a board starts further (an encounter whose
+ * diagrams later add tiles north or west of it).
+ */
+export function extentOf(board: { map: DraftMap; setup: DraftSetup }): {
+  x: number
+  y: number
+  width: number
+  height: number
+} {
   const rects: Rect[] = [
     ...board.map.tiles.map((t) => ({ x: t.x, y: t.y, w: TILE, h: TILE })),
     ...board.map.tokens.map(tokenRect),
@@ -353,6 +363,8 @@ export function extentOf(board: { map: DraftMap; setup: DraftSetup }): { width: 
     ...board.setup.combatants.flatMap((c) => (c.at ? [{ x: c.at.x, y: c.at.y, w: 1, h: 1 }] : [])),
   ]
   return {
+    x: rects.length ? Math.min(...rects.map((r) => r.x)) : 0,
+    y: rects.length ? Math.min(...rects.map((r) => r.y)) : 0,
     width: Math.max(TILE, ...rects.map((r) => r.x + r.w)),
     height: Math.max(TILE, ...rects.map((r) => r.y + r.h)),
   }

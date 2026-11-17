@@ -44,21 +44,22 @@ const veil = computed(() => ({
 
 /** Wider than this many squares (four tiles), the map is printed over two sheets. */
 const WIDE = 4 * TILE
-const width = computed(() => extentOf({ map: mapOf(props.node), setup: setupOf(props.node) }).width)
+const extent = computed(() => extentOf({ map: mapOf(props.node), setup: setupOf(props.node) }))
 const hasMap = computed(() => mapOf(props.node).tiles.length > 0)
 const parts = computed(() => {
   const setup = props.sheet.setup
-  if (!hasMap.value || width.value <= WIDE) return [{ columns: undefined, setup, first: true }]
-  const cut = Math.ceil(width.value / 2 / TILE) * TILE
-  const span = Math.max(cut, width.value - cut)
+  const { x: left, width: right } = extent.value
+  if (!hasMap.value || right - left <= WIDE) return [{ columns: undefined, setup, first: true }]
+  const cut = left + Math.ceil((right - left) / 2 / TILE) * TILE
+  const span = Math.max(cut - left, right - cut)
   return [
     {
-      columns: { from: 0, to: cut, span },
+      columns: { from: left, to: cut, span },
       setup: setup.filter((l) => FIRST_HALF_GROUPS.includes(l.group)),
       first: true,
     },
     {
-      columns: { from: cut, to: width.value, span },
+      columns: { from: cut, to: right, span },
       setup: setup.filter((l) => !FIRST_HALF_GROUPS.includes(l.group)),
       first: false,
     },

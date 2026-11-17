@@ -89,7 +89,10 @@ describe('map editor', () => {
       setup: addCombatant(b.setup, 'fragor', { x: 9, y: 2 }),
     }))
     expect(node.setup).toEqual({ combatants: [{ family: 'fragor', at: { x: 9, y: 2 } }] })
-    expect(extentOf({ map: mapOf(node), setup: setupOf(node) })).toEqual({ width: 10, height: 6 })
+    expect(extentOf({ map: mapOf(node), setup: setupOf(node) })).toEqual({ x: 0, y: 0, width: 10, height: 6 })
+    // A board laid further (room for the tiles a diagram adds north of it) starts at its own corner
+    const south = addTile(mapOf(encounter()), 'um1:tile/um1', { x: 0, y: 8 })
+    expect(extentOf({ map: south, setup: { combatants: [] } })).toEqual({ x: 0, y: 8, width: 6, height: 14 })
     const moved = moveItem({ map: mapOf(node), setup: setupOf(node) }, { kind: 'combatant', index: 0 }, { x: 1, y: 1 })
     expect(moved.setup.combatants[0]?.at).toEqual({ x: 1, y: 1 })
   })

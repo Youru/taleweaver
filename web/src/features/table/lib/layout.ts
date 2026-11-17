@@ -7,6 +7,9 @@ import { tokenImage } from './tokenImage'
 
 /** Everything the table draws, in squares (x to the east, y to the south). */
 export interface BoardLayout {
+  /** Left and top edges of the pieces (beyond 0 when diagrams will add tiles north or west). */
+  left: number
+  top: number
   width: number
   height: number
   tiles: TileShape[]
@@ -242,6 +245,8 @@ export function boardLayout(
     ...figures.map((f) => ({ x: f.x, y: f.y, w: f.size, h: f.size })),
   ]
   return {
+    left: extents.length ? Math.min(...extents.map((e) => e.x)) : 0,
+    top: extents.length ? Math.min(...extents.map((e) => e.y)) : 0,
     width: Math.max(1, ...extents.map((e) => e.x + e.w)),
     height: Math.max(1, ...extents.map((e) => e.y + e.h)),
     tiles: [...tiles.values()],
