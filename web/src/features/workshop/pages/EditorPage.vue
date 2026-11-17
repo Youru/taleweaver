@@ -14,11 +14,14 @@ import { ApiError } from '@/shared/api/http'
 import { pick } from '@/shared/lib/localized'
 import { usePreferences } from '@/shared/lib/preferences'
 import { useDraft, useSaveDraft } from '../api/queries'
+import type { DraftNode } from '../api/types'
 import MapEditor from '../components/MapEditor.vue'
 import NodeSheet from '../components/NodeSheet.vue'
 import ScenarioGraph from '../components/ScenarioGraph.vue'
 import ScenarioSheet from '../components/ScenarioSheet.vue'
+import { diagramAsNode, diagramsOf, underOf, updateDiagram, withDiagramBoard } from '../lib/diagrams'
 import { useEditor } from '../lib/editor'
+import { mapOf, setupOf } from '../lib/map'
 
 /**
  * The workshop's editor: the scenario as a graph in the middle (steps and branches), the sheet of the
@@ -39,8 +42,33 @@ const node = computed(() => draft.value?.nodes.find((n) => n.id === selected.val
 
 // The map editor of an encounter takes the whole body while open
 const pieces = useBoardPieces()
-const mapping = ref<string | null>(null)
-const mapped = computed(() => draft.value?.nodes.find((n) => n.id === mapping.value))
+// …or of one of its diagrams, laid over the encounter's board (shown faded)
+const mapping = ref<{ node: string; diagram?: string } | null>(null)
+const mappedNode = computed(() => draft.value?.nodes.find((n) => n.id === mapping.value?.node))
+const mappedDiagram = computed(() =>
+  mappedNode.value && mapping.value?.diagram
+    ? diagramsOf(mappedNode.value).find((d) => d.id === mapping.value?.diagram)
+    : undefined,
+)
+const mapped = computed(() =>
+  mappedNode.value && mappedDiagram.value ? diagramAsNode(mappedNode.value, mappedDiagram.value) : mappedNode.value,
+)
+const mappedUnder = computed(() => {
+  const owner = mappedNode.value
+  const diagram = mappedDiagram.value
+  if (!owner || !diagram) return undefined
+  return [
+    { map: mapOf(owner), setup: setupOf(owner) },
+    ...underOf(owner, diagram).map((map) => ({ map, setup: { combatants: [] } })),
+  ]
+})
+function changeMapped(next: DraftNode) {
+  const owner = mappedNode.value
+  if (!owner) return
+  const diagram = mappedDiagram.value
+  if (diagram) editor.updateNode(owner.id, (n) => updateDiagram(n, diagram.id, (d) => withDiagramBoard(d, next)))
+  else editor.updateNode(owner.id, () => next)
+}
 const issuesOf = (nodeId: string) => (report.value?.errors ?? []).filter((i) => i.where.split('/')[0] === nodeId)
 const warningsOf = (nodeId: string) => (report.value?.warnings ?? []).filter((i) => i.where.split('/')[0] === nodeId)
 const warningCount = computed(() => report.value?.warnings.length ?? 0)
@@ -179,10 +207,12 @@ function started(game: GameView) {
 
       <MapEditor
         v-if="mapped"
+        :key="mapped.id"
         class="mapping"
         :node="mapped"
         :pieces="pieces.data.value"
-        @change="(next) => editor.updateNode(mapped!.id, () => next)"
+        :under="mappedUnder"
+        @change="changeMapped"
         @close="mapping = null"
       />
       <div v-else class="body">
@@ -208,7 +238,7 @@ function started(game: GameView) {
             @change="(next) => editor.updateNode(node!.id, () => next)"
             @remove="removeSelected"
             @start="editor.setStart(node!.id)"
-            @map="mapping = node!.id"
+            @map="(diagram) => (mapping = { node: node!.id, diagram })"
             @print="printOut(node!.id)"
           />
           <ScenarioSheet

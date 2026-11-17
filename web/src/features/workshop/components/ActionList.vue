@@ -13,6 +13,7 @@ import { pick } from '@/shared/lib/localized'
 import { usePreferences } from '@/shared/lib/preferences'
 import type { DraftAction, DraftNode, DraftScenario } from '../api/types'
 import { atOf, isSimple, newAction, SIMPLE_ACTIONS, spotOf, type SimpleAction, type Spot } from '../lib/events'
+import { diagramsOf } from '../lib/diagrams'
 import { mapOf, tokenKey } from '../lib/map'
 import JsonField from './JsonField.vue'
 import TargetSelect from './TargetSelect.vue'
@@ -98,6 +99,9 @@ const familyOptions = computed(() =>
   Object.entries(props.pieces?.families ?? {})
     .map(([value, p]) => ({ value, label: pick(p.name, language.value) || value }))
     .sort((a, b) => a.label.localeCompare(b.label)),
+)
+const diagramOptions = computed(() =>
+  diagramsOf(props.node).map((d) => ({ value: d.id, label: pick(d.label, language.value) || d.id })),
 )
 const endOptions = computed(() =>
   (props.node.endConditions ?? []).map((e) => ({
@@ -367,6 +371,17 @@ const num = (value: unknown) => (typeof value === 'number' ? value : undefined)
             :from="node.id"
             :label="t('workshop.events.goTo')"
             @update:model-value="(v) => patch(index, { node: v })"
+          />
+
+          <Select
+            v-else-if="action.do === 'placeDiagram'"
+            :model-value="str(action.diagram)"
+            :options="diagramOptions"
+            option-label="label"
+            option-value="value"
+            :placeholder="t('workshop.events.pickDiagram')"
+            :aria-label="t('workshop.events.diagram')"
+            @update:model-value="(v) => patch(index, { diagram: v })"
           />
 
           <p v-else-if="action.do === 'restore'" class="empty">{{ t('workshop.events.restoreHelp') }}</p>

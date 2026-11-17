@@ -163,6 +163,24 @@ public class ScenarioCheckerTests
     }
 
     [Fact]
+    public void Check_DiagramBuiltOnAnUnknownDiagram_ReportsUnknownDiagram()
+    {
+        var encounter = Encounter() with
+        {
+            Diagrams =
+            [
+                new Diagram { Id = "diagram-1" },
+                new Diagram { Id = "diagram-2", BuiltOn = ["diagram-1", "diagram-9"] },
+            ],
+        };
+
+        var report = ScenarioChecker.Check(Scenario(encounter), Catalog);
+
+        report.Errors.Should().ContainSingle().Which.Should().Match<ScenarioIssue>(
+            e => e.Code == "Scenarios.UnknownDiagram" && e.Message.Contains("diagram-9"));
+    }
+
+    [Fact]
     public void Check_ChoiceGoingToAnUnknownNode_ReportsUnknownNext()
     {
         var scene = new Node

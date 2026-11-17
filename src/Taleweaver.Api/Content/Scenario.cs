@@ -337,6 +337,12 @@ public sealed record Diagram
 
     public LocalizedText? Label { get; init; }
 
+    /// <summary>
+    /// The diagrams of the encounter already on the table when this one is laid (Diagram 15 builds on
+    /// 11 and 13). Only the printed page uses it: it draws them faded under this one, as the books do.
+    /// </summary>
+    public IReadOnlyList<string> BuiltOn { get; init; } = [];
+
     public int? Page { get; init; }
 
     public BoardMap? Map { get; init; }

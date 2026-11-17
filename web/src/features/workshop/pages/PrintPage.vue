@@ -14,11 +14,13 @@ import { usePreferences } from '@/shared/lib/preferences'
 import { useDraft, usePrintPdf } from '../api/queries'
 import type { DraftAction, DraftNode } from '../api/types'
 import { nameOf } from '../api/workshopApi'
+import DiagramPage from '../components/DiagramPage.vue'
 import EncounterPage from '../components/EncounterPage.vue'
 import ScenePage from '../components/ScenePage.vue'
 import TokenCard from '../components/TokenCard.vue'
 import { captionOf, choiceOf, exitsOf } from '../lib/graph'
-import { encounterSheet, readingOrder } from '../lib/printable'
+import { bookletDiagrams, diagramBoard, underOf } from '../lib/diagrams'
+import { encounterSheet, readingOrder, setupLines } from '../lib/printable'
 import { useEndingLabel } from '../lib/endings'
 
 /**
@@ -55,6 +57,8 @@ const pageStarts = computed(() => {
     starts.set(node.id, page)
     page += sheetsOf.get(node.id) ?? 1
   }
+  // The diagrams follow the steps, one page each
+  for (const d of diagrams.value) starts.set(d.key, page++)
   return starts
 })
 /** Every step measured: the numbers are final (the PDF scripts wait for this). */
@@ -81,6 +85,26 @@ const shown = computed(() => {
   if (what.value === 'encounter') return scenario.value.nodes.filter((n) => n.id === route.query.node)
   return steps.value
 })
+/** The diagrams printed: all of them after the booklet's steps, or those of the encounter printed. */
+const diagrams = computed(() =>
+  (what.value === 'cards' ? [] : bookletDiagrams(what.value === 'encounter' ? shown.value : steps.value)).map(
+    ({ node, diagram }) => {
+      const board = diagramBoard(diagram)
+      return {
+        key: `diagram:${node.id}/${diagram.id}`,
+        node,
+        title: pick(diagram.label, language.value) || diagram.id,
+        board,
+        under: underOf(node, diagram),
+        setup: setupLines(board.map, board.setup, pieces.data.value, language.value, colorName),
+        rules: (diagram.specialRules ?? []).map((r) => ({
+          name: pick(r.name, language.value),
+          text: pick(r.text, language.value),
+        })),
+      }
+    },
+  ),
+)
 const encounters = computed(() => (scenario.value?.nodes ?? []).filter((n) => n.type === 'encounter'))
 const options = computed(() => [
   { value: '@booklet', label: t('workshop.print.booklet') },
@@ -223,6 +247,11 @@ const backTo = computed(() =>
               <span class="dots" />
               <span class="page-number">{{ pageStarts.get(node.id) }}</span>
             </li>
+            <li v-if="diagrams.length">
+              {{ t('workshop.print.diagrams') }}
+              <span class="dots" />
+              <span class="page-number">{{ pageStarts.get(diagrams[0]!.key) }}</span>
+            </li>
           </ol>
         </section>
 
@@ -249,6 +278,19 @@ const backTo = computed(() =>
             @sheets="onSheets"
           />
         </template>
+        <DiagramPage
+          v-for="d in diagrams"
+          :key="d.key"
+          :title="d.title"
+          :node="d.node"
+          :board="d.board"
+          :under="d.under"
+          :setup="d.setup"
+          :rules="d.rules"
+          :pieces="pieces.data.value"
+          :north-arrow="Number((d.node.map as { northArrow?: number } | undefined)?.northArrow ?? 0)"
+          :folio="pageOfNode(d.key)"
+        />
       </template>
     </div>
   </main>

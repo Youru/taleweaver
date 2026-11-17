@@ -13,7 +13,12 @@ test('a GM prints Blight of Rhamsted: the booklet, an encounter page, the cards,
   await expect(page.getByRole('article', { name: 'Page de The Blighted Terror' })).toBeVisible()
   const encounter = page.getByRole('article', { name: 'Page de Search for the Lair' })
   await expect(encounter).toBeVisible()
-  await expect(page.getByRole('article', { name: /^Page de / })).toHaveCount(4)
+  // …then the diagrams A, B and C, a page each, under their green header
+  await expect(page.getByRole('article', { name: /^Page de / })).toHaveCount(4 + 3)
+  const diagram = page.getByRole('article', { name: 'Page de Diagram C' })
+  await expect(diagram.getByRole('heading', { name: 'Diagram C' })).toBeVisible()
+  await expect(diagram.getByText('Mise en place')).toBeVisible()
+  await expect(diagram.locator('.faded').first()).toBeAttached()
   await expect(encounter.getByRole('img', { name: 'Diagramme de la rencontre' }).locator('image').first()).toBeVisible()
   await expect(encounter.getByText('Mise en place')).toBeVisible()
   await expect(encounter.getByText('UM35, UM47, UM53, UM55, UM59')).toBeVisible()
@@ -42,7 +47,9 @@ test('a GM prints Blight of Rhamsted: the booklet, an encounter page, the cards,
   // One encounter alone, then the cards of the hidden texts
   await page.getByRole('combobox', { name: 'Quoi imprimer' }).click()
   await page.getByRole('option', { name: 'Rencontre · Crossing the River' }).click()
-  await expect(page.getByRole('article', { name: /^Page de / })).toHaveCount(1)
+  // …with its own diagrams, A and B
+  await expect(page.getByRole('article', { name: /^Page de / })).toHaveCount(1 + 2)
+  await expect(page.getByRole('article', { name: 'Page de Diagram B' })).toBeVisible()
   await page.getByRole('combobox', { name: 'Quoi imprimer' }).click()
   await page.getByRole('option', { name: 'Cartes des textes cachés' }).click()
   await expect(page.getByRole('article', { name: /^Carte / }).first()).toBeVisible()

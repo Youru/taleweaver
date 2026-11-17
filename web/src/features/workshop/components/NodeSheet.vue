@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
+import MultiSelect from 'primevue/multiselect'
 import Select from 'primevue/select'
 import SelectButton from 'primevue/selectbutton'
 import ToggleSwitch from 'primevue/toggleswitch'
@@ -18,6 +19,7 @@ import { pick, type LocalizedText } from '@/shared/lib/localized'
 import { usePreferences } from '@/shared/lib/preferences'
 import type { DraftEnd, DraftNode, DraftRule, DraftScenario, ScenarioIssue } from '../api/types'
 import { choiceOf, exitsOf, setChoice, setExit, setText, text, withChoice } from '../lib/graph'
+import { addDiagram, diagramBoard, diagramsOf, removeDiagram, updateDiagram, type DraftDiagram } from '../lib/diagrams'
 import { mapOf, setupOf } from '../lib/map'
 import BoardRules from './BoardRules.vue'
 import { eventsOf } from '../lib/events'
@@ -35,7 +37,14 @@ const props = defineProps<{
   warnings?: ScenarioIssue[]
   pieces?: BoardPieces
 }>()
-const emit = defineEmits<{ change: [node: DraftNode]; remove: []; start: []; map: []; print: [] }>()
+const emit = defineEmits<{
+  change: [node: DraftNode]
+  remove: []
+  start: []
+  /** Opens the map editor: on the encounter's board, or on one of its diagrams. */
+  map: [diagram?: string]
+  print: []
+}>()
 
 const { t } = useI18n()
 const { language } = storeToRefs(usePreferences())
@@ -161,9 +170,53 @@ function addRule() {
 }
 /** The board at a glance. */
 const board = computed(() => ({ map: mapOf(props.node), setup: setupOf(props.node) }))
+const diagrams = computed(() => diagramsOf(props.node))
+const patchDiagram = (id: string, fields: Partial<DraftDiagram>) =>
+  emit(
+    'change',
+    updateDiagram(props.node, id, (d) => ({ ...d, ...fields })),
+  )
+const newDiagram = () =>
+  emit(
+    'change',
+    addDiagram(props.node, (n) => text(language.value, t('workshop.diagramLabelDefault', { n }))),
+  )
+const otherDiagrams = (id: string) =>
+  diagrams.value.filter((d) => d.id !== id).map((d) => ({ value: d.id, label: pick(d.label, language.value) || d.id }))
+const countsOf = (d: DraftDiagram) => diagramBoard(d)
+function setBuiltOn(d: DraftDiagram, ids: string[] | undefined) {
+  const next: DraftDiagram = { ...d, builtOn: ids ?? [] }
+  if (!next.builtOn?.length) delete next.builtOn
+  emit(
+    'change',
+    updateDiagram(props.node, d.id, () => next),
+  )
+}
+function patchDiagramRule(d: DraftDiagram, index: number, fields: Partial<DraftRule>) {
+  patchDiagram(d.id, {
+    specialRules: (d.specialRules ?? []).map((r, i) => (i === index ? { ...r, ...fields } : r)),
+  })
+}
+function addDiagramRule(d: DraftDiagram) {
+  const list = d.specialRules ?? []
+  const used = new Set(list.map((r) => r.id))
+  let n = 1
+  while (used.has(`rule-${n}`)) n++
+  patchDiagram(d.id, {
+    specialRules: [...list, { id: `rule-${n}`, name: text(language.value, ''), text: text(language.value, '') }],
+  })
+}
+function removeDiagramRule(d: DraftDiagram, index: number) {
+  const next: DraftDiagram = { ...d, specialRules: (d.specialRules ?? []).filter((_, i) => i !== index) }
+  if (!next.specialRules?.length) delete next.specialRules
+  emit(
+    'change',
+    updateDiagram(props.node, d.id, () => next),
+  )
+}
 /** What the encounter keeps from the file that this sheet does not edit yet. */
 const untouched = computed(() =>
-  ['diagrams', 'hiddenRules'].filter((key) => {
+  ['hiddenRules'].filter((key) => {
     const value = props.node[key]
     return Array.isArray(value) ? value.length > 0 : !!value && Object.keys(value).length > 0
   }),
@@ -403,6 +456,84 @@ const untouched = computed(() =>
           </ol>
           <Button :label="t('workshop.addRule')" icon="pi pi-plus" size="small" text @click="addRule" />
 
+          <h3>{{ t('workshop.diagrams') }}</h3>
+          <p class="hint">{{ t('workshop.diagramsHint') }}</p>
+          <ol class="rules diagrams">
+            <li v-for="d in diagrams" :key="d.id">
+              <div class="diagram-head">
+                <code>{{ d.id }}</code>
+                <TextField
+                  :model-value="d.label"
+                  :label="t('workshop.diagramLabel')"
+                  @update:model-value="(v) => patchDiagram(d.id, { label: v ?? {} })"
+                />
+              </div>
+              <div v-if="otherDiagrams(d.id).length" class="built-on">
+                <label :for="`built-on-${d.id}`">{{ t('workshop.builtOn') }}</label>
+                <MultiSelect
+                  :input-id="`built-on-${d.id}`"
+                  :model-value="d.builtOn ?? []"
+                  :options="otherDiagrams(d.id)"
+                  option-label="label"
+                  option-value="value"
+                  display="chip"
+                  size="small"
+                  :title="t('workshop.builtOnHint')"
+                  @update:model-value="(v: string[]) => setBuiltOn(d, v)"
+                />
+              </div>
+              <div class="board">
+                <i class="pi pi-map" aria-hidden="true" />
+                <span>
+                  {{ t('workshop.map.countTiles', countsOf(d).map.tiles.length) }} ·
+                  {{ t('workshop.map.countTokens', countsOf(d).map.tokens.length) }} ·
+                  {{ t('workshop.map.countEnemies', countsOf(d).setup.combatants.length) }}
+                </span>
+                <Button
+                  :label="t('workshop.editDiagramMap')"
+                  icon="pi pi-pencil"
+                  size="small"
+                  @click="emit('map', d.id)"
+                />
+              </div>
+              <h4>{{ t('workshop.diagramRules') }}</h4>
+              <div v-for="(rule, index) in d.specialRules ?? []" :key="rule.id" class="diagram-rule">
+                <TextField
+                  :model-value="rule.name"
+                  :label="t('workshop.ruleName')"
+                  @update:model-value="(v) => patchDiagramRule(d, index, { name: v ?? {} })"
+                />
+                <TextField
+                  :model-value="rule.text"
+                  :label="t('workshop.ruleText')"
+                  long
+                  :rows="3"
+                  @update:model-value="(v) => patchDiagramRule(d, index, { text: v ?? {} })"
+                />
+                <Button
+                  :label="t('workshop.removeRule')"
+                  icon="pi pi-times"
+                  size="small"
+                  severity="secondary"
+                  text
+                  @click="removeDiagramRule(d, index)"
+                />
+              </div>
+              <div class="adds">
+                <Button :label="t('workshop.addRule')" icon="pi pi-plus" size="small" text @click="addDiagramRule(d)" />
+                <Button
+                  :label="t('workshop.removeDiagram')"
+                  icon="pi pi-trash"
+                  size="small"
+                  severity="danger"
+                  text
+                  @click="emit('change', removeDiagram(node, d.id))"
+                />
+              </div>
+            </li>
+          </ol>
+          <Button :label="t('workshop.addDiagram')" icon="pi pi-plus" size="small" text @click="newDiagram" />
+
           <p v-if="untouched.length" class="later">
             <i class="pi pi-info-circle" aria-hidden="true" />
             {{ t('workshop.keptFromFile', { list: untouched.join(', ') }) }}
@@ -531,6 +662,40 @@ ol {
 }
 .board span {
   flex: 1;
+}
+.hint {
+  margin: 0 0 0.5rem;
+  color: var(--p-text-muted-color);
+  font-size: 0.85rem;
+}
+.diagrams li {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.diagram-head {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+.diagram-head > :last-child {
+  flex: 1;
+}
+.built-on {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.diagrams h4 {
+  margin: 0.25rem 0 0;
+  font-size: 0.9rem;
+}
+.diagram-rule {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding-left: 0.5rem;
+  border-left: 2px solid var(--p-content-border-color);
 }
 .later {
   margin: 0.5rem 0 0;

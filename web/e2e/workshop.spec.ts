@@ -201,3 +201,46 @@ test('a GM draws the map of an encounter: tiles, tokens, enemies and the start, 
     'Un coffre poussiéreux contient 15 pièces.',
   )
 })
+
+test('a GM adds a diagram to an encounter, draws it over the faded board and prints it', async ({ page }) => {
+  await page.goto('/workshop')
+  await page.getByRole('button', { name: 'Nouveau scénario' }).click()
+  await page.getByLabel('Titre du scénario').fill('Le Nid')
+  await page.getByRole('button', { name: 'Créer' }).click()
+  await page.getByRole('button', { name: 'Rencontre', exact: true }).click()
+  const fight = page.getByRole('region', { name: 'Fiche de encounter-1' })
+
+  // The encounter's own board: one tile
+  await fight.getByRole('button', { name: 'Éditer la carte' }).click()
+  const palette = page.getByRole('complementary', { name: 'Pièces' })
+  await palette.getByPlaceholder('Filtrer').fill('UM47')
+  await palette.getByRole('button', { name: 'Poser la tuile UM47' }).click()
+  let at = await square(page, 0, 0)
+  await page.mouse.click(at.x, at.y)
+  await page.getByRole('button', { name: 'Retour au graphe' }).click()
+
+  // A diagram, its own tile laid east of the board, which shows faded under it
+  await fight.getByRole('button', { name: 'Ajouter un schéma' }).click()
+  await expect(fight.getByLabel('Titre').last()).toHaveValue('Schéma 1')
+  await fight.getByRole('button', { name: 'Carte du schéma' }).click()
+  const board = page.getByRole('application', { name: 'Carte de la rencontre' })
+  await expect(board.locator('.underlay image')).toHaveCount(1)
+  await palette.getByPlaceholder('Filtrer').fill('UM49')
+  await palette.getByRole('button', { name: 'Poser la tuile UM49' }).click()
+  at = await square(page, 6, 0)
+  await page.mouse.click(at.x, at.y)
+  await expect(board.getByRole('button', { name: 'Tuile UM49 en 6, 0' })).toBeVisible()
+  await page.getByRole('button', { name: 'Retour au graphe' }).click()
+  await expect(fight.getByText('1 tuile · aucun jeton · aucun ennemi')).toHaveCount(2)
+  await fight.getByRole('heading', { name: 'Schémas' }).scrollIntoViewIfNeeded()
+  await page.screenshot({ path: test.info().outputPath('diagrams.png') })
+
+  // Printed on a page of its own, with the green header, the encounter's tile faded under its own
+  await page.getByRole('button', { name: 'Enregistrer' }).click()
+  await expect(page.getByRole('button', { name: 'Enregistré' })).toBeDisabled()
+  await fight.getByRole('button', { name: 'Page imprimable de la rencontre' }).click()
+  const diagram = page.getByRole('article', { name: 'Page de Schéma 1' })
+  await expect(diagram.getByRole('heading', { name: 'Schéma 1' })).toBeVisible()
+  await expect(diagram.locator('.faded image')).toHaveCount(1)
+  await expect(diagram.locator('g:not(.faded) > g > image')).toHaveCount(1)
+})

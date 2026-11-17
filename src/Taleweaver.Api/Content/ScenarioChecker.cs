@@ -272,6 +272,9 @@ public static class ScenarioChecker
             };
             boards.AddRange(encounter.Diagrams.Select(d => (d.Id, d.Map ?? new BoardMap(), d.Setup ?? new Setup(), d.ReplacesTerrain == true)));
             var diagrams = encounter.Diagrams.Select(d => d.Id).ToHashSet();
+            foreach (var diagram in encounter.Diagrams)
+                foreach (var under in diagram.BuiltOn.Where(u => u == diagram.Id || !diagrams.Contains(u)))
+                    Error("UnknownDiagram", $"{id}/{diagram.Id}", $"builds on an unknown diagram '{under}'");
 
             var actions = encounter.Events.SelectMany(e => ScenarioAction.Flatten(e.Actions))
                 .Concat(encounter.HiddenRules.SelectMany(r => ScenarioAction.Flatten(r.Actions)))

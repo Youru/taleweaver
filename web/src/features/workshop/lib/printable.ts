@@ -3,7 +3,7 @@ import { pick, type Language, type LocalizedText } from '@/shared/lib/localized'
 import type { DraftNode, DraftScenario } from '../api/types'
 import { eventsOf, eventsOfToken, tokenRulesOf } from './events'
 import { captionOf } from './graph'
-import { mapOf, setupOf, tokenKey } from './map'
+import { mapOf, setupOf, tokenKey, type DraftMap, type DraftSetup } from './map'
 
 /**
  * What the printed page of an encounter shows, laid out as the official Encounter template: the
@@ -94,63 +94,7 @@ export function encounterSheet(
   const categoryOf = (type: string) => pieces?.tokens[type]?.category ?? 'encounter'
   const tokenName = (type: string) => text(pieces?.tokens[type]?.name) || type.split('/').pop() || type
 
-  const lines: SetupLine[] = []
-  if (map.tiles.length) {
-    // In number order, as the books list them: UM31, UM33, UM35…
-    const names = [...new Set(map.tiles.map((t) => pieces?.tiles[t.ref]?.name ?? t.ref))]
-    lines.push({ group: 'tiles', items: [names.sort(byNumber).join(', ')] })
-  }
-  for (const group of GROUPS) {
-    const tokens = map.tokens.filter((t) => categoryOf(t.type) === group)
-    if (!tokens.length) continue
-    if (group === 'terrain') {
-      lines.push({ group, items: terrainItems(tokens.map((t) => t.type)) })
-      continue
-    }
-    lines.push({
-      group,
-      items: counted(
-        [...tokens]
-          .sort((a, b) => colorRank(a.color) - colorRank(b.color))
-          .map((t) => (t.color ? capitalize(colorName(t.color)) : tokenName(t.type))),
-      ),
-    })
-  }
-  /**
-   * Terrain as the books write it: "7 x Obstructing (2x1)", the size from the catalogue rather than
-   * from the token's name; each kind together, the largest first, kinds in the order of the map.
-   */
-  function terrainItems(types: string[]): string[] {
-    const kinds: string[] = []
-    const entries = new Map<string, { kind: string; size: string; area: number; n: number }>()
-    for (const type of types) {
-      const kind = terrainName(tokenName(type))
-      const size = pieces?.tokens[type]?.size ?? '1x1'
-      const [w = 1, h = 1] = size.split('x').map(Number)
-      if (!kinds.includes(kind)) kinds.push(kind)
-      const key = `${kind} (${size})`
-      const entry = entries.get(key) ?? { kind, size, area: w * h, n: 0 }
-      entry.n++
-      entries.set(key, entry)
-    }
-    return [...entries.values()]
-      .sort((a, b) => kinds.indexOf(a.kind) - kinds.indexOf(b.kind) || b.area - a.area)
-      .map((e) => `${e.n} × ${e.kind} (${e.size})`)
-  }
-  const others = map.tokens.filter((t) => !GROUPS.includes(categoryOf(t.type)))
-  if (others.length) lines.push({ group: 'other', items: counted(others.map((t) => tokenName(t.type))) })
-  /** A card named by its ref ("um1:combatant/blighted-terror-common") belongs to the longest family it starts with. */
-  const familyOf = (ref: string | undefined) => {
-    const card = ref?.split('/').pop() ?? ''
-    return Object.keys(pieces?.families ?? {})
-      .filter((f) => card.startsWith(f))
-      .sort((a, b) => b.length - a.length)[0]
-  }
-  const families = setup.combatants.map((c) => {
-    const family = c.family ?? familyOf(c.ref)
-    return text(family ? pieces?.families[family]?.name : undefined) || family || c.ref || '?'
-  })
-  if (families.length) lines.push({ group: 'figures', items: counted(families) })
+  const lines = setupLines(map, setup, pieces, language, colorName)
 
   const caption = (target: string | undefined) => {
     if (!target) return undefined
@@ -268,6 +212,80 @@ const squash = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, '')
 
 /** "UM5" before "UM31": the numbers compared as numbers. */
 const byNumber = (a: string, b: string) => a.localeCompare(b, undefined, { numeric: true })
+
+/**
+ * The Setup box: the tiles, then each kind of token counted ("2 × Blue"), the terrain by size, and
+ * the figures. For an encounter's board, or for one of its diagrams (only what the diagram lays).
+ */
+export function setupLines(
+  map: DraftMap,
+  setup: DraftSetup,
+  pieces: BoardPieces | undefined,
+  language: Language,
+  colorName: (color: string) => string,
+): SetupLine[] {
+  const text = (value: LocalizedText | undefined) => pick(value, language)
+  const categoryOf = (type: string) => pieces?.tokens[type]?.category ?? 'encounter'
+  const tokenName = (type: string) => text(pieces?.tokens[type]?.name) || type.split('/').pop() || type
+  const lines: SetupLine[] = []
+  if (map.tiles.length) {
+    // In number order, as the books list them: UM31, UM33, UM35…
+    const names = [...new Set(map.tiles.map((t) => pieces?.tiles[t.ref]?.name ?? t.ref))]
+    lines.push({ group: 'tiles', items: [names.sort(byNumber).join(', ')] })
+  }
+  for (const group of GROUPS) {
+    const tokens = map.tokens.filter((t) => categoryOf(t.type) === group)
+    if (!tokens.length) continue
+    if (group === 'terrain') {
+      lines.push({ group, items: terrainItems(tokens.map((t) => t.type)) })
+      continue
+    }
+    lines.push({
+      group,
+      items: counted(
+        [...tokens]
+          .sort((a, b) => colorRank(a.color) - colorRank(b.color))
+          .map((t) => (t.color ? capitalize(colorName(t.color)) : tokenName(t.type))),
+      ),
+    })
+  }
+  /**
+   * Terrain as the books write it: "7 x Obstructing (2x1)", the size from the catalogue rather than
+   * from the token's name; each kind together, the largest first, kinds in the order of the map.
+   */
+  function terrainItems(types: string[]): string[] {
+    const kinds: string[] = []
+    const entries = new Map<string, { kind: string; size: string; area: number; n: number }>()
+    for (const type of types) {
+      const kind = terrainName(tokenName(type))
+      const size = pieces?.tokens[type]?.size ?? '1x1'
+      const [w = 1, h = 1] = size.split('x').map(Number)
+      if (!kinds.includes(kind)) kinds.push(kind)
+      const key = `${kind} (${size})`
+      const entry = entries.get(key) ?? { kind, size, area: w * h, n: 0 }
+      entry.n++
+      entries.set(key, entry)
+    }
+    return [...entries.values()]
+      .sort((a, b) => kinds.indexOf(a.kind) - kinds.indexOf(b.kind) || b.area - a.area)
+      .map((e) => `${e.n} × ${e.kind} (${e.size})`)
+  }
+  const others = map.tokens.filter((t) => !GROUPS.includes(categoryOf(t.type)))
+  if (others.length) lines.push({ group: 'other', items: counted(others.map((t) => tokenName(t.type))) })
+  /** A card named by its ref ("um1:combatant/blighted-terror-common") belongs to the longest family it starts with. */
+  const familyOf = (ref: string | undefined) => {
+    const card = ref?.split('/').pop() ?? ''
+    return Object.keys(pieces?.families ?? {})
+      .filter((f) => card.startsWith(f))
+      .sort((a, b) => b.length - a.length)[0]
+  }
+  const families = setup.combatants.map((c) => {
+    const family = c.family ?? familyOf(c.ref)
+    return text(family ? pieces?.families[family]?.name : undefined) || family || c.ref || '?'
+  })
+  if (families.length) lines.push({ group: 'figures', items: counted(families) })
+  return lines
+}
 
 /**
  * A terrain token's name without its size ("Obstructing 1X2" → "Obstructing") nor the words the

@@ -48,7 +48,12 @@ import MapCanvas, { type MapTool } from './MapCanvas.vue'
  * The map editor of an encounter: a palette (tiles, tokens, enemies, zones and fog), the board, and
  * the inspector of the selected piece. Every change goes back as the whole node.
  */
-const props = defineProps<{ node: DraftNode; pieces: BoardPieces | undefined }>()
+const props = defineProps<{
+  node: DraftNode
+  pieces: BoardPieces | undefined
+  /** Editing a diagram: the board it is laid on, drawn faded under it. */
+  under?: { map: DraftMap; setup: DraftSetup }[]
+}>()
 const emit = defineEmits<{ change: [node: DraftNode]; close: [] }>()
 
 const { t } = useI18n()
@@ -440,6 +445,7 @@ function newArea() {
       :pieces="pieces"
       :selected="selected"
       :tool="tool"
+      :under="under"
       @select="(item) => (selected = item)"
       @move="move"
       @place="place"

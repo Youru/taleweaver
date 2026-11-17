@@ -49,6 +49,8 @@ const props = defineProps<{
   pieces: BoardPieces | undefined
   selected: MapItem | null
   tool: MapTool | null
+  /** Editing a diagram: the board it is laid on (the encounter's, then the diagrams it builds on), faded. */
+  under?: { map: DraftMap; setup: DraftSetup }[]
 }>()
 const emit = defineEmits<{
   select: [item: MapItem | null]
@@ -67,7 +69,9 @@ const fogId = `map-fog-${useId()}`
 const board = computed(() => ({ map: props.map, setup: props.setup }))
 /** The board and one tile's worth around it, to lay new tiles. */
 const grid = computed(() => {
-  const { width, height } = extentOf(board.value)
+  const extents = [board.value, ...(props.under ?? [])].map(extentOf)
+  const width = Math.max(...extents.map((e) => e.width))
+  const height = Math.max(...extents.map((e) => e.height))
   return { width: width + TILE, height: height + TILE }
 })
 const full = computed(() => fitBox(grid.value.width * S, grid.value.height * S, S / 2))
@@ -77,6 +81,23 @@ const overlaps = computed(() => overlappingTiles(props.map))
 const sizeOfFamily = (family: string | undefined) =>
   family && (props.pieces?.figures[family]?.baseSize ?? props.pieces?.families[family]?.baseSize) === '2x2' ? 2 : 1
 
+/** What lies under a diagram: drawn faded, out of reach of the pointer. */
+const underlay = computed(() =>
+  (props.under ?? []).flatMap((b, layer) => [
+    ...b.map.tiles.map((tile, i) => ({
+      key: `u${layer}-t${i}`,
+      rect: { x: tile.x, y: tile.y, w: TILE, h: TILE },
+      rotation: tile.rotation ?? 0,
+      href: assetUrl(props.pieces?.tiles[tile.ref]?.image),
+    })),
+    ...b.map.tokens.map((token, i) => ({
+      key: `u${layer}-k${i}`,
+      rect: tokenRect(token),
+      rotation: 0,
+      href: assetUrl(tokenImage(token, props.pieces?.tokens[token.type])),
+    })),
+  ]),
+)
 const tiles = computed(() =>
   props.map.tiles.map((tile, index) => {
     const piece = props.pieces?.tiles[tile.ref]
@@ -325,6 +346,20 @@ const zoneLabel = (kind: string | undefined, id: string) => (kind === START_ZONE
         />
       </g>
 
+      <g v-if="underlay.length" class="underlay" aria-hidden="true">
+        <image
+          v-for="u in underlay"
+          :key="u.key"
+          :href="u.href"
+          :x="u.rect.x * S"
+          :y="u.rect.y * S"
+          :width="u.rect.w * S"
+          :height="u.rect.h * S"
+          preserveAspectRatio="none"
+          :transform="`rotate(${u.rotation} ${(u.rect.x + u.rect.w / 2) * S} ${(u.rect.y + u.rect.h / 2) * S})`"
+        />
+      </g>
+
       <g
         v-for="{ index, tile, label, href, area } in tiles"
         :key="`tile-${index}`"
@@ -465,6 +500,12 @@ const zoneLabel = (kind: string | undefined, id: string) => (kind === START_ZONE
 </template>
 
 <style scoped>
+/* The board under a diagram being edited */
+.underlay {
+  opacity: 0.35;
+  filter: grayscale(0.8);
+  pointer-events: none;
+}
 .canvas {
   display: flex;
   flex-direction: column;

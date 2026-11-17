@@ -7,6 +7,7 @@ import type { DraftNode } from '../api/types'
 import { FIRST_HALF_GROUPS, setupColumns, type EncounterSheet } from '../lib/printable'
 import { useEndingLabel } from '../lib/endings'
 import { extentOf, mapOf, setupOf, TILE } from '../lib/map'
+import { pageBackground } from '../lib/pageArt'
 import PrintMap from './PrintMap.vue'
 
 /**
@@ -34,9 +35,6 @@ const props = defineProps<{
 const { t } = useI18n()
 const endingLabel = useEndingLabel()
 const art = (path: string) => assetUrl(`assets/templates/encounter/${path}`)
-// The template's two background layers, flattened into one JPEG (scripts/flatten-print-background.mjs):
-// as PNG they weighed 14 MB each in every PDF, which readers were slow or failed to open
-const background = computed(() => ({ backgroundImage: `url("${art('print-background.jpg')}")` }))
 const header = computed(() => ({ backgroundImage: `url('${art('top/red-header.png')}')` }))
 const veil = computed(() => ({
   backgroundImage: `linear-gradient(rgb(245 205 190 / 0.4), rgb(245 205 190 / 0.4)), url("${art('content/totem/hide-text.png')}")`,
@@ -106,7 +104,7 @@ const folio = (index: number) => (props.firstPage ? props.firstPage + index : un
 <template>
   <article class="encounter" :aria-label="t('workshop.print.pageOf', { name: sheet.name })">
     <!-- Setup sheet(s): the diagram and the Setup box -->
-    <div v-for="(part, p) in parts" :key="`setup-${p}`" class="sheet setup-sheet" :style="background">
+    <div v-for="(part, p) in parts" :key="`setup-${p}`" class="sheet setup-sheet" :style="pageBackground(folio(p))">
       <header class="head" :style="header">
         <h1 v-if="part.first">{{ sheet.name }}</h1>
         <h1 v-else>{{ t('workshop.print.largeSetup') }}</h1>
@@ -157,7 +155,12 @@ const folio = (index: number) => (props.firstPage ? props.firstPage + index : un
     </div>
 
     <!-- Continued sheets: the same columns, three by three -->
-    <div v-for="k in textSheets" :key="`text-${k}`" class="sheet text-sheet" :style="background">
+    <div
+      v-for="k in textSheets"
+      :key="`text-${k}`"
+      class="sheet text-sheet"
+      :style="pageBackground(folio(parts.length + k - 1))"
+    >
       <header class="head" :style="header">
         <h1>
           {{ sheet.name }} <small>{{ t('workshop.print.continuedTitle') }}</small>
