@@ -3,7 +3,16 @@ import { computed, ref, useId, useTemplateRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 import Button from 'primevue/button'
-import { cellAt, fitBox, panBox, tokenImage, zoomBox, type BoardPieces, type ViewBox } from '@/features/table'
+import {
+  cellAt,
+  figureArt,
+  fitBox,
+  panBox,
+  tokenImage,
+  zoomBox,
+  type BoardPieces,
+  type ViewBox,
+} from '@/features/table'
 import { assetUrl } from '@/shared/api/assets'
 import { pick } from '@/shared/lib/localized'
 import { usePreferences } from '@/shared/lib/preferences'
@@ -110,7 +119,7 @@ const combatants = computed(() =>
         x: c.at.x,
         y: c.at.y,
         size,
-        href: assetUrl(family ? props.pieces?.figures[family]?.image : undefined),
+        ...(({ image, portrait }) => ({ href: assetUrl(image), portrait }))(figureArt(props.pieces, family)),
         name: (family && pick(props.pieces?.families[family]?.name, language.value)) || family || c.ref || '?',
       },
     ]
@@ -424,7 +433,7 @@ const zoneLabel = (kind: string | undefined, id: string) => (kind === START_ZONE
           :y="(c.y + c.size * 0.06) * S"
           :width="c.size * S * 0.88"
           :height="c.size * S * 0.88"
-          preserveAspectRatio="xMinYMid slice"
+          :preserveAspectRatio="c.portrait ? 'xMidYMid slice' : 'xMinYMid slice'"
           :clip-path="`url(#${clipId})`"
         />
         <text v-else class="initial" :x="(c.x + c.size / 2) * S" :y="(c.y + c.size / 2) * S">

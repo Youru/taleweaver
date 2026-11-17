@@ -33,7 +33,8 @@ public static class GetBoardPieces
         IReadOnlyDictionary<string, string>? Colors,
         IReadOnlyList<string>? Variants = null);
 
-    public sealed record FigurePiece(string Image, string? BaseSize);
+    /// <summary>A figure: its standee (<see cref="Image"/>, absent when only its portrait is known) and the round portrait the books' diagrams show.</summary>
+    public sealed record FigurePiece(string? Image, string? BaseSize, string? Portrait = null);
 
     /// <summary>A family of combatants the setup can place (the card is chosen from the encounter's loot level).</summary>
     public sealed record FamilyPiece(LocalizedText Name, string Kind, string? BaseSize);
@@ -81,6 +82,22 @@ public static class GetBoardPieces
                 foreach (var (name, figure) in pack.Manifest.Figures)
                 {
                     figures.TryAdd(name, new FigurePiece(figure.Image, figure.BaseSize));
+                }
+            }
+
+            // The portraits (the first pack that gives one wins), for the figures known and those without a standee
+            foreach (var pack in catalog.Packs)
+            {
+                foreach (var (name, portrait) in pack.Manifest.Portraits)
+                {
+                    if (figures.TryGetValue(name, out var figure))
+                    {
+                        if (figure.Portrait is null) figures[name] = figure with { Portrait = portrait };
+                    }
+                    else
+                    {
+                        figures[name] = new FigurePiece(null, families.GetValueOrDefault(name)?.BaseSize, portrait);
+                    }
                 }
             }
 

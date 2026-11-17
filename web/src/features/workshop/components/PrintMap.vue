@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, useId } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { tokenImage, type BoardPieces } from '@/features/table'
+import { figureArt, tokenImage, type BoardPieces } from '@/features/table'
 import { assetUrl } from '@/shared/api/assets'
 import type { DraftNode } from '../api/types'
 import { extentOf, mapOf, setupOf, START_ZONE, TILE, tokenRect } from '../lib/map'
@@ -84,9 +84,10 @@ const figures = computed(() =>
     if (!c.at || !c.family) return []
     const n =
       (props.pieces?.figures[c.family]?.baseSize ?? props.pieces?.families[c.family]?.baseSize) === '2x2' ? 2 : 1
-    const href = assetUrl(props.pieces?.figures[c.family]?.image)
+    // The round portrait of the books' diagrams, else the standee
+    const art = figureArt(props.pieces, c.family)
     const label = nameOf(props.pieces?.families[c.family]?.name) || c.family
-    return [{ key: i, x: c.at.x, y: c.at.y, n, href, label }]
+    return [{ key: i, x: c.at.x, y: c.at.y, n, href: assetUrl(art.image), portrait: art.portrait, label }]
   }),
 )
 </script>
@@ -213,7 +214,7 @@ const figures = computed(() =>
           :y="(f.y + f.n * 0.06) * S"
           :width="f.n * S * 0.88"
           :height="f.n * S * 0.88"
-          preserveAspectRatio="xMinYMid slice"
+          :preserveAspectRatio="f.portrait ? 'xMidYMid slice' : 'xMinYMid slice'"
           :clip-path="`url(#${clipId})`"
         />
         <text

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { tokenImage, tokenImages, type BoardPieces } from '@/features/table'
+import { figureArt, tokenImage, tokenImages, type BoardPieces } from '@/features/table'
 import { packOf, tokenChoices, variantLabel } from './palette'
 
 const pieces = {
@@ -69,5 +69,24 @@ describe('the picture of a token', () => {
   it('offers its own picture, its colours and its variants, once each', () => {
     expect(tokenImages(totem)).toEqual(['assets/act1/tokens/totem-blue.jpg', 'assets/act1/tokens/totem-red.jpg'])
     expect(tokenImages(pieces.tokens['um1:token/terrain/dangerous'])).toHaveLength(2)
+  })
+})
+
+describe('the picture of a figure', () => {
+  const figures = {
+    ...pieces,
+    figures: {
+      fragor: { image: 'fragor-standee.png', portrait: 'fragor-round.png' },
+      'cave-sickle-warrior': { portrait: 'warrior-round.png', baseSize: '1x1' },
+      brute: { image: 'brute-standee.png' },
+    },
+  } as unknown as BoardPieces
+
+  it('is the round portrait of the books when there is one, else the standee', () => {
+    expect(figureArt(figures, 'fragor')).toEqual({ image: 'fragor-round.png', portrait: true })
+    expect(figureArt(figures, 'cave-sickle-warrior')).toEqual({ image: 'warrior-round.png', portrait: true })
+    expect(figureArt(figures, 'brute')).toEqual({ image: 'brute-standee.png', portrait: false })
+    expect(figureArt(figures, 'nobody', 'fragor').image).toBe('fragor-round.png')
+    expect(figureArt(figures, 'nobody')).toEqual({ image: undefined, portrait: false })
   })
 })

@@ -44,13 +44,15 @@ public class RepositoryContentTests(RepositoryFactory factory) : IClassFixture<R
     }
 
     [Fact]
-    public async Task GetBoardPieces_WithBe1_GivesItsTokensAPictureAndAddsItsVariantsToUm1Tokens()
+    public async Task GetBoardPieces_WithBe1_GivesTokensTheirPicturesVariantsAndFiguresTheirPortrait()
     {
         var pieces = await _client.GetFromJsonAsync<Taleweaver.Api.Features.Packs.GetBoardPieces.Response>("/api/catalog/board", JsonDefaults.Options, TestContext.Current.CancellationToken);
 
         pieces!.Tokens["be1:token/terrain/bug-creep"].Image.Should().Be("assets/expansions/be1/tokens/bug-creep-1x1-plain.jpg");
         pieces.Tokens["be1:token/terrain/bug-creep"].Variants.Should().HaveCount(2);
         pieces.Tokens["um1:token/terrain/dangerous"].Variants.Should().Contain("assets/expansions/be1/tokens/dangerous-1x1-hole.jpg");
+        pieces.Figures["cave-sickle-warrior"].Portrait.Should().Be("assets/expansions/be1/portraits/cave-sickle-warrior.png");
+        pieces.Figures["fragor"].Portrait.Should().Be("assets/templates/encounter/map/basic-monsters/fragor.png");
     }
 
     [Fact]

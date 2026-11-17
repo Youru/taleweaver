@@ -2,6 +2,7 @@ import type { BoardToken, CombatantState, EncounterState } from '@/features/game
 import type { BoardMap, FogArea, ScenarioNode } from '@/features/scenarios'
 import { assetUrl } from '@/shared/api/assets'
 import type { BoardPieces } from '../api/types'
+import { figureArt } from './figureArt'
 import { tokenImage } from './tokenImage'
 
 /** Everything the table draws, in squares (x to the east, y to the south). */
@@ -85,6 +86,8 @@ export interface FigureShape {
   card?: string
   label: string
   href?: string
+  /** The picture is a round portrait (centred), not a standee (its left part). */
+  portrait?: boolean
   x: number
   y: number
   size: number
@@ -184,6 +187,7 @@ export function boardLayout(
   const combatants = alive.flatMap((c): FigureShape[] => {
     if (!c.position || underFog(c.position.x, c.position.y)) return []
     const piece = figurePiece(c.figure, c.family)
+    const art = figureArt(pieces, c.figure, c.family)
     return [
       {
         id: c.instance,
@@ -191,7 +195,8 @@ export function boardLayout(
         name: c.instance,
         card: c.card,
         label: c.number > 0 ? String(c.number) : (c.instance[0] ?? '?').toUpperCase(),
-        href: assetUrl(piece?.image),
+        href: assetUrl(art.image),
+        portrait: art.portrait,
         x: c.position.x,
         y: c.position.y,
         size: piece?.baseSize === '2x2' ? 2 : 1,
@@ -202,14 +207,15 @@ export function boardLayout(
   })
   const adventurers = (encounter.adventurers ?? []).flatMap((a): FigureShape[] => {
     if (!a.position) return []
-    const piece = figurePiece(a.name.toLowerCase())
+    const art = figureArt(pieces, a.name.toLowerCase())
     return [
       {
         id: adventurerId(a.name),
         kind: 'adventurer',
         name: a.name,
         label: (a.name[0] ?? '?').toUpperCase(),
-        href: assetUrl(piece?.image),
+        href: assetUrl(art.image),
+        portrait: art.portrait,
         x: a.position.x,
         y: a.position.y,
         size: 1,

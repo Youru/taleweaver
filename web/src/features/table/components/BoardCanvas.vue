@@ -415,7 +415,7 @@ function select(selection: Selection) {
           :y="(figure.y + figure.size * 0.06) * S"
           :width="figure.size * S * 0.88"
           :height="figure.size * S * 0.88"
-          preserveAspectRatio="xMinYMid slice"
+          :preserveAspectRatio="figure.portrait ? 'xMidYMid slice' : 'xMinYMid slice'"
           :clip-path="`url(#${clipId})`"
         />
         <circle

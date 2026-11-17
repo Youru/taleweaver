@@ -8,7 +8,7 @@ import InputText from 'primevue/inputtext'
 import Select from 'primevue/select'
 import SelectButton from 'primevue/selectbutton'
 import ToggleSwitch from 'primevue/toggleswitch'
-import { tokenImage, tokenImages, type BoardPieces } from '@/features/table'
+import { figureArt, tokenImage, tokenImages, type BoardPieces } from '@/features/table'
 import { assetUrl } from '@/shared/api/assets'
 import { pick } from '@/shared/lib/localized'
 import { usePreferences } from '@/shared/lib/preferences'
@@ -134,7 +134,7 @@ const enemyPieces = computed(() =>
       family,
       name: pick(piece.name, language.value) || family,
       kind: piece.kind,
-      href: assetUrl(props.pieces?.figures[family]?.image),
+      href: assetUrl(figureArt(props.pieces, family).image),
     }))
     .filter((p) => matches(p.name))
     .sort((a, b) => a.name.localeCompare(b.name)),

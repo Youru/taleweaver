@@ -14,6 +14,7 @@
     "e2e": "playwright test",
     "pdf": "node scripts/print-pdf.mjs",
     "map-preview": "node scripts/map-preview.mjs",
+    "diagram-check": "node scripts/diagram-check.mjs",
     "tile-palette": "node scripts/tile-palette.mjs",
     "tile-match": "node scripts/tile-match.mjs"
   },

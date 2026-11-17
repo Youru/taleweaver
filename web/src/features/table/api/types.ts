@@ -40,8 +40,11 @@ export interface TokenPiece {
 }
 
 export interface FigurePiece {
-  image: string
+  /** The standee (absent when only the portrait is known). */
+  image?: string
   baseSize?: string
+  /** The round portrait the books draw the figure with on their diagrams. */
+  portrait?: string
 }
 
 export interface FamilyPiece {

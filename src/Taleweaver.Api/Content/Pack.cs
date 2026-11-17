@@ -24,6 +24,9 @@ public sealed record PackManifest
 
     /// <summary>Every figure (standee) of the pack, by name ("rook", "enslaved-spirit-3").</summary>
     public IReadOnlyDictionary<string, PackFigure> Figures { get; init; } = new Dictionary<string, PackFigure>();
+
+    /// <summary>The round portrait the books draw a figure with on their diagrams, by family or name ("cave-sickle", "rook").</summary>
+    public IReadOnlyDictionary<string, string> Portraits { get; init; } = new Dictionary<string, string>();
 }
 
 public sealed record PackFigure(string Image, string? BaseSize);
