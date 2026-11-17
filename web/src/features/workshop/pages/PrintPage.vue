@@ -22,6 +22,7 @@ import { captionOf, choiceOf, exitsOf } from '../lib/graph'
 import { bookletDiagrams, diagramBoard, underOf } from '../lib/diagrams'
 import { encounterSheet, readingOrder, setupLines } from '../lib/printable'
 import { useEndingLabel } from '../lib/endings'
+import { pendingImages } from '../lib/lightImage'
 
 /**
  * The scenario on paper: one encounter, the whole booklet (cover, steps numbered §1, §2… in
@@ -62,7 +63,8 @@ const pageStarts = computed(() => {
   return starts
 })
 /** Every step measured: the numbers are final (the PDF scripts wait for this). */
-const paged = computed(() => steps.value.every((n) => sheetsOf.has(n.id)))
+// …and every picture of the maps re-encoded lighter for the PDF (lib/lightImage.ts)
+const paged = computed(() => steps.value.every((n) => sheetsOf.has(n.id)) && pendingImages.value === 0)
 const pageOfNode = (id: string) => (what.value === 'booklet' ? pageStarts.value.get(id) : undefined)
 const pageOfCaption = (caption: string) => {
   const found = steps.value.find((n) => captionOf(n, language.value) === caption)
@@ -219,7 +221,12 @@ const backTo = computed(() =>
       {{ t('common.error', { message: draft.error.value?.message ?? '' }) }}
     </Message>
 
-    <div v-else-if="scenario" class="sheets" :data-paged="paged ? '' : undefined">
+    <div
+      v-else-if="scenario"
+      class="sheets"
+      :data-paged="paged ? '' : undefined"
+      :data-images-ready="pendingImages === 0 ? '' : undefined"
+    >
       <!-- Cards of the hidden texts -->
       <template v-if="what === 'cards'">
         <p v-if="!cards.length" class="no-print">{{ t('workshop.print.noCard') }}</p>

@@ -5,6 +5,7 @@ import { figureArt, tokenImage, type BoardPieces } from '@/features/table'
 import { assetUrl } from '@/shared/api/assets'
 import type { DraftNode } from '../api/types'
 import { diagramContext } from '../lib/diagrams'
+import { lightImage } from '../lib/lightImage'
 import { extentOf, mapOf, setupOf, START_ZONE, TILE, tokenRect, type DraftMap, type DraftSetup } from '../lib/map'
 import { terrainFrame, TOKEN_COLORS } from '../lib/printable'
 
@@ -107,7 +108,7 @@ function drawn(layer: { key: string; faded: boolean; terrainOnly?: boolean; map:
   const tiles = layer.map.tiles.map((tile, i) => ({
     key: `${tile.ref}-${i}`,
     tile,
-    href: assetUrl(props.pieces?.tiles[tile.ref]?.image),
+    href: lightImage(assetUrl(props.pieces?.tiles[tile.ref]?.image)),
   }))
   // Terrain first, then the round tokens on top (a totem on a Bug Creep stays visible)
   const tokens = layer.map.tokens
@@ -120,7 +121,7 @@ function drawn(layer: { key: string; faded: boolean; terrainOnly?: boolean; map:
         r,
         turned: r.h > r.w,
         round,
-        href: assetUrl(tokenImage(token, piece)),
+        href: lightImage(assetUrl(tokenImage(token, piece))),
         frame: round ? undefined : terrainFrame(token.type),
         ring: (token.color && TOKEN_COLORS[token.color]) || '#f5f5f5',
         label: nameOf(piece?.name).replace(/\s+\d+\s*[xX]\s*\d+$/, ''),
@@ -293,6 +294,28 @@ const drawing = computed(() => layers.value.map(drawn))
           </text>
           <circle class="ring" :cx="(f.x + f.n / 2) * S" :cy="(f.y + f.n / 2) * S" :r="f.n * S * 0.44" />
         </g>
+        <!-- Greyed by blending a sepia over it, then a pale veil: blend modes stay vector in the PDF,
+             where a CSS filter turned every faded board into a large picture (MBs a page) -->
+        <template v-if="layer.faded">
+          <rect
+            v-for="(r, i) in layer.ground"
+            :key="`tint-${i}`"
+            class="tint"
+            :x="r.x * S - BORDER"
+            :y="r.y * S - BORDER"
+            :width="r.w * S + 2 * BORDER"
+            :height="r.h * S + 2 * BORDER"
+          />
+          <rect
+            v-for="(r, i) in layer.ground"
+            :key="`veil-${i}`"
+            class="veil"
+            :x="r.x * S - BORDER"
+            :y="r.y * S - BORDER"
+            :width="r.w * S + 2 * BORDER"
+            :height="r.h * S + 2 * BORDER"
+          />
+        </template>
       </g>
     </g>
   </svg>
@@ -308,10 +331,18 @@ const drawing = computed(() => layers.value.map(drawn))
 .ground {
   fill: #0b0b0b;
 }
-/* What is already on the table under a diagram, as the books print it: greyed, only the new in colour */
+/* What is already on the table under a diagram, as the books print it: greyed, only the new in colour.
+   The layer is its own group so that the blend only reaches what is under it. */
 .faded {
-  opacity: 0.8;
-  filter: grayscale(1) sepia(0.45) brightness(1.08) contrast(0.8);
+  isolation: isolate;
+}
+.tint {
+  fill: #8c7a5e;
+  mix-blend-mode: color;
+}
+.veil {
+  fill: #e9dcc3;
+  opacity: 0.35;
 }
 .edge {
   fill: none;

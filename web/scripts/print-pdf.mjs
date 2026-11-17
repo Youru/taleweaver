@@ -37,6 +37,8 @@ try {
   await page.locator('.sheets').waitFor()
   // The booklet's page numbers, once every step has measured its sheets
   if (!node && !cards) await page.locator('.sheets[data-paged]').waitFor()
+  // The pictures of the maps re-encoded lighter (lib/lightImage.ts)
+  await page.locator('.sheets[data-images-ready]').waitFor()
   await page.waitForLoadState('networkidle')
   await page.emulateMedia({ media: 'print' })
   await page.pdf({ path: out, preferCSSPageSize: true, printBackground: true })

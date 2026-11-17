@@ -8,7 +8,7 @@ import { join } from 'node:path'
 const args = process.argv.slice(2)
 const at = args.indexOf('--api')
 const api = at >= 0 ? args.splice(at, 2)[1] : 'http://localhost:5145'
-const [out = '../../assets/templates/encounter', width = '2550', quality = '0.82'] = args
+const [out = '../../assets/templates/encounter', width = '1700', quality = '0.72'] = args
 const browser = await chromium.launch({ channel: 'msedge' })
 const page = await browser.newPage()
 await page.goto(`${api}/api/packs`)
