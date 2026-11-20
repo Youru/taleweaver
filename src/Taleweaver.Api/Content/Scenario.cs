@@ -452,6 +452,13 @@ public sealed record ScenarioAction
 
     public IReadOnlyList<ActionOption>? Options { get; init; }
 
+    /// <summary>branch: the conditions (all must hold) choosing between <see cref="Then"/> and <see cref="Else"/>.</summary>
+    public IReadOnlyList<EventCondition>? If { get; init; }
+
+    public IReadOnlyList<ScenarioAction>? Then { get; init; }
+
+    public IReadOnlyList<ScenarioAction>? Else { get; init; }
+
     [JsonExtensionData]
     public IDictionary<string, JsonElement>? Extra { get; init; }
 
@@ -459,7 +466,7 @@ public sealed record ScenarioAction
     public IEnumerable<ScenarioAction> SelfAndDescendants()
     {
         yield return this;
-        foreach (var branch in new[] { Pass, Masterful, Fail, Fallback, Actions })
+        foreach (var branch in new[] { Pass, Masterful, Fail, Fallback, Actions, Then, Else })
         {
             foreach (var action in Flatten(branch))
             {

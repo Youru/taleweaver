@@ -32,7 +32,7 @@ public static class ScenarioChecker
         "goToNode", "showText", "gainGold", "gainXp", "gainItem", "restore", "revealHiddenCard", "setFlag", "setVar",
         "askChoice", "askSkillCheck", "readHiddenRule", "placeToken", "removeToken", "activateToken", "spawn",
         "appendAiStep", "revealArea", "placeDiagram", "addEndCondition", "endEncounter", "addUrgency",
-        "restoreCombatant", "replaceInitiativeCard", "defeatAdventurer",
+        "restoreCombatant", "replaceInitiativeCard", "defeatAdventurer", "navigate", "addVar", "branch", "askNumber",
     };
 
     /// <summary>The triggers the engine fires.</summary>

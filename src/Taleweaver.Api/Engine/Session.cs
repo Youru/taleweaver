@@ -157,6 +157,9 @@ internal sealed partial class Session(GameState state, GameContext context)
                 }
 
                 break;
+            case PromptKinds.Number when command.Value is { } value && prompt.Action?.Do == "askNumber":
+                SetVariable(ExtraString(prompt.Action, "var"), JsonSerializer.SerializeToElement(value));
+                break;
             case PromptKinds.Number when command.Value is { } value:
                 RestoreCombatant(prompt.Action!, Math.Max(0, value));
                 break;

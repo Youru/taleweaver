@@ -417,6 +417,8 @@ type TextAction = {
   masterful?: TextAction[]
   fail?: TextAction[]
   fallback?: TextAction[]
+  then?: TextAction[]
+  else?: TextAction[]
 }
 
 /**
@@ -439,6 +441,8 @@ export function eventTexts(event: TextEvent, language: Language): string[] {
       walk(action.masterful)
       walk(action.fail)
       walk(action.fallback)
+      walk(action.then)
+      walk(action.else)
     }
   }
   walk(event.actions)

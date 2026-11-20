@@ -40,6 +40,15 @@ internal sealed partial class Session
             case "setFlag":
                 SetVariable(ExtraString(action, "flag"), JsonSerializer.SerializeToElement(true));
                 break;
+            case "addVar":
+                AddToVariable(ExtraString(action, "var"), action.Amount ?? 1, ExtraNumber(action, "min"));
+                break;
+            case "branch":
+                Push((action.If ?? []).All(IsTrue) ? action.Then ?? [] : action.Else ?? []);
+                break;
+            case "askNumber":
+                Ask(PromptKinds.Number, action.Question ?? action.Text, [], action);
+                break;
             case "setVar":
                 SetVariable(ExtraString(action, "var"), action.Extra?.TryGetValue("value", out var value) == true ? value : JsonSerializer.SerializeToElement(true));
                 break;
@@ -168,6 +177,27 @@ internal sealed partial class Session
         }
     }
 
+    /// <summary>A counter of the campaign (the MAST grade…): adds, never below <paramref name="min"/> when given.</summary>
+    private void AddToVariable(string? name, int amount, int? min)
+    {
+        if (name is null)
+        {
+            return;
+        }
+
+        var current = State.Campaign.Variables.TryGetValue(name, out var stored) && stored.ValueKind == JsonValueKind.Number ? stored.GetInt32() : 0;
+        var next = current + amount;
+        if (min is { } floor && next < floor)
+        {
+            next = floor;
+        }
+
+        SetVariable(name, JsonSerializer.SerializeToElement(next));
+    }
+
+    private static int? ExtraNumber(ScenarioAction action, string key) =>
+        action.Extra?.TryGetValue(key, out var value) == true && value.TryGetInt32(out var number) ? number : null;
+
     private void AskSkillCheck(ScenarioAction action)
     {
         var options = (action.Options ?? [])
@@ -211,22 +241,38 @@ internal sealed partial class Session
         Fire(e => e.Trigger.On == "hiddenRuleRead" && (e.Trigger.Rule is null || e.Trigger.Rule == rule.Id));
     }
 
+    /// <summary>
+    /// A random loot token: one of those the encounter describes, not on the board yet (nor placed by the same map).
+    /// Null when none is left.
+    /// </summary>
+    private string? RandomColor(string type, IReadOnlySet<string>? alsoTaken = null)
+    {
+        var onBoard = Encounter.Tokens.Where(t => !t.Removed).Select(t => t.Key).ToHashSet();
+        var candidates = EncounterNode.Tokens.Keys
+            .Where(k => k.StartsWith($"{type}:", StringComparison.Ordinal) && !onBoard.Contains(k) && alsoTaken?.Contains(k) != true)
+            .ToList();
+        if (candidates.Count == 0)
+        {
+            Log("noTokenLeft", args: Args(("type", type)));
+            return null;
+        }
+
+        var color = candidates[NextRandom(candidates.Count)][(type.Length + 1)..];
+        Log("randomToken", args: Args(("token", $"{type}:{color}")));
+        return color;
+    }
+
     private void PlaceToken(ScenarioAction action)
     {
         var type = TokenType(action.Type ?? "token");
         var color = action.Color;
         if (color == "random")
         {
-            // A random loot token among those the encounter describes and that are not on the board yet.
-            var onBoard = Encounter.Tokens.Where(t => !t.Removed).Select(t => t.Key).ToHashSet();
-            var candidates = EncounterNode.Tokens.Keys.Where(k => k.StartsWith($"{type}:", StringComparison.Ordinal) && !onBoard.Contains(k)).ToList();
-            if (candidates.Count == 0)
+            color = RandomColor(type);
+            if (color is null)
             {
-                Log("noTokenLeft", args: Args(("type", type)));
                 return;
             }
-
-            color = candidates[NextRandom(candidates.Count)][(type.Length + 1)..];
         }
 
         var key = color is null ? type : $"{type}:{color}";
@@ -336,15 +382,18 @@ internal sealed partial class Session
 
     private void AddTokens(BoardMap? map)
     {
-        foreach (var token in map?.Tokens ?? [])
+        var tokens = map?.Tokens ?? [];
+        var explicitKeys = tokens.Where(t => t.Color is not null and not "random").Select(t => $"{TokenType(t.Type)}:{t.Color}").ToHashSet();
+        foreach (var token in tokens)
         {
             var type = TokenType(token.Type);
+            var color = token.Color == "random" ? RandomColor(type, explicitKeys) : token.Color;
             Encounter.Tokens.Add(new BoardToken
             {
                 Id = token.Id,
-                Key = token.Color is null ? type : $"{type}:{token.Color}",
+                Key = color is null ? type : $"{type}:{color}",
                 Type = token.Type,
-                Color = token.Color,
+                Color = color,
                 Image = token.Image,
                 Area = token.Footprint,
             });

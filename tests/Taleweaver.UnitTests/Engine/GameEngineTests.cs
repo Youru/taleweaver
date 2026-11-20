@@ -438,6 +438,75 @@ public class GameEngineTests
         game.Encounter.Tokens.Should().Contain(t => t.Id.EndsWith("-water", StringComparison.Ordinal) && !t.Removed);
     }
 
+    [Fact]
+    public void AskNumber_Answered_StoresTheNumberInTheVariable()
+    {
+        var game = Game(new ScenarioAction
+        {
+            Do = "askNumber",
+            Question = En("Score of this encounter?"),
+            Extra = new Dictionary<string, System.Text.Json.JsonElement> { ["var"] = System.Text.Json.JsonSerializer.SerializeToElement("score") },
+        }).Continue();
+
+        game.Do(GameCommand.ActivateToken("totem:red"));
+        game.State.Prompt!.Kind.Should().Be(PromptKinds.Number);
+        game.Do(GameCommand.AnswerNumber(7));
+
+        game.State.Campaign.Variables["score"].GetInt32().Should().Be(7);
+    }
+
+    [Theory]
+    [InlineData(5, "Twelve!")]
+    [InlineData(1, "Not twelve.")]
+    public void Branch_Condition_RunsThenOrElse(int added, string expected)
+    {
+        static Dictionary<string, System.Text.Json.JsonElement> Var(string name, int? min = null)
+        {
+            var extra = new Dictionary<string, System.Text.Json.JsonElement> { ["var"] = System.Text.Json.JsonSerializer.SerializeToElement(name) };
+            if (min is { } m)
+            {
+                extra["min"] = System.Text.Json.JsonSerializer.SerializeToElement(m);
+            }
+
+            return extra;
+        }
+
+        var game = Game(new ScenarioAction
+        {
+            Do = "showText",
+            Text = En("Grading"),
+        }).Continue();
+        game.State.Campaign.Variables["grade"] = System.Text.Json.JsonSerializer.SerializeToElement(7);
+        var actions = new List<ScenarioAction>
+        {
+            new() { Do = "addVar", Amount = added, Extra = Var("grade") },
+            new()
+            {
+                Do = "branch",
+                If = [new EventCondition { Var = "grade", Op = ">=", Value = System.Text.Json.JsonSerializer.SerializeToElement(12) }],
+                Then = [new ScenarioAction { Do = "showText", Text = En("Twelve!") }],
+                Else = [new ScenarioAction { Do = "showText", Text = En("Not twelve.") }],
+            },
+            new() { Do = "addVar", Amount = -50, Extra = Var("floor", min: 0) },
+        };
+        game.State.PendingActions.AddRange(actions);
+
+        game.Do(GameCommand.SetEffect("adventurer:Rook", "darkness", true));
+
+        game.State.Log.Should().Contain(l => l.Code == "text" && l.Text!["en"] == expected);
+        game.State.Campaign.Variables["floor"].GetInt32().Should().Be(0);
+    }
+
+    [Fact]
+    public void EnterEncounter_RandomLootOnTheMap_DrawsOneOfTheDescribedColours()
+    {
+        var game = Game();
+
+        game.Continue();
+
+        game.Encounter.Tokens.Single(t => t.Id == "random-loot").Key.Should().BeOneOf("loot:green", "loot:yellow");
+    }
+
     private static EngineDriver Game(ScenarioAction? spawn = null, Catalog? catalog = null)
     {
         var scenario = new Scenario
@@ -463,6 +532,8 @@ public class GameEngineTests
                         [
                             new MapToken { Id = "t", Type = "hb:token/totem", Color = "red", Image = "assets/hb/totem-old.png" },
                             new MapToken { Id = "pit", Type = "hb:token/terrain/dangerous", X = 2, Y = 2 },
+                            new MapToken { Id = "random-loot", Type = "hb:token/loot", Color = "random", X = 4, Y = 4 },
+                            new MapToken { Id = "blue-loot", Type = "hb:token/loot", Color = "blue", X = 5, Y = 4 },
                         ],
                     },
                     Diagrams =
@@ -490,7 +561,13 @@ public class GameEngineTests
                             Map = new BoardMap { Tokens = [new MapToken { Id = "puddle-water", Type = "hb:token/terrain/water", X = 2, Y = 2 }] },
                         },
                     ],
-                    Tokens = new Dictionary<string, TokenRule> { ["totem:red"] = new() { Events = ["totem"] } },
+                    Tokens = new Dictionary<string, TokenRule>
+                    {
+                        ["totem:red"] = new() { Events = ["totem"] },
+                        ["loot:blue"] = new(),
+                        ["loot:green"] = new(),
+                        ["loot:yellow"] = new(),
+                    },
                     Events =
                     [
                         new ScenarioEvent
