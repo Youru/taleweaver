@@ -215,6 +215,11 @@ export const messages = {
       removeDiagram: 'Retirer le schéma',
       editDiagramMap: 'Carte du schéma',
       diagramRules: 'Règles spéciales du schéma',
+      search: {
+        label: 'Aller à une étape',
+        placeholder: 'Chercher une étape (titre, id, texte)…',
+        none: 'Aucune étape trouvée',
+      },
       undo: 'Annuler (Ctrl+Z)',
       redo: 'Rétablir (Ctrl+Y)',
       hiddenRules: {
@@ -930,6 +935,11 @@ export const messages = {
       removeDiagram: 'Remove the diagram',
       editDiagramMap: 'Diagram map',
       diagramRules: 'Special rules of the diagram',
+      search: {
+        label: 'Go to a step',
+        placeholder: 'Find a step (title, id, text)…',
+        none: 'No step found',
+      },
       undo: 'Undo (Ctrl+Z)',
       redo: 'Redo (Ctrl+Y)',
       hiddenRules: {

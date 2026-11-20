@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 import { VueFlow, useVueFlow, type Connection, type Edge, type EdgeChange, type Node } from '@vue-flow/core'
@@ -8,10 +8,12 @@ import { Controls } from '@vue-flow/controls'
 import '@vue-flow/core/dist/style.css'
 import '@vue-flow/core/dist/theme-default.css'
 import '@vue-flow/controls/dist/style.css'
+import AutoComplete, { type AutoCompleteCompleteEvent, type AutoCompleteOptionSelectEvent } from 'primevue/autocomplete'
 import { pick } from '@/shared/lib/localized'
 import { usePreferences } from '@/shared/lib/preferences'
 import type { DraftScenario, Position } from '../api/types'
 import { captionOf, endingsOf, exitsOf, isEnding, type Exit } from '../lib/graph'
+import { searchNodes, type SearchHit } from '../lib/search'
 import EndingNode from './EndingNode.vue'
 import StepNode from './StepNode.vue'
 
@@ -33,7 +35,20 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const { language } = storeToRefs(usePreferences())
-const { getSelectedEdges } = useVueFlow('workshop-graph')
+const { getSelectedEdges, fitView } = useVueFlow('workshop-graph')
+
+// Find a step by its title, id or texts, then go to it
+const query = ref('')
+const hits = ref<SearchHit[]>([])
+function search(event: AutoCompleteCompleteEvent) {
+  hits.value = searchNodes(props.scenario, event.query, language.value)
+}
+function goTo(event: AutoCompleteOptionSelectEvent) {
+  const hit = event.value as SearchHit
+  emit('select', hit.id)
+  void fitView({ nodes: [hit.id], duration: 400, maxZoom: 1 })
+  query.value = ''
+}
 
 interface EndingLabel {
   caption: string
@@ -115,6 +130,30 @@ function onKeydown(event: KeyboardEvent) {
 
 <template>
   <div class="graph" role="application" :aria-label="t('workshop.graph')" tabindex="-1" @keydown="onKeydown">
+    <div class="search">
+      <AutoComplete
+        v-model="query"
+        :suggestions="hits"
+        option-label="caption"
+        :placeholder="t('workshop.search.placeholder')"
+        :aria-label="t('workshop.search.label')"
+        :empty-search-message="t('workshop.search.none')"
+        :delay="150"
+        size="small"
+        @complete="search"
+        @option-select="goTo"
+      >
+        <template #option="{ option }">
+          <div class="hit">
+            <span>
+              <i :class="option.type === 'encounter' ? 'pi pi-bolt' : 'pi pi-book'" aria-hidden="true" />
+              {{ option.caption }} <code>{{ option.id }}</code>
+            </span>
+            <small v-if="option.excerpt">{{ option.excerpt }}</small>
+          </div>
+        </template>
+      </AutoComplete>
+    </div>
     <VueFlow
       id="workshop-graph"
       :nodes="nodes"
@@ -148,12 +187,38 @@ function onKeydown(event: KeyboardEvent) {
 
 <style scoped>
 .graph {
+  position: relative;
   height: 100%;
   min-height: 20rem;
   border: 1px solid var(--p-content-border-color);
   border-radius: var(--p-content-border-radius);
   background: var(--p-content-background);
   overflow: hidden;
+}
+.search {
+  position: absolute;
+  top: 0.5rem;
+  left: 0.5rem;
+  z-index: 5;
+  width: min(20rem, calc(100% - 1rem));
+}
+.search :deep(.p-autocomplete),
+.search :deep(input) {
+  width: 100%;
+}
+.hit {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  max-width: 24rem;
+}
+.hit code {
+  font-size: 0.7rem;
+  color: var(--p-text-muted-color);
+}
+.hit small {
+  color: var(--p-text-muted-color);
+  white-space: normal;
 }
 .graph :deep(.vue-flow__edge-path) {
   stroke-width: 2.5;
