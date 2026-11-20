@@ -215,6 +215,8 @@ export const messages = {
       removeDiagram: 'Retirer le schéma',
       editDiagramMap: 'Carte du schéma',
       diagramRules: 'Règles spéciales du schéma',
+      undo: 'Annuler (Ctrl+Z)',
+      redo: 'Rétablir (Ctrl+Y)',
       hiddenRules: {
         tab: 'Règles cachées ({n})',
         hint: 'Lues seulement quand un événement ou un choix le dit (action « Lire une règle cachée »), imprimées sous le filtre rouge. Une règle peut avoir des parties (A, B…).',
@@ -928,6 +930,8 @@ export const messages = {
       removeDiagram: 'Remove the diagram',
       editDiagramMap: 'Diagram map',
       diagramRules: 'Special rules of the diagram',
+      undo: 'Undo (Ctrl+Z)',
+      redo: 'Redo (Ctrl+Y)',
       hiddenRules: {
         tab: 'Hidden rules ({n})',
         hint: 'Read only when an event or a choice says so (action “Read a hidden rule”), printed under the red filter. A rule may have parts (A, B…).',

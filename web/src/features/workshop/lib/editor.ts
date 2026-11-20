@@ -3,6 +3,7 @@ import type { Language } from '@/shared/lib/localized'
 import type { DraftNode, DraftScenario, Position, ScenarioReport } from '../api/types'
 import { workshopApi } from '../api/workshopApi'
 import { freshId, layout, newEncounter, newScene, removeNode, setExit } from './graph'
+import { createHistory } from './history'
 
 /** Labels the new nodes get, in the author's language. */
 export interface NewNodeLabels {
@@ -20,19 +21,55 @@ export function useEditor(saved: Ref<DraftScenario | undefined>, language: Ref<L
   const draft = ref<DraftScenario>()
   const dirty = ref(false)
   const selected = ref<string | null>(null)
+  const history = createHistory<DraftScenario>()
+  const canUndo = ref(false)
+  const canRedo = ref(false)
+  let savedJson = ''
 
   watch(
     saved,
     (value) => {
       // A plain deep copy (structuredClone refuses the reactive proxies of the query cache).
-      if (value && !dirty.value) draft.value = JSON.parse(JSON.stringify(value)) as DraftScenario
+      if (value && !dirty.value) {
+        savedJson = JSON.stringify(value)
+        draft.value = JSON.parse(savedJson) as DraftScenario
+        history.clear()
+        syncHistory()
+      }
     },
     { immediate: true },
   )
 
+  function syncHistory() {
+    canUndo.value = history.canUndo
+    canRedo.value = history.canRedo
+  }
+
   function change(next: DraftScenario) {
+    if (draft.value) history.record(draft.value, Date.now())
     draft.value = next
     dirty.value = true
+    syncHistory()
+  }
+
+  /** Back to the state before the last change (quick changes in a row count as one). */
+  function undo() {
+    const current = draft.value
+    const previous = current && history.undo(current)
+    if (previous) restore(previous)
+  }
+
+  function redo() {
+    const current = draft.value
+    const next = current && history.redo(current)
+    if (next) restore(next)
+  }
+
+  function restore(state: DraftScenario) {
+    draft.value = state
+    dirty.value = JSON.stringify(state) !== savedJson
+    if (selected.value && !state.nodes.some((n) => n.id === selected.value)) selected.value = null
+    syncHistory()
   }
 
   function updateNode(id: string, update: (node: DraftNode) => DraftNode) {
@@ -129,6 +166,7 @@ export function useEditor(saved: Ref<DraftScenario | undefined>, language: Ref<L
 
   /** After a save: the saved copy is the reference again. */
   function markSaved(next: ScenarioReport) {
+    savedJson = JSON.stringify(draft.value)
     dirty.value = false
     report.value = next
   }
@@ -149,6 +187,10 @@ export function useEditor(saved: Ref<DraftScenario | undefined>, language: Ref<L
     remove,
     setStart,
     markSaved,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
   }
 }
 

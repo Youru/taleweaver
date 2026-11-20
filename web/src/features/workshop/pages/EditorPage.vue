@@ -36,7 +36,7 @@ const { language } = storeToRefs(usePreferences())
 const id = computed(() => `homebrew:scenario/${props.name}`)
 const saved = useDraft(id)
 const editor = useEditor(saved.data, language)
-const { draft, dirty, selected, positions, report, checking, issuesByNode } = editor
+const { draft, dirty, selected, positions, report, checking, issuesByNode, canUndo, canRedo } = editor
 
 const node = computed(() => draft.value?.nodes.find((n) => n.id === selected.value))
 
@@ -100,9 +100,22 @@ function saveNow(then?: () => void) {
 }
 
 function onKeydown(event: KeyboardEvent) {
-  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+  if (!(event.ctrlKey || event.metaKey)) return
+  const key = event.key.toLowerCase()
+  if (key === 's') {
     event.preventDefault()
     saveNow()
+    return
+  }
+  // In a text field, the browser undoes the typing itself
+  const target = event.target
+  if (target instanceof Element && target.closest('input, textarea, [contenteditable="true"]')) return
+  if (key === 'z' && !event.shiftKey) {
+    event.preventDefault()
+    editor.undo()
+  } else if (key === 'y' || (key === 'z' && event.shiftKey)) {
+    event.preventDefault()
+    editor.redo()
   }
 }
 onMounted(() => window.addEventListener('keydown', onKeydown))
@@ -166,6 +179,24 @@ function started(game: GameView) {
           :title="t('workshop.warningsHint')"
         />
         <span class="spacer" />
+        <Button
+          icon="pi pi-undo"
+          severity="secondary"
+          text
+          :disabled="!canUndo"
+          :aria-label="t('workshop.undo')"
+          :title="t('workshop.undo')"
+          @click="editor.undo()"
+        />
+        <Button
+          icon="pi pi-refresh"
+          severity="secondary"
+          text
+          :disabled="!canRedo"
+          :aria-label="t('workshop.redo')"
+          :title="t('workshop.redo')"
+          @click="editor.redo()"
+        />
         <Button
           :label="t('workshop.addScene')"
           icon="pi pi-book"
