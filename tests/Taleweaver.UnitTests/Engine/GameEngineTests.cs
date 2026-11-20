@@ -290,6 +290,35 @@ public class GameEngineTests
     }
 
     [Fact]
+    public void EnterEncounter_TwoStartingZonesAndNoneNamed_FillsThemInTurn()
+    {
+        var scenario = new Scenario
+        {
+            Id = "hb:scenario/zones",
+            Title = En("Zones"),
+            Start = "fight",
+            Nodes =
+            [
+                new Node
+                {
+                    Id = "fight",
+                    Type = Node.EncounterType,
+                    LootLevel = "common",
+                    Map = new BoardMap
+                    {
+                        Tiles = [new MapTile("hb:tile/meadow", 0, 0, 0, null)],
+                        Zones = [new Zone("start-1", "startingZone", new Rect(0, 0, 1, 2)), new Zone("start-2", "startingZone", new Rect(0, 4, 1, 2))],
+                    },
+                },
+            ],
+        };
+
+        var game = new EngineDriver(scenario, Catalog, "Nightingale", "Rook", "Remi");
+
+        game.Encounter.Adventurers.Select(a => a.Position).Should().Equal(new Cell(0, 0), new Cell(0, 1), new Cell(0, 4));
+    }
+
+    [Fact]
     public void EnterEncounter_StartingZone_PlacesTheAdventurersRowByRow()
     {
         var game = Game().Continue();

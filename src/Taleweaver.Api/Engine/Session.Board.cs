@@ -11,12 +11,17 @@ internal sealed partial class Session
 {
     private const string AdventurerFigurePrefix = "adventurer:";
 
-    /// <summary>The adventurers stand on the squares of the starting zone, in the party's order.</summary>
+    /// <summary>
+    /// The adventurers stand on the squares of the starting zone, in the party's order: the one the setup
+    /// names, else every starting zone of the map in turn (The MAST: Day 1 has two of 2 squares).
+    /// Those left without a square are placed by the GM.
+    /// </summary>
     private void PlaceAdventurers(BoardMap? map, Setup? setup)
     {
         var zones = map?.Zones ?? [];
-        var start = zones.FirstOrDefault(z => z.Id == setup?.AdventurersStart) ?? zones.FirstOrDefault(z => z.Kind == "startingZone");
-        var squares = start is null ? [] : RowByRow(start.Rect).ToList();
+        var named = zones.FirstOrDefault(z => z.Id == setup?.AdventurersStart);
+        var starts = named is not null ? [named] : zones.Where(z => z.Kind == "startingZone").ToList();
+        var squares = starts.SelectMany(z => RowByRow(z.Rect)).ToList();
         // A NAVIGATE moves them: their Effects stay.
         var before = Encounter.Adventurers.ToDictionary(a => a.Name);
         Encounter.Adventurers = State.Campaign.Party

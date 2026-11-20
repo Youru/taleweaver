@@ -35,7 +35,8 @@ public class RepositoryContentTests(RepositoryFactory factory) : IClassFixture<R
 
         var report = await response.Content.ReadFromJsonAsync<ScenarioReport>(JsonDefaults.Options, TestContext.Current.CancellationToken);
         report!.Errors.Should().BeEmpty();
-        report.Warnings.Should().BeEmpty();
+        // The MAST: Day 1 is meant to be blocked: the party pushes the rock into the pits to get through
+        report.Warnings.Select(w => (w.Code, w.Where)).Should().Equal(("Scenarios.JumpNeeded", "the-mast-day-1/map"));
     }
 
     [Fact]
