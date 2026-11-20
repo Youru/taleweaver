@@ -111,7 +111,8 @@ const DIRECTIONS: Record<string, number> = { east: 0, south: 90, west: 180, nort
 /** The maps on the table: the encounter's own, then the diagrams placed so far. */
 export function mapsOnTable(node: ScenarioNode | undefined, encounter: EncounterState): BoardMap[] {
   const diagrams = (node?.diagrams ?? []).filter((d) => encounter.placedDiagrams.includes(d.id))
-  return [node?.map, ...diagrams.map((d) => d.map)].filter((m): m is BoardMap => !!m)
+  const own = encounter.mapCleared ? [] : [node?.map]
+  return [...own, ...diagrams.map((d) => d.map)].filter((m): m is BoardMap => !!m)
 }
 
 const covers = (r: { x: number; y: number; w: number; h: number }, x: number, y: number) =>

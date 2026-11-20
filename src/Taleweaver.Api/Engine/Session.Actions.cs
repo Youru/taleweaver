@@ -88,6 +88,9 @@ internal sealed partial class Session
             case "placeDiagram" when State.Encounter is not null:
                 PlaceDiagram(action.Diagram);
                 break;
+            case "navigate" when State.Encounter is not null:
+                Navigate(action.Diagram);
+                break;
             case "addEndCondition" when State.Encounter is not null && action.EndCondition is not null:
                 if (!Encounter.ActiveEndConditions.Contains(action.EndCondition))
                 {
@@ -255,20 +258,80 @@ internal sealed partial class Session
             return;
         }
 
-        Encounter.PlacedDiagrams.Add(diagram.Id);
         Log("placeDiagram", diagram.Label, Args(("diagram", diagram.Id), ("page", Number(diagram.Page))));
+        LayDiagram(diagram);
+        foreach (var placement in diagram.Setup?.Combatants ?? [])
+        {
+            Spawn(SpawnOf(placement), fromSetup: false, placement.InitiativeCard);
+        }
+    }
+
+    /// <summary>Its tiles and tokens join the table; its Terrain replaces the Terrain under it when it says so.</summary>
+    private void LayDiagram(Diagram diagram)
+    {
+        Encounter.PlacedDiagrams.Add(diagram.Id);
+        if (diagram.ReplacesTerrain == true)
+        {
+            var covered = (diagram.Map?.Tokens ?? []).Where(t => IsTerrain(t.Type)).SelectMany(t => t.Footprint.Cells()).ToHashSet();
+            foreach (var token in Encounter.Tokens.Where(t => !t.Removed && IsTerrain(t.Type) && t.Area is { } area && area.Cells().Any(covered.Contains)))
+            {
+                token.Removed = true;
+                Log("terrainReplaced", args: Args(("id", token.Id), ("token", token.Key)));
+            }
+        }
+
         AddTokens(diagram.Map);
         RevealAtStart(diagram.Map);
         foreach (var rule in diagram.SpecialRules)
         {
             Log("specialRule", rule.Text, Args(("rule", rule.Id), ("name", rule.Name.GetValueOrDefault("en"))));
         }
+    }
 
+    /// <summary>
+    /// The NAVIGATE tag (data model §3.7.1): the turn ends, the board is cleared (its figures are not Defeated),
+    /// the diagram is set up with the adventurers on its starting zone, then the initiative track is rebuilt,
+    /// shuffled, and the round goes on from its first turn. Round number, Urgency and defeated adventurers stay.
+    /// </summary>
+    private void Navigate(string? id)
+    {
+        var diagram = EncounterNode.Diagrams.FirstOrDefault(d => d.Id == id);
+        if (diagram is null)
+        {
+            return;
+        }
+
+        var encounter = Encounter;
+        Log("navigate", diagram.Label, Args(("diagram", diagram.Id), ("page", Number(diagram.Page))));
+        encounter.Activation = null;
+        encounter.MapCleared = true;
+        encounter.PlacedDiagrams.Clear();
+        foreach (var token in encounter.Tokens.Where(t => !t.Removed))
+        {
+            token.Removed = true;
+        }
+
+        encounter.Combatants.RemoveAll(c => !c.Defeated);
+        encounter.InitiativeTrack = State.Campaign.Party.Select(a => AdventurerCard + a.Name).ToList();
+        encounter.CurrentTurn = -1;
+        LayDiagram(diagram);
+        PlaceAdventurers(diagram.Map, diagram.Setup);
         foreach (var placement in diagram.Setup?.Combatants ?? [])
         {
-            Spawn(SpawnOf(placement), fromSetup: false, placement.InitiativeCard);
+            Spawn(SpawnOf(placement), fromSetup: true, placement.InitiativeCard);
+        }
+
+        if (encounter.Round > 0)
+        {
+            ShuffleTrack();
+            encounter.CurrentTurn = 0;
+            Log("initiativeRebuilt", args: Args(("track", string.Join(", ", encounter.InitiativeTrack))));
+            BeginTurn();
         }
     }
+
+    /// <summary>"um1:token/terrain/water" is a Terrain piece.</summary>
+    private static bool IsTerrain(string? type) => type?.Split('/') is { Length: > 2 } kind && kind[^2] == "terrain";
 
     private void AddTokens(BoardMap? map)
     {

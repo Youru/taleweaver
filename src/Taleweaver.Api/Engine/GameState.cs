@@ -93,6 +93,9 @@ public sealed class EncounterState
 
     public List<string> PlacedDiagrams { get; set; } = [];
 
+    /// <summary>A NAVIGATE cleared the encounter's own map: only the placed diagrams are on the table.</summary>
+    public bool MapCleared { get; set; }
+
     public List<string> ReadHiddenRules { get; set; } = [];
 
     public List<string> ActiveEndConditions { get; set; } = [];

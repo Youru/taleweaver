@@ -91,6 +91,12 @@ describe('boardLayout', () => {
     expect(layout.width).toBe(12)
   })
 
+  it('drops the encounter map after a NAVIGATE', () => {
+    const layout = boardLayout(node, encounter({ placedDiagrams: ['diagram-a'], mapCleared: true }), pieces)
+
+    expect(layout.tiles.map((t) => t.label)).toEqual(['UM15'])
+  })
+
   it('points a current of a tile from the centre of that tile', () => {
     const layout = boardLayout(node, encounter(), pieces)
 

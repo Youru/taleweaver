@@ -20,6 +20,8 @@ const tones: Record<string, LogTone> = {
   text: 'narrative',
   specialRule: 'narrative',
   placeDiagram: 'narrative',
+  navigate: 'narrative',
+  initiativeRebuilt: 'round',
   addEndCondition: 'narrative',
   figureTurn: 'ai',
   aiInstruction: 'ai',

@@ -41,6 +41,8 @@ export interface EncounterState {
   combatants: CombatantState[]
   tokens: BoardToken[]
   placedDiagrams: string[]
+  /** A NAVIGATE cleared the encounter's own map: only the placed diagrams are on the table. */
+  mapCleared?: boolean
   /** Fog areas revealed so far. */
   revealedAreas: string[]
   adventurers: AdventurerFigure[]

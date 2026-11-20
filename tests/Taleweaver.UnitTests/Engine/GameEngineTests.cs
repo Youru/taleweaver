@@ -377,6 +377,67 @@ public class GameEngineTests
         game.Encounter.Tokens.Single(t => t.Id == "t").Image.Should().Be("assets/hb/totem-old.png");
     }
 
+    [Fact]
+    public void Navigate_DuringARound_ReplacesTheBoardAndRestartsTheRoundFromItsFirstTurn()
+    {
+        var game = Game(new ScenarioAction { Do = "navigate", Diagram = "lair" }).Continue();
+        game.Do(GameCommand.SetEffect("adventurer:Rook", "darkness", true)).Do(GameCommand.NextTurn());
+        var draws = game.State.RandomDraws;
+
+        game.Do(GameCommand.ActivateToken("totem:red"));
+
+        var encounter = game.Encounter;
+        encounter.Round.Should().Be(1);
+        encounter.CurrentTurn.Should().Be(0);
+        game.State.RandomDraws.Should().BeGreaterThan(draws, "the new initiative track is shuffled");
+        encounter.InitiativeTrack.Should().BeEquivalentTo(["adventurer:Nightingale", "adventurer:Rook", "hb:initiative/imp-1-3"]);
+        encounter.Combatants.Select(c => c.Instance).Should().Equal("imp-1");
+        game.Combatant("imp-1").Position.Should().Be(new Cell(14, 1));
+        game.Codes.Should().NotContain("defeat", "figures removed by NAVIGATE are not Defeated");
+        encounter.MapCleared.Should().BeTrue();
+        encounter.PlacedDiagrams.Should().Equal("lair");
+        encounter.Tokens.Where(t => !t.Removed).Select(t => t.Id).Should().Equal("exit");
+        encounter.Adventurers.Select(a => (a.Name, a.Position)).Should().Equal(("Nightingale", new Cell(12, 5)), ("Rook", new Cell(13, 5)));
+        encounter.Adventurers.Single(a => a.Name == "Rook").Effects.Should().Equal("darkness");
+        game.Codes.Should().Contain("navigate").And.NotContain("manualAction");
+    }
+
+    [Fact]
+    public void Navigate_BeforeTheFirstRound_LetsTheFirstRoundStartAsUsual()
+    {
+        var game = Game(new ScenarioAction { Do = "navigate", Diagram = "lair" }).Continue();
+
+        game.Do(GameCommand.ActivateToken("totem:red"));
+        game.Encounter.CurrentTurn.Should().Be(-1);
+        game.Do(GameCommand.NextTurn());
+
+        game.Encounter.Round.Should().Be(1);
+        game.Encounter.InitiativeTrack.Should().HaveCount(3);
+    }
+
+    [Fact]
+    public void RevealArea_AfterNavigate_OnlyKnowsTheAreasOfTheNewBoard()
+    {
+        var game = Game(new ScenarioAction { Do = "navigate", Diagram = "lair" }).Continue();
+
+        game.Do(GameCommand.ActivateToken("totem:red"));
+
+        GameEngine.Apply(game.State, GameCommand.RevealArea("crypt"), game.Context).Error.Should().Be(GameEngine.Errors.UnknownArea("crypt"));
+    }
+
+    [Theory]
+    [InlineData("flood", true)]
+    [InlineData("puddle", false)]
+    public void PlaceDiagram_ReplacesTerrain_RemovesTheTerrainUnderItsOwn(string diagram, bool replaced)
+    {
+        var game = Game(new ScenarioAction { Do = "placeDiagram", Diagram = diagram }).Continue();
+
+        game.Do(GameCommand.ActivateToken("totem:red"));
+
+        game.Encounter.Tokens.Single(t => t.Id == "pit").Removed.Should().Be(replaced);
+        game.Encounter.Tokens.Should().Contain(t => t.Id.EndsWith("-water", StringComparison.Ordinal) && !t.Removed);
+    }
+
     private static EngineDriver Game(ScenarioAction? spawn = null, Catalog? catalog = null)
     {
         var scenario = new Scenario
@@ -398,8 +459,37 @@ public class GameEngineTests
                         Tiles = [new MapTile("hb:tile/meadow", 0, 0, 0, "hall"), new MapTile("hb:tile/meadow", 6, 0, 0, "crypt")],
                         Areas = [new FogArea("hall"), new FogArea("crypt", RevealedAtStart: false, Name: En("The Crypt"))],
                         Zones = [new Zone("start", "startingZone", new Rect(0, 4, 2, 2))],
-                        Tokens = [new MapToken { Id = "t", Type = "hb:token/totem", Color = "red", Image = "assets/hb/totem-old.png" }],
+                        Tokens =
+                        [
+                            new MapToken { Id = "t", Type = "hb:token/totem", Color = "red", Image = "assets/hb/totem-old.png" },
+                            new MapToken { Id = "pit", Type = "hb:token/terrain/dangerous", X = 2, Y = 2 },
+                        ],
                     },
+                    Diagrams =
+                    [
+                        new Diagram
+                        {
+                            Id = "lair",
+                            Map = new BoardMap
+                            {
+                                Tiles = [new MapTile("hb:tile/meadow", 12, 0, 0, null)],
+                                Zones = [new Zone("lair-start", "startingZone", new Rect(12, 5, 2, 1))],
+                                Tokens = [new MapToken { Id = "exit", Type = "hb:token/exit", Color = "blue", X = 17, Y = 0 }],
+                            },
+                            Setup = new Setup { Combatants = [new CombatantPlacement { Family = "imp", At = new Cell(14, 1) }], AdventurersStart = "lair-start" },
+                        },
+                        new Diagram
+                        {
+                            Id = "flood",
+                            ReplacesTerrain = true,
+                            Map = new BoardMap { Tokens = [new MapToken { Id = "flood-water", Type = "hb:token/terrain/water", X = 2, Y = 2, W = 2 }] },
+                        },
+                        new Diagram
+                        {
+                            Id = "puddle",
+                            Map = new BoardMap { Tokens = [new MapToken { Id = "puddle-water", Type = "hb:token/terrain/water", X = 2, Y = 2 }] },
+                        },
+                    ],
                     Tokens = new Dictionary<string, TokenRule> { ["totem:red"] = new() { Events = ["totem"] } },
                     Events =
                     [

@@ -47,7 +47,7 @@ internal sealed partial class Session
 
         AddTokens(node.Map);
         RevealAtStart(node.Map);
-        PlaceAdventurers(node);
+        PlaceAdventurers(node.Map, node.Setup);
         foreach (var placement in node.Setup?.Combatants ?? [])
         {
             Spawn(SpawnOf(placement), fromSetup: true, placement.InitiativeCard);
@@ -84,17 +84,21 @@ internal sealed partial class Session
         var encounter = Encounter;
         encounter.Round++;
         encounter.RoundLog = new RoundLog();
-        var track = encounter.InitiativeTrack;
+        ShuffleTrack();
+        encounter.CurrentTurn = 0;
+        Log("roundStart", args: Args(("round", Number(encounter.Round)), ("track", string.Join(", ", encounter.InitiativeTrack))));
+        Fire(e => e.Trigger.On == "roundStart" && (e.Trigger.Round is null || e.Trigger.Round == encounter.Round));
+        BeginTurn();
+    }
+
+    private void ShuffleTrack()
+    {
+        var track = Encounter.InitiativeTrack;
         for (var i = track.Count - 1; i > 0; i--)
         {
             var j = NextRandom(i + 1);
             (track[i], track[j]) = (track[j], track[i]);
         }
-
-        encounter.CurrentTurn = 0;
-        Log("roundStart", args: Args(("round", Number(encounter.Round)), ("track", string.Join(", ", track))));
-        Fire(e => e.Trigger.On == "roundStart" && (e.Trigger.Round is null || e.Trigger.Round == encounter.Round));
-        BeginTurn();
     }
 
     /// <summary>Urgency (rulebook p. 18): a round with no true AI step, no opponent defeated and none spawned adds a token.</summary>

@@ -12,13 +12,20 @@ internal sealed partial class Session
     private const string AdventurerFigurePrefix = "adventurer:";
 
     /// <summary>The adventurers stand on the squares of the starting zone, in the party's order.</summary>
-    private void PlaceAdventurers(Node node)
+    private void PlaceAdventurers(BoardMap? map, Setup? setup)
     {
-        var zones = node.Map?.Zones ?? [];
-        var start = zones.FirstOrDefault(z => z.Id == node.Setup?.AdventurersStart) ?? zones.FirstOrDefault(z => z.Kind == "startingZone");
+        var zones = map?.Zones ?? [];
+        var start = zones.FirstOrDefault(z => z.Id == setup?.AdventurersStart) ?? zones.FirstOrDefault(z => z.Kind == "startingZone");
         var squares = start is null ? [] : RowByRow(start.Rect).ToList();
+        // A NAVIGATE moves them: their Effects stay.
+        var before = Encounter.Adventurers.ToDictionary(a => a.Name);
         Encounter.Adventurers = State.Campaign.Party
-            .Select((adventurer, i) => new AdventurerFigure { Name = adventurer.Name, Position = i < squares.Count ? squares[i] : null })
+            .Select((adventurer, i) => new AdventurerFigure
+            {
+                Name = adventurer.Name,
+                Position = i < squares.Count ? squares[i] : null,
+                Effects = before.TryGetValue(adventurer.Name, out var figure) ? figure.Effects : [],
+            })
             .ToList();
     }
 
@@ -70,7 +77,7 @@ internal sealed partial class Session
     {
         var node = EncounterNode;
         var diagrams = node.Diagrams.Where(d => Encounter.PlacedDiagrams.Contains(d.Id)).Select(d => d.Map);
-        return new[] { node.Map }.Concat(diagrams).SelectMany(m => m?.Areas ?? []);
+        return (Encounter.MapCleared ? diagrams : new[] { node.Map }.Concat(diagrams)).SelectMany(m => m?.Areas ?? []);
     }
 
     private Result RevealAreaCommand(string? id)
