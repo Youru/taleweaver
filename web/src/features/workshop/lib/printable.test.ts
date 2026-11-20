@@ -106,6 +106,23 @@ it('reads the start first, then the steps in the order of the file', () => {
   expect(readingOrder(scenario).map((n) => n.id)).toEqual(['intro', 'fight', 'after'])
 })
 
+it("keeps a chapter's steps only, in their order, for the chapter's booklet", () => {
+  const saga = {
+    ...scenario,
+    start: 'b',
+    chapters: [{ id: 'one' }, { id: 'two' }],
+    nodes: [
+      { id: 'a', type: 'scene', chapter: 'one' },
+      { id: 'b', type: 'scene', chapter: 'one' },
+      { id: 'c', type: 'scene', chapter: 'two' },
+      { id: 'd', type: 'scene', chapter: 'two' },
+    ],
+  }
+
+  expect(readingOrder(saga, 'one').map((n) => n.id)).toEqual(['b', 'a'])
+  expect(readingOrder(saga, 'two').map((n) => n.id)).toEqual(['c', 'd'])
+})
+
 it('names the terrain as the books do, without the size of its name', () => {
   expect(terrainName('Obstructing 1X2')).toBe('Obstructing')
   expect(terrainName('Terrain Light Water 2X2')).toBe('Water')

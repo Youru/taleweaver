@@ -87,6 +87,8 @@ export function encounterSheet(
   tokenLabel: (name: string, color: string) => string = (name, color) => `${color} ${name}`,
   /** What starts an event in words ("Enemy defeated"), for the hidden texts tied to no token. */
   triggerName: (on: string) => string = (on) => on,
+  /** How a step an end condition leads to is named (a chapter booklet names the chapter of a step outside it). */
+  stepCaption: (step: DraftNode) => string = (step) => captionOf(step, language),
 ): EncounterSheet {
   const text = (value: LocalizedText | undefined) => pick(value, language)
   const map = mapOf(node)
@@ -99,7 +101,7 @@ export function encounterSheet(
   const caption = (target: string | undefined) => {
     if (!target) return undefined
     const step = scenario.nodes.find((n) => n.id === target)
-    return step ? captionOf(step, language) : target
+    return step ? stepCaption(step) : target
   }
   let wins = 0
   const ends = (node.endConditions ?? []).map((e) => ({
@@ -365,9 +367,11 @@ const capitalize = (value: string) => value.charAt(0).toUpperCase() + value.slic
  * the author's (the official books do not follow the exits: The Cave Sickle Queen prints the
  * alternate path, Sickle Spelunking, before Damp Depths).
  */
-export function readingOrder(scenario: DraftScenario): DraftNode[] {
-  const start = scenario.nodes.find((n) => n.id === scenario.start)
-  return start ? [start, ...scenario.nodes.filter((n) => n !== start)] : [...scenario.nodes]
+export function readingOrder(scenario: DraftScenario, chapter?: string): DraftNode[] {
+  // A chapter's booklet: its steps only, in the order of its folder (the start first if it is there)
+  const nodes = chapter ? scenario.nodes.filter((n) => n.chapter === chapter) : scenario.nodes
+  const start = nodes.find((n) => n.id === scenario.start)
+  return start ? [start, ...nodes.filter((n) => n !== start)] : [...nodes]
 }
 
 /** Setup groups printed beside the first half of a large map; the others go beside the second half. */

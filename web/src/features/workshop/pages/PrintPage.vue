@@ -25,6 +25,7 @@ import { encounterSheet, readingOrder, setupLines } from '../lib/printable'
 import { useEndingLabel } from '../lib/endings'
 import { pendingImages } from '../lib/lightImage'
 import { OUTSIDE_RANGE, parsePages } from '../lib/pageRange'
+import { chapterCaption, chaptersOf } from '../lib/chapters'
 
 /**
  * The scenario on paper: one encounter, the whole booklet (cover, steps numbered §1, §2… in
@@ -47,7 +48,23 @@ const what = computed<What>(() => (route.query.node ? 'encounter' : route.query.
 const veiled = ref(route.query.veiled !== '0')
 watch(veiled, (v) => router.replace({ query: { ...route.query, veiled: v ? undefined : '0' } }))
 
-const steps = computed(() => (scenario.value ? readingOrder(scenario.value) : []))
+// The booklet of one chapter (campaign folder): its steps only, numbered on their own, so that an act
+// is never rendered whole in one tab
+const chapter = computed(() =>
+  what.value === 'booklet' && typeof route.query.chapter === 'string' ? route.query.chapter : undefined,
+)
+const chapters = computed(() => (scenario.value ? chaptersOf(scenario.value) : []))
+const chapterTitle = (id: string | undefined) =>
+  chapterCaption(
+    chapters.value.find((c) => c.id === id),
+    language.value,
+  )
+const steps = computed(() => (scenario.value ? readingOrder(scenario.value, chapter.value) : []))
+/** A step of another chapter is named with its chapter (its page is in another booklet). */
+const stepCaption = (node: DraftNode) =>
+  chapter.value && node.chapter !== chapter.value
+    ? t('workshop.print.stepInChapter', { step: captionOf(node, language.value), chapter: chapterTitle(node.chapter) })
+    : captionOf(node, language.value)
 
 // Part of the booklet ("5-12"): the pages keep the numbers and cross-references of the whole booklet,
 // those outside are faded on screen and left out when printing
@@ -90,6 +107,7 @@ const sheetOf = (node: DraftNode) =>
     colorName,
     (name, color) => t('workshop.print.tokenLabel', { name, color }),
     (on) => t(`workshop.events.on.${on}`, on),
+    stepCaption,
   )
 
 const shown = computed(() => {
@@ -120,6 +138,10 @@ const diagrams = computed(() =>
 const encounters = computed(() => (scenario.value?.nodes ?? []).filter((n) => n.type === 'encounter'))
 const options = computed(() => [
   { value: '@booklet', label: t('workshop.print.booklet') },
+  ...chapters.value.map((c) => ({
+    value: `@chapter:${c.id}`,
+    label: t('workshop.print.chapterBooklet', { chapter: chapterCaption(c, language.value) }),
+  })),
   { value: '@cards', label: t('workshop.print.cards') },
   ...encounters.value.map((n) => ({
     value: n.id,
@@ -127,12 +149,25 @@ const options = computed(() => [
   })),
 ])
 const choice = computed(() =>
-  what.value === 'encounter' ? String(route.query.node) : what.value === 'cards' ? '@cards' : '@booklet',
+  what.value === 'encounter'
+    ? String(route.query.node)
+    : what.value === 'cards'
+      ? '@cards'
+      : chapter.value
+        ? `@chapter:${chapter.value}`
+        : '@booklet',
 )
 function choose(value: string) {
   const query = { scenario: scenarioId.value, veiled: route.query.veiled, pages: route.query.pages }
   void router.replace({
-    query: value === '@booklet' ? query : value === '@cards' ? { ...query, what: 'cards' } : { ...query, node: value },
+    query:
+      value === '@booklet'
+        ? query
+        : value.startsWith('@chapter:')
+          ? { ...query, chapter: value.slice('@chapter:'.length) }
+          : value === '@cards'
+            ? { ...query, what: 'cards' }
+            : { ...query, node: value },
   })
 }
 
@@ -143,10 +178,7 @@ const leads = (node: DraftNode) =>
     to: exit.target?.startsWith('@') ? endingLabel(exit.target) : exit.target ? stepLabel(exit.target) : '—',
   }))
 const stepLabel = (id: string) => {
-  const caption = captionOf(
-    scenario.value!.nodes.find((n) => n.id === id)!,
-    language.value,
-  )
+  const caption = stepCaption(scenario.value!.nodes.find((n) => n.id === id)!)
   const page = pageOfNode(id)
   return page ? t('workshop.print.stepAt', { step: caption, number: page }) : caption
 }
@@ -184,6 +216,7 @@ const download = () =>
     what: typeof route.query.what === 'string' ? route.query.what : undefined,
     veiled: veiled.value ? undefined : '0',
     pages: inRange.value ? pages.value.trim() : undefined,
+    chapter: chapter.value,
   })
 const backTo = computed(() =>
   scenarioId.value.startsWith('homebrew:')
@@ -267,6 +300,7 @@ const backTo = computed(() =>
         <section v-if="what === 'booklet'" class="cover" :class="{ outside: outside(1) }">
           <p class="kind">{{ scenario.kind ? t(`workshop.print.kind.${scenario.kind}`, scenario.kind) : '' }}</p>
           <h1>{{ pick(scenario.title, language) }}</h1>
+          <h2 v-if="chapter" class="chapter">{{ chapterTitle(chapter) }}</h2>
           <p class="made">{{ t('workshop.print.made') }}</p>
           <ol class="contents">
             <li v-for="node in steps" :key="node.id">
@@ -402,6 +436,14 @@ const backTo = computed(() =>
   font-variant: small-caps;
   font-size: 40pt;
   line-height: 1.05;
+}
+.cover .chapter {
+  margin: 0.15in 0 0;
+  color: #f3e9d8;
+  font-family: 'Cinzel', 'Trajan Pro', 'Palatino Linotype', 'Book Antiqua', Georgia, serif;
+  font-variant: small-caps;
+  font-size: 22pt;
+  font-weight: normal;
 }
 .cover .kind,
 .cover .made {

@@ -29,7 +29,8 @@ public interface IPdfPrinter
 public static class PrintPdf
 {
     /// <param name="Pages">Part of the booklet ("5-12, 20"), numbered as in the whole booklet.</param>
-    public sealed record Request(string? Scenario, string? Node, string? What, string? Veiled, string? Pages = null);
+    /// <param name="Chapter">The booklet of one chapter of a campaign folder, numbered on its own.</param>
+    public sealed record Request(string? Scenario, string? Node, string? What, string? Veiled, string? Pages = null, string? Chapter = null);
 
     public static class Errors
     {
@@ -64,12 +65,15 @@ public static class PrintPdf
             return pdf.IsSuccess ? (pdf.Value, FileName(request)) : pdf.Error!;
         }
 
-        /// <summary>"la-crypte-des-saules-marsh.pdf", "…-cards.pdf", "….pdf".</summary>
+        /// <summary>"la-crypte-des-saules-marsh.pdf", "…-cards.pdf", "act1-chapter-01.pdf", "….pdf".</summary>
         public static string FileName(Request request)
         {
             var scenario = request.Scenario ?? "scenario";
             var name = scenario[(scenario.LastIndexOf('/') + 1)..];
-            var part = request.What is { Length: > 0 } what ? $"-{what.TrimStart('@')}" : request.Node is { Length: > 0 } node ? $"-{node}" : "";
+            var part = request.What is { Length: > 0 } what ? $"-{what.TrimStart('@')}"
+                : request.Node is { Length: > 0 } node ? $"-{node}"
+                : request.Chapter is { Length: > 0 } chapter ? $"-{chapter}"
+                : "";
             var pages = request.Pages is { Length: > 0 } range ? $"-p{range.Replace(" ", "", StringComparison.Ordinal).Replace(',', '_')}" : "";
             var file = $"{name}{part}{pages}.pdf";
             return string.Concat(file.Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '-' : c));
@@ -83,6 +87,7 @@ public static class PrintPdf
             var parts = new (string Key, string? Value)[]
             {
                 ("scenario", request.Scenario), ("node", request.Node), ("what", request.What), ("veiled", request.Veiled), ("pages", request.Pages),
+                ("chapter", request.Chapter),
             };
             return QueryString.Create(parts.Where(p => !string.IsNullOrEmpty(p.Value)).Select(p => new KeyValuePair<string, string?>(p.Key, p.Value))).ToString();
         }

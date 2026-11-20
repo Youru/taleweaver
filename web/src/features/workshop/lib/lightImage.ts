@@ -29,8 +29,13 @@ export function lightImage(url: string | undefined): string | undefined {
 
 async function reencode(url: string): Promise<string> {
   const img = new Image()
-  img.src = url
-  await img.decode()
+  // The load event, not img.decode(): decode() may never settle in a page the browser does not
+  // paint (seen in the app's browser pane), which left the print page waiting forever.
+  await new Promise<void>((resolve, reject) => {
+    img.onload = () => resolve()
+    img.onerror = () => reject(new Error(`image not loaded: ${url}`))
+    img.src = url
+  })
   const canvas = document.createElement('canvas')
   canvas.width = img.naturalWidth
   canvas.height = img.naturalHeight

@@ -10,6 +10,8 @@ export interface PrintQuery {
   veiled?: string
   /** Pages of the booklet to print ("5-12, 20"). */
   pages?: string
+  /** The booklet of one chapter (campaign folder). */
+  chapter?: string
 }
 
 /** "homebrew:scenario/my-bounty" → "my-bounty". */

@@ -72,4 +72,18 @@ public class PrintPdfTests
             Arg.Is<Uri>(u => System.Web.HttpUtility.ParseQueryString(u.Query)["pages"] == "5-12, 20"),
             Arg.Any<CancellationToken>());
     }
+
+    [Fact]
+    public async Task Handle_OneChapter_PrintsItsBookletOnly()
+    {
+        var result = await Handler().Handle(
+            new PrintPdf.Request("um1:scenario/act1", null, null, null, Chapter: "chapter-01"),
+            new Uri("http://localhost:5173/workshop/print"),
+            TestContext.Current.CancellationToken);
+
+        result.Value.FileName.Should().Be("act1-chapter-01.pdf");
+        await _printer.Received(1).PrintAsync(
+            Arg.Is<Uri>(u => System.Web.HttpUtility.ParseQueryString(u.Query)["chapter"] == "chapter-01"),
+            Arg.Any<CancellationToken>());
+    }
 }
