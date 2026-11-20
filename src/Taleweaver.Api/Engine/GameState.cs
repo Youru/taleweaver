@@ -59,6 +59,9 @@ public sealed class CampaignState
 
     public List<string> RevealedHiddenCards { get; set; } = [];
 
+    /// <summary>Scenarios played to their end, won or lost (Additional Prerequisites: "after you've attempted the Bounty").</summary>
+    public List<string> AttemptedScenarios { get; set; } = [];
+
     public Dictionary<string, JsonElement> Variables { get; set; } = [];
 }
 

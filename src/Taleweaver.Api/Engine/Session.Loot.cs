@@ -118,9 +118,21 @@ internal sealed partial class Session
         }
     }
 
-    /// <summary>The Monster Loot cards of this combatant not yet in the party's hands.</summary>
-    private List<string> MonsterLootLeft(Combatant? card) =>
-        (card?.MonsterLoot ?? []).Where(id => !State.Campaign.Items.Contains(id)).ToList();
+    /// <summary>
+    /// The Monster Loot cards of this combatant not yet in the party's hands. A Variation draws from its Base
+    /// Combatant's; an Alternate from its own, then from its Base Combatant's (rulebook p. 82).
+    /// </summary>
+    private List<string> MonsterLootLeft(Combatant? card)
+    {
+        List<string> Left(Combatant? c) => (c?.MonsterLoot ?? []).Where(id => !State.Campaign.Items.Contains(id)).ToList();
+        if (card?.SpawnRule is not { } rule)
+        {
+            return Left(card);
+        }
+
+        var own = rule.VariationOf is null ? Left(card) : [];
+        return own.Count > 0 ? own : Left(Catalog.CardFor(rule.BaseFamily, card.LootLevel));
+    }
 
     private bool CanGainMonsterLoot(Combatant? card) => MonsterLootLeft(card).Count > 0;
 

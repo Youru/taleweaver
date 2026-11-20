@@ -281,12 +281,16 @@ internal sealed partial class Session
     /// Rulebook p. 61: cards matching the encounter's loot level, lowest free activation number first;
     /// a new initiative card goes right after the card taking its turn.
     /// </summary>
-    private void Spawn(ScenarioAction action, bool fromSetup, string? initiativeCard = null)
+    /// <param name="possibleSpawns">
+    /// Alternate and Variation cards may Spawn instead when a new card is required (rulebook p. 80): never during
+    /// the encounter's Placement Phase, always otherwise (totems, diagrams, NAVIGATE).
+    /// </param>
+    private void Spawn(ScenarioAction action, bool fromSetup, string? initiativeCard = null, bool? possibleSpawns = null)
     {
         var lootLevel = action.LootLevel ?? EncounterNode.LootLevel;
         for (var i = 0; i < (action.Count ?? 1); i++)
         {
-            var figure = action.Ref is not null ? NamedFigure(action) : FamilyFigure(action.Family!, lootLevel);
+            var figure = action.Ref is not null ? NamedFigure(action) : FamilyFigure(action.Family!, lootLevel, possibleSpawns ?? !fromSetup);
             if (figure is null)
             {
                 Log("spawnImpossible", args: Args(("family", action.Family), ("ref", action.Ref)));
@@ -340,7 +344,12 @@ internal sealed partial class Session
         };
     }
 
-    private CombatantState? FamilyFigure(string family, string? lootLevel)
+    /// <summary>
+    /// Rulebook p. 61 and 80-81: complete a card already in use first (lowest free activation number); when a new
+    /// card is required, draw one at random among the Possible Spawns: the Base cards whose group is free, their
+    /// Variations (same group), and the Alternates of this family not on the board, prerequisites met.
+    /// </summary>
+    private CombatantState? FamilyFigure(string family, string? lootLevel, bool possibleSpawns)
     {
         var chosen = Catalog.CardFor(family, lootLevel);
         if (chosen is null)
@@ -348,26 +357,100 @@ internal sealed partial class Session
             return null;
         }
 
-        var cards = Catalog.IntelligentCards(family).Where(c => c.LootLevel == chosen.LootLevel).ToList();
-        var taken = Alive().Where(c => c.Family == family).Select(c => c.Number).ToHashSet();
-        var numbered = cards.SelectMany(c => ActivationNumbers(c.Activation).Select(n => (Number: n, Card: c))).OrderBy(x => x.Number).ToList();
-        var (number, card) = numbered.Count == 0
-            ? (taken.Count == 0 ? 1 : taken.Max() + 1, chosen)
-            : numbered.FirstOrDefault(x => !taken.Contains(x.Number));
-        if (card is null)
+        var bases = Catalog.IntelligentCards(family).Where(c => c.LootLevel == chosen.LootLevel).ToList();
+        var variations = possibleSpawns ? Replacements(family, chosen.LootLevel).Where(c => c.SpawnRule!.VariationOf is not null).ToList() : [];
+        var sameFigures = bases.Concat(variations).Select(c => c.Id).ToHashSet();
+        var taken = Alive().Where(c => sameFigures.Contains(c.Card) || c.Family == family).Select(c => c.Number).ToHashSet();
+
+        // A card in use with a free number: no new card required.
+        var inUse = Alive().Where(c => sameFigures.Contains(c.Card)).Select(c => c.Card).Distinct()
+            .Select(id => Catalog.FindCombatant(id)!)
+            .SelectMany(c => ActivationNumbers(GroupOf(c)).Where(n => !taken.Contains(n)).Select(n => (Number: n, Card: c)))
+            .OrderBy(x => x.Number)
+            .FirstOrDefault();
+        if (inUse.Card is not null)
         {
+            return Figure(inUse.Card, inUse.Number);
+        }
+
+        // A new card: the next free Base group, and when allowed its Variations and the Alternates not on the board.
+        var next = bases.Where(c => ActivationNumbers(c.Activation).Any() && ActivationNumbers(c.Activation).All(n => !taken.Contains(n)))
+            .OrderBy(c => ActivationNumbers(c.Activation).First())
+            .FirstOrDefault();
+        var candidates = next is null ? new List<Combatant>() : [next];
+        if (possibleSpawns)
+        {
+            candidates.AddRange(variations.Where(c => next is not null && GroupOf(c) == next.Activation));
+            candidates.AddRange(Replacements(family, chosen.LootLevel)
+                .Where(c => c.SpawnRule!.VariationOf is null && Alive().All(a => a.Family != c.Family)));
+        }
+
+        if (candidates.Count == 0)
+        {
+            // Cards without activation numbers (a single figure): the next number, as before.
+            if (bases.All(c => !ActivationNumbers(c.Activation).Any()))
+            {
+                return Figure(chosen, taken.Count == 0 ? 1 : taken.Max() + 1);
+            }
+
             return null;
         }
 
-        return new CombatantState
+        var card = candidates.Count == 1 ? candidates[0] : candidates[NextRandom(candidates.Count)];
+        if (card.SpawnRule is { VariationOf: null })
         {
-            Instance = $"{family}-{number}",
-            Card = card.Id,
-            Family = family,
-            Number = number,
-            InitiativeCards = [.. card.InitiativeCards],
-        };
+            var own = Alive().Where(c => c.Family == card.Family).Select(c => c.Number).ToHashSet();
+            var first = ActivationNumbers(card.Activation).FirstOrDefault(n => !own.Contains(n));
+            Log("possibleSpawn", args: Args(("family", family), ("card", card.Id)));
+            return Figure(card, first == 0 ? 1 : first);
+        }
+
+        if (card.SpawnRule is not null)
+        {
+            Log("possibleSpawn", args: Args(("family", family), ("card", card.Id)));
+        }
+
+        return Figure(card, ActivationNumbers(GroupOf(card)).First(n => !taken.Contains(n)));
     }
+
+    private CombatantState Figure(Combatant card, int number) => new()
+    {
+        Instance = $"{card.Family}-{number}",
+        Card = card.Id,
+        Family = card.Family,
+        Number = number,
+        InitiativeCards = [.. InitiativeOf(card)],
+    };
+
+    /// <summary>Special Encounter Rules about a Base Combatant also mean the Possible Spawns that replace it (p. 82).</summary>
+    private string? BaseFamilyOf(CombatantState figure) => Catalog.FindCombatant(figure.Card)?.SpawnRule?.BaseFamily;
+
+    /// <summary>A Variation shares the group of its Base card ("cave-sickle-1-3" → "1-3").</summary>
+    private static string? GroupOf(Combatant card) =>
+        card.SpawnRule?.VariationOf is { } of ? Regex.Match(of, @"\d+-\d+$").Value : card.Activation;
+
+    /// <summary>A Variation without its own initiative card takes its Base card's.</summary>
+    private IReadOnlyList<string> InitiativeOf(Combatant card)
+    {
+        if (card.InitiativeCards.Count > 0 || card.SpawnRule?.VariationOf is null)
+        {
+            return card.InitiativeCards;
+        }
+
+        var group = GroupOf(card);
+        return Catalog.IntelligentCards(card.SpawnRule.BaseFamily)
+            .FirstOrDefault(c => c.Activation == group && c.LootLevel == card.LootLevel)?.InitiativeCards ?? [];
+    }
+
+    /// <summary>The Alternate and Variation cards that may replace this family at this Loot LVL, prerequisites met.</summary>
+    private IEnumerable<Combatant> Replacements(string family, string? lootLevel) =>
+        Catalog.Combatants.Where(c => c.Kind == "intelligent" && c.SpawnRule?.BaseFamily == family && c.Family != family
+                                      && (c.LootLevel == lootLevel || c.LootLevel == LootLevels.Any)
+                                      && c.SpawnRule.Requires.All(PrerequisiteMet(c)));
+
+    private Func<SpawnPrerequisite, bool> PrerequisiteMet(Combatant card) => prerequisite =>
+        (prerequisite.Attempted is not { } scenario || State.Campaign.AttemptedScenarios.Contains(scenario))
+        && (prerequisite.OncePerEncounter != true || Encounter.Combatants.All(c => c.Family != card.Family));
 
     /// <summary>Activation numbers printed on the card: "1-3" → 1, 2, 3; "1 + Root ×4" → 1; an adventurer's name → none.</summary>
     internal static IEnumerable<int> ActivationNumbers(string? activation)
@@ -509,7 +592,7 @@ internal sealed partial class Session
         RemoveUnusedCards();
         Fire(e => e.Trigger.On == "combatantDefeated"
                   && (e.Trigger.Instance is null || e.Trigger.Instance == figure.Instance)
-                  && (e.Trigger.Family is null || e.Trigger.Family == figure.Family));
+                  && (e.Trigger.Family is null || e.Trigger.Family == figure.Family || e.Trigger.Family == BaseFamilyOf(figure)));
     }
 
     private void RestoreCombatant(ScenarioAction action, int damage)

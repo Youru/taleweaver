@@ -319,7 +319,7 @@ internal sealed partial class Session
         PlaceAdventurers(diagram.Map, diagram.Setup);
         foreach (var placement in diagram.Setup?.Combatants ?? [])
         {
-            Spawn(SpawnOf(placement), fromSetup: true, placement.InitiativeCard);
+            Spawn(SpawnOf(placement), fromSetup: true, placement.InitiativeCard, possibleSpawns: true);
         }
 
         if (encounter.Round > 0)

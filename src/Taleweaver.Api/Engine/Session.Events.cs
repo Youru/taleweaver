@@ -90,8 +90,8 @@ internal sealed partial class Session
             "placed" => Encounter.PlacedDiagrams.Contains(rest),
             "activated" => Encounter.ActivatedTokens.Contains(rest),
             "revealed" => Encounter.RevealedAreas.Contains(rest),
-            "defeated" => Encounter.Combatants.Count(c => c.Defeated && c.Family == rest),
-            "alive" => Alive().Count(c => c.Family == rest),
+            "defeated" => Encounter.Combatants.Count(c => c.Defeated && (c.Family == rest || BaseFamilyOf(c) == rest)),
+            "alive" => Alive().Count(c => c.Family == rest || BaseFamilyOf(c) == rest),
             _ => null,
         };
         if (value is not null)

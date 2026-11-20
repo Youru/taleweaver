@@ -92,6 +92,11 @@ internal sealed partial class Session(GameState state, GameContext context)
         {
             State.Status = GameStatus.Finished;
             State.Ending = target ?? "@end";
+            if (!State.Campaign.AttemptedScenarios.Contains(Scenario.Id))
+            {
+                State.Campaign.AttemptedScenarios.Add(Scenario.Id);
+            }
+
             Log("scenarioEnd", args: Args(("ending", State.Ending)));
             return;
         }

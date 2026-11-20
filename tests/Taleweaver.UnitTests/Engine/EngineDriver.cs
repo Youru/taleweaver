@@ -9,8 +9,13 @@ internal sealed class EngineDriver
     private readonly List<GameCommand> _history = [];
 
     public EngineDriver(Scenario scenario, Catalog catalog, params string[] party)
+        : this(scenario, catalog, new GameContext(scenario, catalog, new SeededRandomSource(7)), party)
     {
-        Context = new GameContext(scenario, catalog, new SeededRandomSource(7));
+    }
+
+    public EngineDriver(Scenario scenario, Catalog catalog, GameContext context, params string[] party)
+    {
+        Context = context;
         Party = party.Length > 0 ? party : ["Nightingale", "Rook"];
         State = GameEngine.Start(Context, Party);
     }

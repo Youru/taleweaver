@@ -42,6 +42,9 @@ public sealed record Combatant
 
     public IReadOnlyList<string> MonsterLoot { get; init; } = [];
 
+    /// <summary>Alternate or Variation of a Base Combatant (rulebook ch. 9, p. 79-82); null for a Base Combatant.</summary>
+    public SpawnRule? SpawnRule { get; init; }
+
     public IReadOnlyList<string> InitiativeCards { get; init; } = [];
 
     public string? Image { get; init; }
@@ -153,3 +156,23 @@ public sealed record AiInstruction
 }
 
 public sealed record AiTarget(string? Priority);
+
+/// <summary>The back of an Alternate or Variation card: what it may replace, and its Additional Prerequisites.</summary>
+public sealed record SpawnRule
+{
+    /// <summary>Family of the Base Combatant it may Spawn in place of ("cave-sickle").</summary>
+    public required string BaseFamily { get; init; }
+
+    /// <summary>For a Variation, the Base Combatant group it shares ("cave-sickle-1-3"); null for an Alternate.</summary>
+    public string? VariationOf { get; init; }
+
+    public IReadOnlyList<SpawnPrerequisite> Requires { get; init; } = [];
+}
+
+/// <summary>One Additional Prerequisite: a scenario already attempted, or at most one Spawn per encounter.</summary>
+public sealed record SpawnPrerequisite
+{
+    public string? Attempted { get; init; }
+
+    public bool? OncePerEncounter { get; init; }
+}

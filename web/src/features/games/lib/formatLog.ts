@@ -41,6 +41,7 @@ const tones: Record<string, LogTone> = {
   gainItem: 'reward',
   revealHiddenCard: 'reward',
   lootGold: 'reward',
+  possibleSpawn: 'alert',
   lootItem: 'reward',
   lootMonster: 'reward',
   lootUnique: 'reward',
