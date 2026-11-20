@@ -74,6 +74,7 @@ cd taleweaver/web && npm install && npm run dev
     - polices : Cinzel et Optima ne sont pas installées (pas de téléchargement) ; la page prend **Palatino Linotype** (titres en petites capitales, introduction en italique) et **Candara** (texte), présentes sous Windows. Le PDF pèse environ 40 Mo pour Blight (fonds de page en 300 dpi) ;
     - logique dans `lib/printable.ts` (testée).
 - ⚠️ Les images appartiennent à Succubus Publishing : l'API les lit sur le disque local. Usage non commercial seulement (autorisation du créateur, 2026-11-20).
+- **Butin des combattants** (moteur, `Engine/Session.Loot.cs`) : le paquet *Combatant Loot* du niveau de butin de la rencontre (`rules.json` du pack) ; chaque adversaire vaincu pioche une carte (AVARICE X : X de plus ; GILDED : son butin de monstre). L'or est mis de côté et ajouté à la fin de la rencontre, même en cas de défaite ; butin de monstre et objet unique sont tirés parmi ceux que le groupe n'a pas ; l'*Item Loot* laisse le jet des 2 dés blancs à la table. Les cartes piochées reviennent au *Restore*. Tout passe par le journal.
 - Les textes de l'interface et la mise en forme du journal sont dans `src/shared/i18n/messages.ts`. Le contenu du jeu garde ses propres textes `{ en, fr }`.
 - Vérifications :
 

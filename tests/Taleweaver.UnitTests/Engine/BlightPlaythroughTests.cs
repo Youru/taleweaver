@@ -89,7 +89,9 @@ public class BlightPlaythroughTests
 
         game.State.Status.Should().Be(GameStatus.Finished);
         game.State.Ending.Should().Be("@currentStoryRound");
-        game.State.Campaign.Gold.Should().Be(70);
+        var lootGold = game.State.Log.Where(l => l.Code == "gainGold" && l.Args!.GetValueOrDefault("source") == "loot").Sum(l => int.Parse(l.Args!["amount"], System.Globalization.CultureInfo.InvariantCulture));
+        lootGold.Should().BePositive("each Defeated opponent draws a Combatant Loot card");
+        game.State.Campaign.Gold.Should().Be(70 + lootGold);
         game.State.Campaign.Party.Should().OnlyContain(a => a.Xp == 1);
         game.State.Campaign.Items.Should().Contain("um1:item/brute-serum").And.Contain("2 mundane/common/uncommon consumable");
         game.State.Campaign.RevealedHiddenCards.Should().Contain(["small:BP2", "large:BP2", "medium:BP3"]);

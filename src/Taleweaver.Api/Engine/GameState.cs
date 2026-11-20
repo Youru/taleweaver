@@ -96,6 +96,15 @@ public sealed class EncounterState
     /// <summary>A NAVIGATE cleared the encounter's own map: only the placed diagrams are on the table.</summary>
     public bool MapCleared { get; set; }
 
+    /// <summary>Combatant Loot cards left in the deck ("gold:7", "item", "monster", "unique"), in no particular order.</summary>
+    public List<string> LootDeck { get; set; } = [];
+
+    /// <summary>Cards drawn since the last Restore: they return to the deck when the party Restores.</summary>
+    public List<string> LootDrawn { get; set; } = [];
+
+    /// <summary>Gold of the Combatant Loot cards drawn, added to the party's at the end of the encounter.</summary>
+    public int LootGold { get; set; }
+
     public List<string> ReadHiddenRules { get; set; } = [];
 
     public List<string> ActiveEndConditions { get; set; } = [];

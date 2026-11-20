@@ -31,6 +31,7 @@ internal sealed partial class Session
                 break;
             case "restore":
                 Log("restoreAdventurers");
+                ReturnLootCards();
                 break;
             case "revealHiddenCard":
                 State.Campaign.RevealedHiddenCards.Add($"{action.Size}:{action.Code}");

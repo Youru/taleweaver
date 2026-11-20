@@ -47,6 +47,7 @@ internal sealed partial class Session
 
         AddTokens(node.Map);
         RevealAtStart(node.Map);
+        BuildLootDeck(node);
         PlaceAdventurers(node.Map, node.Setup);
         foreach (var placement in node.Setup?.Combatants ?? [])
         {
@@ -499,6 +500,7 @@ internal sealed partial class Session
         figure.Aggro = false;
         Encounter.RoundLog.Defeated++;
         Log("defeated", args: Args(("instance", figure.Instance), ("card", figure.Card)));
+        DropLoot(figure);
         if (State.Prompt?.Instance == figure.Instance && State.Prompt.Kind == PromptKinds.AiCondition)
         {
             State.Prompt = null;
@@ -562,6 +564,7 @@ internal sealed partial class Session
         State.Prompt = null;
         State.PendingActions.Clear();
         Log("encounterEnd", condition.Text, Args(("endCondition", condition.Id), ("kind", condition.Kind)));
+        BankLootGold();
         if (condition.Reward is not null)
         {
             Log("reward", condition.Reward);
