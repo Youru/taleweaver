@@ -60,6 +60,9 @@ public sealed record Node
     /// <summary>scene, encounter, choice…</summary>
     public required string Type { get; init; }
 
+    /// <summary>Chapter of a campaign folder the step comes from (set when the folder is read, see CampaignFolder).</summary>
+    public string? Chapter { get; init; }
+
     public LocalizedText? Name { get; init; }
 
     public LocalizedText? Title { get; init; }

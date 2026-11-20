@@ -108,6 +108,8 @@ Routes, commandes et fonctionnement du moteur : [docs/design/backend-architectur
 
 Les parties sont enregistrées dans `%APPDATA%/Middara/saves`, un fichier par partie. Le dossier se change avec `Content:SavesPath`.
 
+Un dossier de `scenarios/` qui contient `campaign.json` est **un** scénario écrit en plusieurs fichiers (un dossier par chapitre, un fichier par étape) : `Storage/CampaignFolder.cs` le rassemble à la lecture, chaque étape garde son `chapter`. L'Acte 1 (`scenarios/um1/act1/`) est rangé ainsi.
+
 Les scénarios de l'atelier (`homebrew:scenario/<nom>`) sont dans `scenarios/homebrew/` (`Content:HomebrewDirectory`). Un fichier de scénario illisible est ignoré (avertissement dans le journal de l'API) au lieu de bloquer toute la liste. Ce sont les seuls que l'API écrit (`PUT`) ou supprime (`DELETE /api/scenarios/homebrew/{nom}`) ; les scénarios officiels restent en lecture seule.
 
 Jouer une partie, côté MJ :

@@ -7,7 +7,7 @@ public class Act1PilotPlaythroughTests
 {
     private static async Task<EngineDriver> StartAsync()
     {
-        var scenario = await RepositoryContent.CreateStore().GetScenarioAsync("um1:scenario/act1-pilot", CancellationToken.None)
+        var scenario = await RepositoryContent.CreateStore().GetScenarioAsync("um1:scenario/act1", CancellationToken.None)
                        ?? throw new InvalidOperationException("Act 1 pilot not found.");
         return new EngineDriver(scenario, await RepositoryContent.CatalogAsync(), "Nightingale", "Remi", "Zeke", "Rook");
     }

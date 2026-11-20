@@ -160,11 +160,21 @@ public sealed class JsonContentStore(IOptions<ContentOptions> options, IHostEnvi
         // The workshop folder may live outside the scenarios folder (e.g. a temporary one for tests): then the
         // default one (scenarios/homebrew) is not read as official scenarios.
         var defaultHomebrew = Path.GetFullPath(Path.Combine(ScenariosPath, Scenario.HomebrewPack)) + Path.DirectorySeparatorChar;
+
+        // A folder with a campaign.json is one scenario (CampaignFolder): its files are not scenarios of their own
+        var campaigns = Directory.Exists(ScenariosPath)
+            ? Directory.EnumerateDirectories(ScenariosPath, "*", SearchOption.AllDirectories)
+                .Where(CampaignFolder.IsCampaign)
+                .Select(folder => Path.GetFullPath(folder) + Path.DirectorySeparatorChar)
+                .ToList()
+            : [];
         var files = new[] { ScenariosPath, HomebrewPath }
             .Where(Directory.Exists)
             .SelectMany(folder => Directory.EnumerateFiles(folder, "*.json", SearchOption.AllDirectories))
             .Select(Path.GetFullPath)
             .Where(path => IsHomebrew(path) || !path.StartsWith(defaultHomebrew, StringComparison.OrdinalIgnoreCase))
+            .Where(path => !campaigns.Any(folder => path.StartsWith(folder, StringComparison.OrdinalIgnoreCase)))
+            .Concat(campaigns)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Order();
         foreach (var path in files)
@@ -172,7 +182,9 @@ public sealed class JsonContentStore(IOptions<ContentOptions> options, IHostEnvi
             Scenario scenario;
             try
             {
-                scenario = await ReadAsync<Scenario>(path, cancellationToken);
+                scenario = path.EndsWith(Path.DirectorySeparatorChar)
+                    ? await CampaignFolder.ReadAsync(path, cancellationToken)
+                    : await ReadAsync<Scenario>(path, cancellationToken);
             }
             catch (InvalidDataException e)
             {

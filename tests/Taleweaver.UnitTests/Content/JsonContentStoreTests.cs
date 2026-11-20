@@ -85,6 +85,36 @@ public class JsonContentStoreTests
         }
     }
 
+    [Fact]
+    public async Task GetScenarioAsync_CampaignFolder_ReadsItsChaptersAsOneScenarioInOrder()
+    {
+        var root = Directory.CreateTempSubdirectory("taleweaver-").FullName;
+        try
+        {
+            var act = Directory.CreateDirectory(Path.Combine(root, "scenarios", "hb", "act1")).FullName;
+            await File.WriteAllTextAsync(Path.Combine(act, "campaign.json"),
+                """{ "id": "hb:scenario/act1", "title": { "en": "Act 1" }, "start": "b", "chapters": ["one", "two"] }""",
+                TestContext.Current.CancellationToken);
+            Directory.CreateDirectory(Path.Combine(act, "one"));
+            Directory.CreateDirectory(Path.Combine(act, "two"));
+            await File.WriteAllTextAsync(Path.Combine(act, "one", "chapter.json"), """{ "nodes": ["b", "a"] }""", TestContext.Current.CancellationToken);
+            await File.WriteAllTextAsync(Path.Combine(act, "one", "a.json"), """{ "id": "a", "type": "scene", "next": "c" }""", TestContext.Current.CancellationToken);
+            await File.WriteAllTextAsync(Path.Combine(act, "one", "b.json"), """{ "id": "b", "type": "scene", "next": "a" }""", TestContext.Current.CancellationToken);
+            await File.WriteAllTextAsync(Path.Combine(act, "two", "c.json"), """{ "id": "c", "type": "scene", "next": "@end" }""", TestContext.Current.CancellationToken);
+            var store = RepositoryContent.CreateStore(root);
+
+            var scenario = await store.GetScenarioAsync("hb:scenario/act1", TestContext.Current.CancellationToken);
+            var list = await store.ListScenariosAsync(TestContext.Current.CancellationToken);
+
+            scenario!.Nodes.Select(n => (n.Id, n.Chapter)).Should().Equal(("b", "one"), ("a", "one"), ("c", "two"));
+            list.Should().ContainSingle(s => s.Id == "hb:scenario/act1", "the files of a campaign folder are not scenarios of their own");
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
     private static IEnumerable<string> Differences(JsonNode? actual, JsonNode? expected, string path)
     {
         switch (actual, expected)

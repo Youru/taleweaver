@@ -29,7 +29,7 @@ public class RepositoryContentTests(RepositoryFactory factory) : IClassFixture<R
     [Fact]
     public async Task ValidateScenario_Act1Pilot_NoError()
     {
-        var scenario = await _client.GetFromJsonAsync<Scenario>("/api/scenarios/um1/act1-pilot", JsonDefaults.Options, TestContext.Current.CancellationToken);
+        var scenario = await _client.GetFromJsonAsync<Scenario>("/api/scenarios/um1/act1", JsonDefaults.Options, TestContext.Current.CancellationToken);
 
         var response = await _client.PostAsJsonAsync("/api/scenarios/validate", scenario, JsonDefaults.Options, TestContext.Current.CancellationToken);
 
@@ -48,7 +48,11 @@ public class RepositoryContentTests(RepositoryFactory factory) : IClassFixture<R
             root = Path.GetDirectoryName(root)!;
         }
 
-        var files = Directory.EnumerateFiles(Path.Combine(root, "scenarios"), "*.json", SearchOption.AllDirectories).Count();
+        // A campaign folder (campaign.json and its chapters) is one scenario
+        var scenariosRoot = Path.Combine(root, "scenarios");
+        var campaigns = Directory.EnumerateFiles(scenariosRoot, "campaign.json", SearchOption.AllDirectories).Select(Path.GetDirectoryName).ToList();
+        var files = Directory.EnumerateFiles(scenariosRoot, "*.json", SearchOption.AllDirectories)
+            .Count(f => !campaigns.Any(c => f.StartsWith(c + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))) + campaigns.Count;
 
         var scenarios = await _client.GetFromJsonAsync<List<ScenarioSummary>>("/api/scenarios", JsonDefaults.Options, TestContext.Current.CancellationToken);
 
