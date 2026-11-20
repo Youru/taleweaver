@@ -26,6 +26,7 @@ import EncounterGoals from '../components/encounter/EncounterGoals.vue'
 import TurnCard from '../components/encounter/TurnCard.vue'
 import GameJournal from '../components/GameJournal.vue'
 import PromptPanel from '../components/PromptPanel.vue'
+import { encounterOver as isEncounterOver, storyPage } from '../lib/storyPage'
 
 /**
  * The GM's view. In an encounter: the table in the middle, and beside it the turn being played
@@ -39,6 +40,11 @@ const { language } = storeToRefs(usePreferences())
 const game = useGame(() => props.id)
 const state = computed(() => game.data.value?.state)
 const encounter = computed(() => state.value?.encounter)
+// Between encounters: the page being read (the whole journal is in its own tab)
+const storyTab = ref('page')
+const page = computed(() => storyPage(state.value?.log ?? []))
+/** An end condition was reached: what follows (grade, reward, choice) is the story again, not the table. */
+const encounterOver = computed(() => !!encounter.value && isEncounterOver(state.value?.log ?? []))
 const scenario = useScenario(() => game.data.value?.scenario)
 const node = computed(() => scenario.data.value?.nodes.find((n) => n.id === encounter.value?.node))
 const cards = useCombatants(() => encounter.value?.combatants.map((c) => c.card) ?? [])
@@ -143,7 +149,7 @@ function moveFigure(figure: string, to: Cell) {
       <Message v-if="commandError" severity="error" closable @close="command.reset()">{{ commandError }}</Message>
 
       <!-- Encounter: table in the middle, turn and tabs beside it -->
-      <template v-if="encounter">
+      <template v-if="encounter && !encounterOver">
         <EncounterBar
           :encounter="encounter"
           :node="node"
@@ -238,7 +244,20 @@ function moveFigure(figure: string, to: Cell) {
 
       <!-- Between encounters: the story -->
       <div v-else class="story">
-        <GameJournal :log="state.log" class="journal" />
+        <Tabs v-model:value="storyTab" class="tabs">
+          <TabList>
+            <Tab value="page">{{ t('play.story') }}</Tab>
+            <Tab value="journal">{{ t('play.journal') }}</Tab>
+          </TabList>
+          <TabPanels>
+            <TabPanel value="page" class="page-panel">
+              <GameJournal :log="page" page class="journal" />
+            </TabPanel>
+            <TabPanel value="journal" class="page-panel">
+              <GameJournal :log="state.log" class="journal" />
+            </TabPanel>
+          </TabPanels>
+        </Tabs>
         <PromptPanel
           v-if="state.prompt"
           :key="state.log.length"
@@ -330,6 +349,18 @@ function moveFigure(figure: string, to: Cell) {
   min-height: 0;
   width: min(52rem, 100%);
   margin: 0 auto;
+}
+.story .tabs :deep(.p-tabpanels) {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+/* PrimeVue's panel does not carry this page's scope attribute: reached through :deep */
+.story :deep(.page-panel) {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 .story .journal {
   flex: 1;

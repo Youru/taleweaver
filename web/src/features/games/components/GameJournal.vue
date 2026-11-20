@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 import { assetUrl } from '@/shared/api/assets'
@@ -7,7 +7,11 @@ import { usePreferences } from '@/shared/lib/preferences'
 import type { LogEntry } from '../api/types'
 import { formatLog } from '../lib/formatLog'
 
-const props = defineProps<{ log: LogEntry[] }>()
+/**
+ * The journal: every line of the game (log), or the page of the story being read (page: no heading,
+ * and new text is brought into view from its start rather than from the end of the list).
+ */
+const props = defineProps<{ log: LogEntry[]; page?: boolean }>()
 
 const { t, te } = useI18n()
 const { language } = storeToRefs(usePreferences())
@@ -27,21 +31,42 @@ const art = (path: string) => `url("${assetUrl(`assets/templates/encounter/${pat
 const bookArt = { '--banner': art('top/red-header.png'), '--parchment': art('print-background-right.jpg') }
 const paragraphs = (text: string) => text.split(/\n+/).filter((p) => p.trim())
 
-// Keep the latest lines in view.
+// Keep the latest lines in view: the end of the journal, or the start of what was just added to the
+// page (a new page starts at its top).
 const list = ref<HTMLElement | null>(null)
 watch(
-  () => props.log.length,
-  async () => {
+  () => props.log,
+  async (log, before) => {
     await nextTick()
-    list.value?.scrollTo({ top: list.value.scrollHeight })
+    const el = list.value
+    if (!el) return
+    if (!props.page) return el.scrollTo({ top: el.scrollHeight })
+    // Same page, longer (the game is fetched again after each answer: compare the lines, not the objects)
+    const grown = before && log.length > before.length && JSON.stringify(log[0]) === JSON.stringify(before[0])
+    const first = grown ? (el.children[before.length] as HTMLElement | undefined) : undefined
+    el.scrollTo({ top: first ? first.offsetTop : 0, behavior: first ? 'smooth' : 'auto' })
   },
   { immediate: true },
 )
+
+// A journal in a tab that was hidden has nothing to scroll yet: once shown, its end comes into view
+let observer: ResizeObserver | undefined
+onMounted(() => {
+  const el = list.value
+  if (!el || props.page || typeof ResizeObserver === 'undefined') return
+  let shown = el.clientHeight > 0
+  observer = new ResizeObserver(() => {
+    const now = el.clientHeight > 0
+    if (now && !shown) el.scrollTo({ top: el.scrollHeight })
+    shown = now
+  })
+  observer.observe(el)
+})
+onBeforeUnmount(() => observer?.disconnect())
 </script>
 
 <template>
-  <section class="journal" :aria-label="t('play.journal')">
-    <h2>{{ t('play.journal') }}</h2>
+  <section class="journal" :class="{ reading: page }" :aria-label="page ? t('play.story') : t('play.journal')">
     <ol ref="list" :style="bookArt">
       <template v-for="(line, index) in lines" :key="index">
         <!-- A scene, the start of an encounter: a page of the book -->
@@ -51,7 +76,7 @@ watch(
             <strong>{{ line.story.heading }}</strong>
             <small v-if="line.story.detail" class="detail">{{ line.story.detail }}</small>
           </header>
-          <div v-if="line.text" class="page">
+          <div v-if="line.text" class="page" :class="{ long: line.text.length > 280 }">
             <p v-for="(paragraph, i) in paragraphs(line.text)" :key="i">{{ paragraph }}</p>
           </div>
         </li>
@@ -70,11 +95,8 @@ watch(
   flex-direction: column;
   min-height: 0;
 }
-h2 {
-  margin: 0 0 0.5rem;
-  font-size: 1.1rem;
-}
 ol {
+  position: relative;
   list-style: none;
   margin: 0;
   padding: 0;
@@ -158,7 +180,7 @@ li p {
 .page p:first-child {
   text-indent: 0;
 }
-.page p:first-child::first-letter {
+.page.long p:first-child::first-letter {
   float: left;
   margin: 0.1rem 0.4rem 0 0;
   color: #6d1a1a;
@@ -180,6 +202,12 @@ li p {
 }
 .reward {
   border-left-color: var(--p-green-500);
+}
+/* On the page of the story, what was won is read with it, on the same paper */
+.reading .reward {
+  border-left-color: #2f6b3a;
+  background: #efe3c8 var(--parchment) center / cover;
+  color: #1d1712;
 }
 .muted {
   color: var(--p-text-muted-color);

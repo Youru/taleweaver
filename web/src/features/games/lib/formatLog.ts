@@ -66,6 +66,9 @@ const tones: Record<string, LogTone> = {
   figureTurnEnd: 'muted',
 }
 
+/** How a line of the journal reads at a glance (its colour), by code. */
+export const toneOf = (code: string): LogTone => tones[code] ?? 'info'
+
 /** Arguments made readable: content ids shortened, the turn's owner named. */
 function readableArgs(entry: LogEntry): Record<string, string> {
   const args: Record<string, string> = { ...entry.args }
@@ -93,10 +96,18 @@ export function formatLog(
   let title = hasMessage(key) ? translate(key, args) : translate('log.unknown', { code: entry.code })
   // STATUS Effects resolve at the start of the figure's turn (Poison, Condemn, Haste)
   if (args.statusEffects) title += ` · ${translate('log.statusEffects', { effects: args.statusEffects })}`
-  const line: FormattedLog = { title, text: pick(entry.text, language), tone: tones[entry.code] ?? 'info' }
+  const line: FormattedLog = { title, text: pick(entry.text, language), tone: toneOf(entry.code) }
   const heading = entry.code === 'scene' ? args.title : entry.code === 'encounter' ? args.name : undefined
   const lootLevelName = (level: string) =>
     hasMessage(`workshop.loot.${level}`) ? translate(`workshop.loot.${level}`, {}) : level
+  // The end of an encounter opens the page that follows it: how it ended, then the reward
+  if (entry.code === 'encounterEnd') {
+    line.story = {
+      kicker: translate('log.story.encounterEnd', {}),
+      heading: translate(args.kind === 'lose' ? 'log.story.lose' : 'log.story.win', {}),
+    }
+    return line
+  }
   if (heading)
     line.story = {
       kicker: translate(`log.story.${entry.code}`, {}),

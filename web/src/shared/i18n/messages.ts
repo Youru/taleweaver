@@ -594,6 +594,7 @@ export const messages = {
     },
     play: {
       journal: 'Journal',
+      story: 'Récit',
       undo: 'Annuler la dernière action',
       round: 'Round {round}',
       notStarted: 'Rencontre pas encore commencée',
@@ -688,7 +689,14 @@ export const messages = {
     },
     log: {
       scene: 'Scène : {title}',
-      story: { scene: 'Scène', encounter: 'Rencontre', loot: 'Butin {lootLevel}' },
+      story: {
+        scene: 'Scène',
+        encounter: 'Rencontre',
+        loot: 'Butin {lootLevel}',
+        encounterEnd: 'Fin de la rencontre',
+        win: 'Victoire',
+        lose: 'Défaite',
+      },
       encounter: 'Rencontre : {name} (butin {lootLevel})',
       specialRule: 'Règle spéciale : {name}',
       place: 'Mise en place : {instance}',
@@ -1335,6 +1343,7 @@ export const messages = {
     },
     play: {
       journal: 'Journal',
+      story: 'Story',
       undo: 'Undo last action',
       round: 'Round {round}',
       notStarted: 'Encounter not started yet',
@@ -1429,7 +1438,14 @@ export const messages = {
     },
     log: {
       scene: 'Scene: {title}',
-      story: { scene: 'Scene', encounter: 'Encounter', loot: 'Loot {lootLevel}' },
+      story: {
+        scene: 'Scene',
+        encounter: 'Encounter',
+        loot: 'Loot {lootLevel}',
+        encounterEnd: 'End of the encounter',
+        win: 'Victory',
+        lose: 'Defeat',
+      },
       encounter: 'Encounter: {name} (loot {lootLevel})',
       specialRule: 'Special rule: {name}',
       place: 'Setup: {instance}',
