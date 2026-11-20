@@ -8,6 +8,8 @@ export interface PrintQuery {
   node?: string
   what?: string
   veiled?: string
+  /** Pages of the booklet to print ("5-12, 20"). */
+  pages?: string
 }
 
 /** "homebrew:scenario/my-bounty" → "my-bounty". */

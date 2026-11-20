@@ -236,6 +236,9 @@ export const messages = {
       },
       print: {
         print: 'Imprimer',
+        pages: 'Pages à imprimer',
+        allPages: 'Toutes les pages',
+        pagesHint: 'Par exemple 5-12, 20 ou 30- : les numéros et renvois restent ceux du livret complet.',
         download: 'Télécharger le PDF',
         downloading: 'Fabrication du PDF…',
         downloadFailed: 'Le PDF n’a pas pu être fabriqué : {message}',
@@ -956,6 +959,9 @@ export const messages = {
       },
       print: {
         print: 'Print',
+        pages: 'Pages to print',
+        allPages: 'All pages',
+        pagesHint: 'For example 5-12, 20 or 30-: numbers and cross-references stay those of the whole booklet.',
         download: 'Download the PDF',
         downloading: 'Making the PDF…',
         downloadFailed: 'The PDF could not be made: {message}',

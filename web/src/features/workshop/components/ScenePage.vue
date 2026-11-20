@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, useTemplateRef, watch } from 'vue'
+import { computed, inject, nextTick, onMounted, ref, useTemplateRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { assetUrl } from '@/shared/api/assets'
 import { pageBackground } from '../lib/pageArt'
+import { OUTSIDE_RANGE } from '../lib/pageRange'
 
 /**
  * One scene (a story, an interlude) on US Letter sheets, laid out as the books print their stories
@@ -25,6 +26,7 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n()
+const outside = inject(OUTSIDE_RANGE, () => false)
 const art = (path: string) => assetUrl(`assets/templates/encounter/${path}`)
 const header = computed(() => ({ backgroundImage: `url('${art('top/red-header.png')}')` }))
 const paragraphs = computed(() => props.narrative.split('\n').filter((p) => p.trim()))
@@ -52,7 +54,7 @@ const folio = (index: number) => (props.firstPage ? props.firstPage + index : un
 
 <template>
   <article class="scene-pages" :aria-label="t('workshop.print.pageOf', { name: title })">
-    <div v-for="k in sheets" :key="k" class="sheet" :style="pageBackground(folio(k - 1))">
+    <div v-for="k in sheets" :key="k" class="sheet" :class="{ outside: outside(folio(k - 1)) }" :style="pageBackground(folio(k - 1))">
       <header class="head" :style="header">
         <h1>
           {{ title }} <small v-if="k > 1">{{ t('workshop.print.continuedTitle') }}</small>

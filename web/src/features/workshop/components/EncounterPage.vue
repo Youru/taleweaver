@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, useTemplateRef, watch } from 'vue'
+import { computed, inject, nextTick, onMounted, ref, useTemplateRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { BoardPieces } from '@/features/table'
 import { assetUrl } from '@/shared/api/assets'
@@ -9,6 +9,7 @@ import { useEndingLabel } from '../lib/endings'
 import { extentOf, mapOf, setupOf, TILE } from '../lib/map'
 import { pageBackground } from '../lib/pageArt'
 import PrintMap from './PrintMap.vue'
+import { OUTSIDE_RANGE } from '../lib/pageRange'
 
 /**
  * One encounter on US Letter sheets, laid out as the official bounty books (The Cave Sickle Queen):
@@ -33,6 +34,7 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n()
+const outside = inject(OUTSIDE_RANGE, () => false)
 const endingLabel = useEndingLabel()
 const art = (path: string) => assetUrl(`assets/templates/encounter/${path}`)
 const header = computed(() => ({ backgroundImage: `url('${art('top/red-header.png')}')` }))
@@ -104,7 +106,7 @@ const folio = (index: number) => (props.firstPage ? props.firstPage + index : un
 <template>
   <article class="encounter" :aria-label="t('workshop.print.pageOf', { name: sheet.name })">
     <!-- Setup sheet(s): the diagram and the Setup box -->
-    <div v-for="(part, p) in parts" :key="`setup-${p}`" class="sheet setup-sheet" :style="pageBackground(folio(p))">
+    <div v-for="(part, p) in parts" :key="`setup-${p}`" class="sheet setup-sheet" :class="{ outside: outside(folio(p)) }" :style="pageBackground(folio(p))">
       <header class="head" :style="header">
         <h1 v-if="part.first">{{ sheet.name }}</h1>
         <h1 v-else>{{ t('workshop.print.largeSetup') }}</h1>
@@ -159,6 +161,7 @@ const folio = (index: number) => (props.firstPage ? props.firstPage + index : un
       v-for="k in textSheets"
       :key="`text-${k}`"
       class="sheet text-sheet"
+      :class="{ outside: outside(folio(parts.length + k - 1)) }"
       :style="pageBackground(folio(parts.length + k - 1))"
     >
       <header class="head" :style="header">

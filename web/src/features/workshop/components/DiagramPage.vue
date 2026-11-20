@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, inject } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { BoardPieces } from '@/features/table'
 import type { DraftNode } from '../api/types'
@@ -7,6 +7,7 @@ import type { DraftMap, DraftSetup } from '../lib/map'
 import { setupColumns, type SetupLine } from '../lib/printable'
 import { pageBackground, templateArt } from '../lib/pageArt'
 import PrintMap from './PrintMap.vue'
+import { OUTSIDE_RANGE } from '../lib/pageRange'
 
 /**
  * One diagram of an encounter on a sheet of its own, as the books print them after the encounters
@@ -30,6 +31,7 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n()
+const outside = inject(OUTSIDE_RANGE, () => false)
 const header = computed(() => ({ backgroundImage: `url('${templateArt('top/red-header.png')}')` }))
 // A narrow box when the diagram lays few kinds of pieces, as in the books
 const columns = computed(() => setupColumns(props.setup, Math.min(3, Math.max(1, props.setup.length))))
@@ -38,7 +40,7 @@ const bullets = (text: string) => text.replace(/\s+◆/g, '\n◆')
 
 <template>
   <article class="diagram" :aria-label="t('workshop.print.pageOf', { name: title })">
-    <div class="sheet" :style="pageBackground(folio)">
+    <div class="sheet" :class="{ outside: outside(folio) }" :style="pageBackground(folio)">
       <header class="head" :style="header">
         <h1>{{ title }}</h1>
       </header>

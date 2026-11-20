@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, provide, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import Button from 'primevue/button'
+import InputText from 'primevue/inputtext'
 import Message from 'primevue/message'
 import ProgressSpinner from 'primevue/progressspinner'
 import Select from 'primevue/select'
@@ -23,6 +24,7 @@ import { bookletDiagrams, diagramBoard, underOf } from '../lib/diagrams'
 import { encounterSheet, readingOrder, setupLines } from '../lib/printable'
 import { useEndingLabel } from '../lib/endings'
 import { pendingImages } from '../lib/lightImage'
+import { OUTSIDE_RANGE, parsePages } from '../lib/pageRange'
 
 /**
  * The scenario on paper: one encounter, the whole booklet (cover, steps numbered §1, §2… in
@@ -46,6 +48,14 @@ const veiled = ref(route.query.veiled !== '0')
 watch(veiled, (v) => router.replace({ query: { ...route.query, veiled: v ? undefined : '0' } }))
 
 const steps = computed(() => (scenario.value ? readingOrder(scenario.value) : []))
+
+// Part of the booklet ("5-12"): the pages keep the numbers and cross-references of the whole booklet,
+// those outside are faded on screen and left out when printing
+const pages = ref(typeof route.query.pages === 'string' ? route.query.pages : '')
+watch(pages, (v) => router.replace({ query: { ...route.query, pages: v.trim() || undefined } }))
+const inRange = computed(() => (what.value === 'booklet' ? parsePages(pages.value) : undefined))
+const outside = (page: number | undefined) => !!inRange.value && page !== undefined && !inRange.value(page)
+provide(OUTSIDE_RANGE, outside)
 
 // Page numbers of the booklet: the cover is page 1, then every step takes as many sheets as it
 // says (an encounter or a scene runs on as many as its text needs)
@@ -120,7 +130,7 @@ const choice = computed(() =>
   what.value === 'encounter' ? String(route.query.node) : what.value === 'cards' ? '@cards' : '@booklet',
 )
 function choose(value: string) {
-  const query = { scenario: scenarioId.value, veiled: route.query.veiled }
+  const query = { scenario: scenarioId.value, veiled: route.query.veiled, pages: route.query.pages }
   void router.replace({
     query: value === '@booklet' ? query : value === '@cards' ? { ...query, what: 'cards' } : { ...query, node: value },
   })
@@ -173,6 +183,7 @@ const download = () =>
     node: typeof route.query.node === 'string' ? route.query.node : undefined,
     what: typeof route.query.what === 'string' ? route.query.what : undefined,
     veiled: veiled.value ? undefined : '0',
+    pages: inRange.value ? pages.value.trim() : undefined,
   })
 const backTo = computed(() =>
   scenarioId.value.startsWith('homebrew:')
@@ -194,6 +205,16 @@ const backTo = computed(() =>
         option-value="value"
         :aria-label="t('workshop.print.what')"
         @update:model-value="choose"
+      />
+      <InputText
+        v-if="what === 'booklet'"
+        v-model="pages"
+        size="small"
+        class="pages"
+        :placeholder="t('workshop.print.allPages')"
+        :aria-label="t('workshop.print.pages')"
+        :title="t('workshop.print.pagesHint')"
+        :invalid="!!pages.trim() && !inRange"
       />
       <label class="inline">
         <ToggleSwitch v-model="veiled" input-id="veiled" />
@@ -243,7 +264,7 @@ const backTo = computed(() =>
 
       <template v-else>
         <!-- Cover -->
-        <section v-if="what === 'booklet'" class="cover">
+        <section v-if="what === 'booklet'" class="cover" :class="{ outside: outside(1) }">
           <p class="kind">{{ scenario.kind ? t(`workshop.print.kind.${scenario.kind}`, scenario.kind) : '' }}</p>
           <h1>{{ pick(scenario.title, language) }}</h1>
           <p class="made">{{ t('workshop.print.made') }}</p>
@@ -327,6 +348,9 @@ const backTo = computed(() =>
   color: var(--p-text-muted-color);
   text-decoration: none;
   font-size: 0.9rem;
+}
+.pages {
+  width: 9rem;
 }
 .inline {
   display: flex;
@@ -460,6 +484,18 @@ const backTo = computed(() =>
   }
   .print .cover {
     page: sheet;
+  }
+}
+</style>
+
+<style>
+/* Pages outside the range typed: faded on screen, left out on paper (not scoped: the sheets are in child components) */
+.print .sheets .outside {
+  opacity: 0.25;
+}
+@media print {
+  .print .sheets .outside {
+    display: none !important;
   }
 }
 </style>

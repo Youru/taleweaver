@@ -58,4 +58,18 @@ public class PrintPdfTests
     {
         PrintPdf.Handler.FileName(new PrintPdf.Request("um1:scenario/blight", node, what, null)).Should().Be(expected);
     }
+
+    [Fact]
+    public async Task Handle_PartOfTheBooklet_PrintsThesePagesOnly()
+    {
+        var result = await Handler().Handle(
+            new PrintPdf.Request("um1:scenario/blight", null, null, null, "5-12, 20"),
+            new Uri("http://localhost:5173/workshop/print"),
+            TestContext.Current.CancellationToken);
+
+        result.Value.FileName.Should().Be("blight-p5-12_20.pdf");
+        await _printer.Received(1).PrintAsync(
+            Arg.Is<Uri>(u => System.Web.HttpUtility.ParseQueryString(u.Query)["pages"] == "5-12, 20"),
+            Arg.Any<CancellationToken>());
+    }
 }

@@ -28,7 +28,8 @@ public interface IPdfPrinter
 /// </summary>
 public static class PrintPdf
 {
-    public sealed record Request(string? Scenario, string? Node, string? What, string? Veiled);
+    /// <param name="Pages">Part of the booklet ("5-12, 20"), numbered as in the whole booklet.</param>
+    public sealed record Request(string? Scenario, string? Node, string? What, string? Veiled, string? Pages = null);
 
     public static class Errors
     {
@@ -69,7 +70,8 @@ public static class PrintPdf
             var scenario = request.Scenario ?? "scenario";
             var name = scenario[(scenario.LastIndexOf('/') + 1)..];
             var part = request.What is { Length: > 0 } what ? $"-{what.TrimStart('@')}" : request.Node is { Length: > 0 } node ? $"-{node}" : "";
-            var file = $"{name}{part}.pdf";
+            var pages = request.Pages is { Length: > 0 } range ? $"-p{range.Replace(" ", "", StringComparison.Ordinal).Replace(',', '_')}" : "";
+            var file = $"{name}{part}{pages}.pdf";
             return string.Concat(file.Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '-' : c));
         }
     }
@@ -80,7 +82,7 @@ public static class PrintPdf
         {
             var parts = new (string Key, string? Value)[]
             {
-                ("scenario", request.Scenario), ("node", request.Node), ("what", request.What), ("veiled", request.Veiled),
+                ("scenario", request.Scenario), ("node", request.Node), ("what", request.What), ("veiled", request.Veiled), ("pages", request.Pages),
             };
             return QueryString.Create(parts.Where(p => !string.IsNullOrEmpty(p.Value)).Select(p => new KeyValuePair<string, string?>(p.Key, p.Value))).ToString();
         }
