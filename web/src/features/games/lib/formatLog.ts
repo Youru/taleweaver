@@ -10,6 +10,17 @@ export interface FormattedLog {
   /** Text of the scenario or of the card, as written. */
   text: string
   tone: LogTone
+  /** A scene or the start of an encounter: shown as a page of the book (banner, parchment). */
+  story?: StoryHeading
+}
+
+export interface StoryHeading {
+  /** "Scene", "Encounter". */
+  kicker: string
+  /** The scene's title or the encounter's name. */
+  heading: string
+  /** Under the heading: the encounter's loot level. */
+  detail?: string
 }
 
 const tones: Record<string, LogTone> = {
@@ -82,5 +93,17 @@ export function formatLog(
   let title = hasMessage(key) ? translate(key, args) : translate('log.unknown', { code: entry.code })
   // STATUS Effects resolve at the start of the figure's turn (Poison, Condemn, Haste)
   if (args.statusEffects) title += ` · ${translate('log.statusEffects', { effects: args.statusEffects })}`
-  return { title, text: pick(entry.text, language), tone: tones[entry.code] ?? 'info' }
+  const line: FormattedLog = { title, text: pick(entry.text, language), tone: tones[entry.code] ?? 'info' }
+  const heading = entry.code === 'scene' ? args.title : entry.code === 'encounter' ? args.name : undefined
+  const lootLevelName = (level: string) =>
+    hasMessage(`workshop.loot.${level}`) ? translate(`workshop.loot.${level}`, {}) : level
+  if (heading)
+    line.story = {
+      kicker: translate(`log.story.${entry.code}`, {}),
+      heading,
+      ...(entry.code === 'encounter' && args.lootLevel
+        ? { detail: translate('log.story.loot', { lootLevel: lootLevelName(args.lootLevel) }) }
+        : {}),
+    }
+  return line
 }

@@ -10,12 +10,45 @@ const messages: Record<string, string> = {
   'log.unknown': '{code}',
   'log.answer': 'Réponse : {answer}',
   'prompt.yes': 'Oui',
+  'log.scene': 'Scène : {title}',
+  'log.story.scene': 'Scène',
+  'log.encounter': 'Rencontre : {name}',
+  'log.story.encounter': 'Rencontre',
+  'log.story.loot': 'Butin {lootLevel}',
+  'workshop.loot.mundane': 'Mundane',
 }
 const translate = (key: string, args: Record<string, string>) =>
   (messages[key] ?? key).replace(/\{(\w+)\}/g, (_, name: string) => args[name] ?? '')
 const has = (key: string) => key in messages
 
 describe('formatLog', () => {
+  it('shows a scene as a page of the book, headed by its title', () => {
+    const line = formatLog(
+      { code: 'scene', text: { en: 'Nightingale crept…' }, args: { title: 'Before the MAST' } },
+      'en',
+      translate,
+      has,
+    )
+
+    expect(line.story).toEqual({ kicker: 'Scène', heading: 'Before the MAST' })
+    expect(line.text).toBe('Nightingale crept…')
+  })
+
+  it("heads an encounter's introduction with its name and loot level", () => {
+    const line = formatLog(
+      { code: 'encounter', args: { name: 'The MAST: Day 1', lootLevel: 'mundane' } },
+      'en',
+      translate,
+      has,
+    )
+
+    expect(line.story).toEqual({ kicker: 'Rencontre', heading: 'The MAST: Day 1', detail: 'Butin Mundane' })
+  })
+
+  it('keeps the other lines plain', () => {
+    expect(formatLog({ code: 'hiddenText', args: {} }, 'fr', translate, has).story).toBeUndefined()
+  })
+
   it('names the adventurer whose turn it is', () => {
     const line = formatLog(
       { code: 'turn', args: { card: 'adventurer:Rook', adventurer: 'Rook' } },

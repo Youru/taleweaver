@@ -688,6 +688,7 @@ export const messages = {
     },
     log: {
       scene: 'Scène : {title}',
+      story: { scene: 'Scène', encounter: 'Rencontre', loot: 'Butin {lootLevel}' },
       encounter: 'Rencontre : {name} (butin {lootLevel})',
       specialRule: 'Règle spéciale : {name}',
       place: 'Mise en place : {instance}',
@@ -1428,6 +1429,7 @@ export const messages = {
     },
     log: {
       scene: 'Scene: {title}',
+      story: { scene: 'Scene', encounter: 'Encounter', loot: 'Loot {lootLevel}' },
       encounter: 'Encounter: {name} (loot {lootLevel})',
       specialRule: 'Special rule: {name}',
       place: 'Setup: {instance}',
