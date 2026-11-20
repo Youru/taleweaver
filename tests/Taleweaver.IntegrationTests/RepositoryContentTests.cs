@@ -27,6 +27,18 @@ public class RepositoryContentTests(RepositoryFactory factory) : IClassFixture<R
     }
 
     [Fact]
+    public async Task ValidateScenario_Act1Pilot_NoError()
+    {
+        var scenario = await _client.GetFromJsonAsync<Scenario>("/api/scenarios/um1/act1-pilot", JsonDefaults.Options, TestContext.Current.CancellationToken);
+
+        var response = await _client.PostAsJsonAsync("/api/scenarios/validate", scenario, JsonDefaults.Options, TestContext.Current.CancellationToken);
+
+        var report = await response.Content.ReadFromJsonAsync<ScenarioReport>(JsonDefaults.Options, TestContext.Current.CancellationToken);
+        report!.Errors.Should().BeEmpty();
+        report.Warnings.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task ListScenarios_RepositoryFiles_NoneSkipped()
     {
         // A scenario file the API cannot read is skipped with a mere log line: the Python checker does not see it

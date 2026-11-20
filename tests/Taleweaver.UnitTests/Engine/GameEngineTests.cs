@@ -488,6 +488,7 @@ public class GameEngineTests
                 Else = [new ScenarioAction { Do = "showText", Text = En("Not twelve.") }],
             },
             new() { Do = "addVar", Amount = -50, Extra = Var("floor", min: 0) },
+            new() { Do = "addVar", From = "grade", Extra = Var("total") },
         };
         game.State.PendingActions.AddRange(actions);
 
@@ -495,6 +496,7 @@ public class GameEngineTests
 
         game.State.Log.Should().Contain(l => l.Code == "text" && l.Text!["en"] == expected);
         game.State.Campaign.Variables["floor"].GetInt32().Should().Be(0);
+        game.State.Campaign.Variables["total"].GetInt32().Should().Be(7 + added);
     }
 
     [Fact]

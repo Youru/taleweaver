@@ -41,7 +41,11 @@ internal sealed partial class Session
                 SetVariable(ExtraString(action, "flag"), JsonSerializer.SerializeToElement(true));
                 break;
             case "addVar":
-                AddToVariable(ExtraString(action, "var"), action.Amount ?? 1, ExtraNumber(action, "min"));
+                // "from": the value of another variable (the score the GM typed), else "amount"
+                var amount = action.From is { } from
+                    ? (Variable(from) is { ValueKind: JsonValueKind.Number } number ? number.GetInt32() : 0)
+                    : action.Amount ?? 1;
+                AddToVariable(ExtraString(action, "var"), amount, ExtraNumber(action, "min"));
                 break;
             case "branch":
                 Push((action.If ?? []).All(IsTrue) ? action.Then ?? [] : action.Else ?? []);

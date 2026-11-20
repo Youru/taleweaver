@@ -327,7 +327,7 @@ public static class ScenarioChecker
             var placements = actions.Where(a => a.Do == "placeToken" && a.Type is not null).ToList();
             var knownKeys = placements.Where(a => a.Color is not null and not "random").Select(a => TokenKey(a.Type!, a.Color!)).ToHashSet();
             knownKeys.UnionWith(tokenKeys);
-            var randomLoot = placements.Any(a => a.Color == "random");
+            var randomLoot = placements.Any(a => a.Color == "random") || boards.Any(b => b.Map.Tokens.Any(t => t.Color == "random"));
 
             foreach (var (key, rule) in encounter.Tokens.Where(t => t.Value.Mode is { } mode && !TokenModes.Contains(mode)))
             {
