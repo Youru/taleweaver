@@ -16,7 +16,13 @@ defineProps<{ data: { direction: 'in' | 'out'; caption: string; chapter: string;
       <small>{{ data.chapter }}</small>
       <strong>{{ data.caption }}</strong>
     </span>
-    <Handle v-if="data.direction === 'in'" type="source" :position="Position.Right" class="handle" :connectable="false" />
+    <Handle
+      v-if="data.direction === 'in'"
+      type="source"
+      :position="Position.Right"
+      class="handle"
+      :connectable="false"
+    />
   </div>
 </template>
 

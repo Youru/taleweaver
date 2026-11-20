@@ -12,11 +12,7 @@ export interface SearchHit {
 }
 
 /** Lower case, without accents: "Éclat" finds "eclat". */
-const fold = (value: string) =>
-  value
-    .normalize('NFD')
-    .replace(/\p{M}/gu, '')
-    .toLowerCase()
+const fold = (value: string) => value.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()
 
 /** Every text of a node in the given language (narrative, intro, events, rules, options…), any depth. */
 function textsOf(value: unknown, language: Language, out: string[] = []): string[] {
@@ -52,7 +48,8 @@ export function searchNodes(scenario: DraftScenario, query: string, language: La
     else if (matches(node.id)) hits.push({ ...base, where: 'id' })
     else {
       const text = textsOf(node, language).find(matches)
-      if (text) hits.push({ ...base, where: 'text', excerpt: excerpt(text, fold(text).indexOf(words[0]!), words[0]!.length) })
+      if (text)
+        hits.push({ ...base, where: 'text', excerpt: excerpt(text, fold(text).indexOf(words[0]!), words[0]!.length) })
     }
   }
   const rank = { caption: 0, id: 1, text: 2 }

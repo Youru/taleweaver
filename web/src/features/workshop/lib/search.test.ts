@@ -7,12 +7,23 @@ const scenario = {
   title: { fr: 'Test' },
   start: 'intro',
   nodes: [
-    { id: 'intro', type: 'scene', title: { fr: 'Vesse, au soir' }, narrative: { fr: 'Le colporteur tend une lettre.' } },
+    {
+      id: 'intro',
+      type: 'scene',
+      title: { fr: 'Vesse, au soir' },
+      narrative: { fr: 'Le colporteur tend une lettre.' },
+    },
     {
       id: 'le-gue',
       type: 'encounter',
       name: { fr: 'Le gué du vieux moulin' },
-      events: [{ id: 'e', trigger: { on: 'encounterStart' }, hiddenText: { fr: 'Une lettre flotte sur l’eau.', en: 'A letter' } }],
+      events: [
+        {
+          id: 'e',
+          trigger: { on: 'encounterStart' },
+          hiddenText: { fr: 'Une lettre flotte sur l’eau.', en: 'A letter' },
+        },
+      ],
     },
     { id: 'lettre', type: 'scene', title: { fr: 'Pardon' } },
   ],

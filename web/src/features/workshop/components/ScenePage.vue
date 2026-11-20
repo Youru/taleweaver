@@ -54,7 +54,13 @@ const folio = (index: number) => (props.firstPage ? props.firstPage + index : un
 
 <template>
   <article class="scene-pages" :aria-label="t('workshop.print.pageOf', { name: title })">
-    <div v-for="k in sheets" :key="k" class="sheet" :class="{ outside: outside(folio(k - 1)) }" :style="pageBackground(folio(k - 1))">
+    <div
+      v-for="k in sheets"
+      :key="k"
+      class="sheet"
+      :class="{ outside: outside(folio(k - 1)) }"
+      :style="pageBackground(folio(k - 1))"
+    >
       <header class="head" :style="header">
         <h1>
           {{ title }} <small v-if="k > 1">{{ t('workshop.print.continuedTitle') }}</small>

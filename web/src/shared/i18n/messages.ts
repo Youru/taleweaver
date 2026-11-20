@@ -577,6 +577,8 @@ export const messages = {
       revealHint: 'Un aventurier entre dans cette zone : révélez-la pour lever le brouillard.',
       moveHint: 'Glissez la figurine, ou touchez une case, pour suivre son déplacement (facultatif).',
       tapToPlace: 'Touchez une case du plateau pour placer {name}.',
+      placeAdventurers:
+        'Pas de place prévue sur la carte pour {names} (zone de départ absente ou trop petite) : glissez chaque nom de « À placer », sous la carte, sur une case, ou touchez-le puis touchez la case.',
       unplacedFigures: 'À placer :',
       showHidden: 'Combattants à placer',
       hideHidden: 'Masquer les combattants à placer',
@@ -731,7 +733,8 @@ export const messages = {
       randomToken: 'Jeton tiré au hasard : {token}',
       possibleSpawn: 'Apparition possible tirée au hasard : {card} à la place de {family}',
       lootGold: 'Butin de {instance} : {amount} or (réserve de la rencontre : {total})',
-      lootItem: 'Butin de {instance} : objet ({lootLevel}). Lancer 2 dés BLANCS : 4-5 accessoire, 6-7 armure, 8-10 relique, 11-12 noyau, 13-14 arme',
+      lootItem:
+        'Butin de {instance} : objet ({lootLevel}). Lancer 2 dés BLANCS : 4-5 accessoire, 6-7 armure, 8-10 relique, 11-12 noyau, 13-14 arme',
       lootMonster: 'Butin de {instance} : {item} (butin de monstre)',
       lootUnique: 'Butin de {instance} : {item} (objet unique)',
       lootUniqueNone: 'Butin de {instance} : plus d’objet unique {lootLevel} disponible',
@@ -1326,6 +1329,8 @@ export const messages = {
       revealHint: 'An adventurer enters this area: reveal it to lift the fog.',
       moveHint: 'Drag the figure, or tap a square, to follow its movement (optional).',
       tapToPlace: 'Tap a square of the board to place {name}.',
+      placeAdventurers:
+        'No spot on the map for {names} (no starting zone, or too small): drag each name of “To place”, under the map, onto a square, or tap it then tap the square.',
       unplacedFigures: 'To place:',
       showHidden: 'Combatants to place',
       hideHidden: 'Hide the combatants to place',
@@ -1480,7 +1485,8 @@ export const messages = {
       randomToken: 'Token drawn at random: {token}',
       possibleSpawn: 'Possible Spawn drawn at random: {card} instead of {family}',
       lootGold: 'Loot from {instance}: {amount} gold (encounter pool: {total})',
-      lootItem: 'Loot from {instance}: Item ({lootLevel}). Roll 2 WHITE dice: 4-5 Accessory, 6-7 Armor, 8-10 Relic, 11-12 Core, 13-14 Weapon',
+      lootItem:
+        'Loot from {instance}: Item ({lootLevel}). Roll 2 WHITE dice: 4-5 Accessory, 6-7 Armor, 8-10 Relic, 11-12 Core, 13-14 Weapon',
       lootMonster: 'Loot from {instance}: {item} (Monster Loot)',
       lootUnique: 'Loot from {instance}: {item} (Unique Item)',
       lootUniqueNone: 'Loot from {instance}: no {lootLevel} Unique Item left',

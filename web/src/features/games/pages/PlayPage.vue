@@ -43,6 +43,8 @@ const encounter = computed(() => state.value?.encounter)
 // Between encounters: the page being read (the whole journal is in its own tab)
 const storyTab = ref('page')
 const page = computed(() => storyPage(state.value?.log ?? []))
+/** Adventurers not on the board yet: the encounter has no starting zone (or it is too small) */
+const unplaced = computed(() => encounter.value?.adventurers.filter((a) => !a.position).map((a) => a.name) ?? [])
 /** An end condition was reached: what follows (grade, reward, choice) is the story again, not the table. */
 const encounterOver = computed(() => !!encounter.value && isEncounterOver(state.value?.log ?? []))
 const scenario = useScenario(() => game.data.value?.scenario)
@@ -183,6 +185,9 @@ function moveFigure(figure: string, to: Cell) {
               @duel="openDuel"
               @move="moveFigure"
             />
+            <Message v-if="unplaced.length" severity="info" size="small" class="unplaced">
+              {{ t('table.placeAdventurers', { names: unplaced.join(', ') }) }}
+            </Message>
             <Tabs v-model:value="tab" class="tabs">
               <TabList>
                 <Tab value="combatants">{{ t('play.tabCombatants') }}</Tab>
@@ -319,6 +324,10 @@ function moveFigure(figure: string, to: Cell) {
   padding: 0.75rem;
   border: 1px solid var(--p-content-border-color);
   border-radius: var(--p-content-border-radius);
+}
+/* The notice keeps its height: the column would squash it to a line */
+.side :deep(.unplaced) {
+  flex: none;
 }
 .tabs {
   flex: 1;

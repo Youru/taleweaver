@@ -106,7 +106,13 @@ const folio = (index: number) => (props.firstPage ? props.firstPage + index : un
 <template>
   <article class="encounter" :aria-label="t('workshop.print.pageOf', { name: sheet.name })">
     <!-- Setup sheet(s): the diagram and the Setup box -->
-    <div v-for="(part, p) in parts" :key="`setup-${p}`" class="sheet setup-sheet" :class="{ outside: outside(folio(p)) }" :style="pageBackground(folio(p))">
+    <div
+      v-for="(part, p) in parts"
+      :key="`setup-${p}`"
+      class="sheet setup-sheet"
+      :class="{ outside: outside(folio(p)) }"
+      :style="pageBackground(folio(p))"
+    >
       <header class="head" :style="header">
         <h1 v-if="part.first">{{ sheet.name }}</h1>
         <h1 v-else>{{ t('workshop.print.largeSetup') }}</h1>

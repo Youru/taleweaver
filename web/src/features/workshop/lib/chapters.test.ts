@@ -99,7 +99,10 @@ describe('editing chapters', () => {
   it('renames and reorders', () => {
     const next = moveChapter(renameChapter(saga(), 'chapter-02', { en: 'Two' }), 'chapter-02', -1)
 
-    expect(next.chapters).toEqual([{ id: 'chapter-02', title: { en: 'Two' } }, { id: 'chapter-01', title: { en: 'One' } }])
+    expect(next.chapters).toEqual([
+      { id: 'chapter-02', title: { en: 'Two' } },
+      { id: 'chapter-01', title: { en: 'One' } },
+    ])
     expect(moveChapter(next, 'chapter-02', -1)).toBe(next)
   })
 })

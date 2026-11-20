@@ -61,7 +61,7 @@ export function chapterView(scenario: DraftScenario, chapter: string | null): Ch
     }
   const start = ids.has(scenario.start)
     ? scenario.start
-    : (inside.find((n) => entered.has(n.id)) ?? inside[0])?.id ?? ''
+    : ((inside.find((n) => entered.has(n.id)) ?? inside[0])?.id ?? '')
   return { scenario: { ...scenario, nodes: inside, start }, portals: [...entries, ...out.values()] }
 }
 
@@ -74,8 +74,7 @@ export function portalPositions(portals: Portal[], positions: Record<string, Pos
   let rowIn = 0
   let rowOut = 0
   for (const portal of portals)
-    placed[portal.id] =
-      portal.direction === 'in' ? { x: left, y: rowIn++ * ROW } : { x: right, y: rowOut++ * ROW }
+    placed[portal.id] = portal.direction === 'in' ? { x: left, y: rowIn++ * ROW } : { x: right, y: rowOut++ * ROW }
   return placed
 }
 

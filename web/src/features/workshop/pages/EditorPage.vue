@@ -38,8 +38,20 @@ const { language } = storeToRefs(usePreferences())
 const id = computed(() => `homebrew:scenario/${props.name}`)
 const saved = useDraft(id)
 const editor = useEditor(saved.data, language)
-const { draft, dirty, selected, chapter, view, positions, portalSpots, report, checking, issuesByNode, canUndo, canRedo } =
-  editor
+const {
+  draft,
+  dirty,
+  selected,
+  chapter,
+  view,
+  positions,
+  portalSpots,
+  report,
+  checking,
+  issuesByNode,
+  canUndo,
+  canRedo,
+} = editor
 
 // With chapters: the one the graph shows, or the whole scenario
 const ALL = '*'

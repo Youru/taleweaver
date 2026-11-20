@@ -5,7 +5,10 @@ import type { InjectionKey } from 'vue'
  * Returns undefined when the text is empty or unreadable (every page is printed).
  */
 export function parsePages(text: string | undefined): ((page: number) => boolean) | undefined {
-  const parts = (text ?? '').split(',').map((p) => p.trim()).filter(Boolean)
+  const parts = (text ?? '')
+    .split(',')
+    .map((p) => p.trim())
+    .filter(Boolean)
   if (!parts.length) return undefined
   const ranges: [number, number][] = []
   for (const part of parts) {
