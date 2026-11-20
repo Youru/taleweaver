@@ -78,7 +78,29 @@ public sealed class JsonContentStore(IOptions<ContentOptions> options, IHostEnvi
         {
             var index = await IndexScenariosAsync(cancellationToken);
             var path = index.TryGetValue(scenario.Id, out var existing) ? existing.Path : NewScenarioPath(scenario);
-            await AtomicFile.WriteJsonAsync(path, scenario, cancellationToken);
+            // With chapters, a campaign folder (CampaignFolder); without, one file. Switching between the two
+            // moves the scenario: <name>.json ↔ <name>/.
+            var isFolder = path.EndsWith(Path.DirectorySeparatorChar);
+            var asFolder = scenario.Chapters is { Count: > 0 };
+            var target = (isFolder, asFolder) switch
+            {
+                (false, true) => Path.ChangeExtension(path, null) + Path.DirectorySeparatorChar,
+                (true, false) => path.TrimEnd(Path.DirectorySeparatorChar) + ".json",
+                _ => path,
+            };
+            if (asFolder)
+            {
+                await CampaignFolder.WriteAsync(target, scenario, cancellationToken);
+            }
+            else
+            {
+                await AtomicFile.WriteJsonAsync(target, scenario, cancellationToken);
+            }
+
+            if (target != path)
+            {
+                DeletePath(path);
+            }
         }
         finally
         {
@@ -97,12 +119,25 @@ public sealed class JsonContentStore(IOptions<ContentOptions> options, IHostEnvi
                 return false;
             }
 
-            System.IO.File.Delete(entry.Path);
+            DeletePath(entry.Path);
             return true;
         }
         finally
         {
             _scenariosLock.Release();
+        }
+    }
+
+    /// <summary>A scenario file, or a campaign folder (its path ends with a separator).</summary>
+    private static void DeletePath(string path)
+    {
+        if (path.EndsWith(Path.DirectorySeparatorChar))
+        {
+            Directory.Delete(path, recursive: true);
+        }
+        else
+        {
+            System.IO.File.Delete(path);
         }
     }
 
@@ -162,12 +197,14 @@ public sealed class JsonContentStore(IOptions<ContentOptions> options, IHostEnvi
         var defaultHomebrew = Path.GetFullPath(Path.Combine(ScenariosPath, Scenario.HomebrewPack)) + Path.DirectorySeparatorChar;
 
         // A folder with a campaign.json is one scenario (CampaignFolder): its files are not scenarios of their own
-        var campaigns = Directory.Exists(ScenariosPath)
-            ? Directory.EnumerateDirectories(ScenariosPath, "*", SearchOption.AllDirectories)
-                .Where(CampaignFolder.IsCampaign)
-                .Select(folder => Path.GetFullPath(folder) + Path.DirectorySeparatorChar)
-                .ToList()
-            : [];
+        var campaigns = new[] { ScenariosPath, HomebrewPath }
+            .Where(Directory.Exists)
+            .SelectMany(folder => Directory.EnumerateDirectories(folder, "*", SearchOption.AllDirectories))
+            .Where(CampaignFolder.IsCampaign)
+            .Select(folder => Path.GetFullPath(folder) + Path.DirectorySeparatorChar)
+            .Where(folder => IsHomebrew(folder) || !folder.StartsWith(defaultHomebrew, StringComparison.OrdinalIgnoreCase))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
         var files = new[] { ScenariosPath, HomebrewPath }
             .Where(Directory.Exists)
             .SelectMany(folder => Directory.EnumerateFiles(folder, "*.json", SearchOption.AllDirectories))

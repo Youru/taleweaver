@@ -12,9 +12,17 @@ export interface DraftScenario {
   packs: string[]
   start: string
   nodes: DraftNode[]
+  /** A campaign folder's chapters, in order (none: a single-file scenario). */
+  chapters?: DraftChapter[]
   /** Read by the workshop only: where each node sits on the graph. */
   editor?: { positions?: Record<string, Position> }
   [field: string]: unknown
+}
+
+/** Mirrors Taleweaver.Api.Content.ScenarioChapter: the folder name and the title. */
+export interface DraftChapter {
+  id: string
+  title?: LocalizedText
 }
 
 export interface Position {
@@ -26,6 +34,8 @@ export interface DraftNode {
   id: string
   /** scene or encounter. */
   type: string
+  /** The chapter it belongs to, when the scenario has chapters. */
+  chapter?: string
   /** Scene title. */
   title?: LocalizedText
   /** Encounter name. */

@@ -93,6 +93,29 @@ public class ScenarioCheckerTests
     }
 
     [Fact]
+    public void Check_CampaignFolderStepOutsideTheChapters_ReportsErrors()
+    {
+        var scenario = Scenario(
+                new Node { Id = "intro", Type = "scene", Chapter = "ch-1", Next = "fight" },
+                Encounter() with { Chapter = "ch-9" },
+                new Node { Id = "loose", Type = "scene", Next = "@end" }) with
+            {
+                Start = "intro",
+                Chapters = [new ScenarioChapter("ch-1"), new ScenarioChapter("ch-1"), new ScenarioChapter("Chapter 2")],
+            };
+
+        var report = ScenarioChecker.Check(scenario, Catalog);
+
+        report.Errors.Where(e => e.Code.Contains("Chapter")).Select(e => (e.Code, e.Where)).Should().BeEquivalentTo(
+        [
+            ("Scenarios.DuplicateChapter", "chapters"),
+            ("Scenarios.BadChapterId", "chapters"),
+            ("Scenarios.UnknownChapter", "fight"),
+            ("Scenarios.UnknownChapter", "loose"),
+        ]);
+    }
+
+    [Fact]
     public void Check_UnknownStart_ReportsError()
     {
         var scenario = Scenario(Encounter()) with { Start = "missing" };

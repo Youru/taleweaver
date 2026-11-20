@@ -2,6 +2,7 @@ import { computed, onBeforeUnmount, ref, watch, type Ref } from 'vue'
 import type { Language } from '@/shared/lib/localized'
 import type { DraftNode, DraftScenario, Position, ScenarioReport } from '../api/types'
 import { workshopApi } from '../api/workshopApi'
+import { chapterView, chaptersOf, portalPositions, portalTarget } from './chapters'
 import { freshId, layout, newEncounter, newScene, removeNode, setExit } from './graph'
 import { createHistory } from './history'
 
@@ -21,6 +22,8 @@ export function useEditor(saved: Ref<DraftScenario | undefined>, language: Ref<L
   const draft = ref<DraftScenario>()
   const dirty = ref(false)
   const selected = ref<string | null>(null)
+  /** The chapter the graph shows (null: the whole scenario, or one without chapters). */
+  const chapter = ref<string | null>(null)
   const history = createHistory<DraftScenario>()
   const canUndo = ref(false)
   const canRedo = ref(false)
@@ -33,6 +36,7 @@ export function useEditor(saved: Ref<DraftScenario | undefined>, language: Ref<L
       if (value && !dirty.value) {
         savedJson = JSON.stringify(value)
         draft.value = JSON.parse(savedJson) as DraftScenario
+        keepChapter(true)
         history.clear()
         syncHistory()
       }
@@ -49,6 +53,7 @@ export function useEditor(saved: Ref<DraftScenario | undefined>, language: Ref<L
     if (draft.value) history.record(draft.value, Date.now())
     draft.value = next
     dirty.value = true
+    keepChapter()
     syncHistory()
   }
 
@@ -69,7 +74,27 @@ export function useEditor(saved: Ref<DraftScenario | undefined>, language: Ref<L
     draft.value = state
     dirty.value = JSON.stringify(state) !== savedJson
     if (selected.value && !state.nodes.some((n) => n.id === selected.value)) selected.value = null
+    keepChapter()
     syncHistory()
+  }
+
+  /**
+   * The chapter shown still exists (else the one of the start, or the first). On opening, the graph
+   * shows the start's chapter rather than the whole act; "whole scenario" (null) stays a choice.
+   */
+  function keepChapter(opening = false) {
+    const d = draft.value
+    const chapters = d ? chaptersOf(d) : []
+    if (!chapters.length) chapter.value = null
+    else if ((opening || chapter.value !== null) && !chapters.some((c) => c.id === chapter.value))
+      chapter.value = d?.nodes.find((n) => n.id === d.start)?.chapter ?? chapters[0]!.id
+  }
+
+  /** Shows the chapter of a step (from a portal, the search, a list). */
+  function reveal(id: string) {
+    const owner = draft.value?.nodes.find((n) => n.id === id)?.chapter
+    if (chapter.value && owner) chapter.value = owner
+    selected.value = id
   }
 
   function updateNode(id: string, update: (node: DraftNode) => DraftNode) {
@@ -77,35 +102,46 @@ export function useEditor(saved: Ref<DraftScenario | undefined>, language: Ref<L
     if (d) change({ ...d, nodes: d.nodes.map((n) => (n.id === id ? update(n) : n)) })
   }
 
-  /** Every node keeps a position once the author touched the graph: the layout no longer moves them. */
-  const positions = computed(() => (draft.value ? layout(draft.value) : {}))
+  /** What the graph shows: the chapter's steps and its portals to the others. */
+  const view = computed(() => (draft.value ? chapterView(draft.value, chapter.value) : undefined))
+
+  /**
+   * Every node keeps a position once the author touched the graph: the layout no longer moves them.
+   * A chapter is laid out on its own; its portals sit around it (they are not saved).
+   */
+  const positions = computed(() => (view.value ? layout(view.value.scenario) : {}))
+  const portalSpots = computed(() => (view.value ? portalPositions(view.value.portals, positions.value) : {}))
 
   function move(id: string, position: Position) {
     const d = draft.value
     if (!d) return
-    change({ ...d, editor: { ...d.editor, positions: { ...positions.value, [id]: position } } })
+    if (id.startsWith('portal:')) return
+    const saved = { ...d.editor?.positions, ...positions.value }
+    change({ ...d, editor: { ...d.editor, positions: { ...saved, [id]: position } } })
   }
 
   function add(type: 'scene' | 'encounter', labels: NewNodeLabels, at?: Position) {
     const d = draft.value
     if (!d) return
     const id = freshId(d, type)
-    const node =
+    const made =
       type === 'scene'
         ? newScene(id, language.value, labels.scene)
         : newEncounter(id, language.value, { name: labels.encounter, win: labels.win, lose: labels.lose })
+    const node = chapter.value ? { ...made, chapter: chapter.value } : made
     const spot = at ?? { x: Math.max(0, ...Object.values(positions.value).map((p) => p.x)) + 300, y: 0 }
     change({
       ...d,
       nodes: [...d.nodes, node],
       start: d.start || id,
-      editor: { ...d.editor, positions: { ...positions.value, [id]: spot } },
+      editor: { ...d.editor, positions: { ...d.editor?.positions, ...positions.value, [id]: spot } },
     })
     selected.value = id
   }
 
   function connect(source: string, exit: string, target: string | undefined) {
-    updateNode(source, (node) => setExit(node, exit, target))
+    // A link dropped on a portal leads to the step behind it.
+    updateNode(source, (node) => setExit(node, exit, target && portalTarget(target)))
   }
 
   function remove(id: string) {
@@ -175,7 +211,11 @@ export function useEditor(saved: Ref<DraftScenario | undefined>, language: Ref<L
     draft,
     dirty,
     selected,
+    chapter,
+    view,
     positions,
+    portalSpots,
+    reveal,
     report,
     checking,
     issuesByNode,

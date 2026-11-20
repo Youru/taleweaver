@@ -5,6 +5,7 @@ import { onBeforeRouteLeave, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import Button from 'primevue/button'
 import Message from 'primevue/message'
+import Select from 'primevue/select'
 import ProgressSpinner from 'primevue/progressspinner'
 import Tag from 'primevue/tag'
 import { useConfirm } from 'primevue/useconfirm'
@@ -19,6 +20,7 @@ import MapEditor from '../components/MapEditor.vue'
 import NodeSheet from '../components/NodeSheet.vue'
 import ScenarioGraph from '../components/ScenarioGraph.vue'
 import ScenarioSheet from '../components/ScenarioSheet.vue'
+import { chapterCaption, chaptersOf } from '../lib/chapters'
 import { diagramAsNode, diagramsOf, underOf, updateDiagram, withDiagramBoard } from '../lib/diagrams'
 import { useEditor } from '../lib/editor'
 import { mapOf, setupOf } from '../lib/map'
@@ -36,7 +38,28 @@ const { language } = storeToRefs(usePreferences())
 const id = computed(() => `homebrew:scenario/${props.name}`)
 const saved = useDraft(id)
 const editor = useEditor(saved.data, language)
-const { draft, dirty, selected, positions, report, checking, issuesByNode, canUndo, canRedo } = editor
+const { draft, dirty, selected, chapter, view, positions, portalSpots, report, checking, issuesByNode, canUndo, canRedo } =
+  editor
+
+// With chapters: the one the graph shows, or the whole scenario
+const ALL = '*'
+const chapterOptions = computed(() => [
+  { id: ALL, label: t('workshop.chapters.all') },
+  ...chaptersOf(draft.value ?? { id: '', title: {}, packs: [], start: '', nodes: [] }).map((c) => ({
+    id: c.id,
+    label: chapterCaption(c, language.value),
+  })),
+])
+const shownChapter = computed({
+  get: () => chapter.value ?? ALL,
+  set: (value: string) => (chapter.value = value === ALL ? null : value),
+})
+/** Steps with errors outside the chapter shown: the first one is a click away. */
+const elsewhere = computed(() => {
+  const shown = new Set(view.value?.scenario.nodes.map((n) => n.id))
+  const ids = new Set(draft.value?.nodes.map((n) => n.id))
+  return [...issuesByNode.value.keys()].filter((id) => ids.has(id) && !shown.has(id))
+})
 
 const node = computed(() => draft.value?.nodes.find((n) => n.id === selected.value))
 
@@ -178,7 +201,28 @@ function started(game: GameView) {
           icon="pi pi-info-circle"
           :title="t('workshop.warningsHint')"
         />
+        <Tag
+          v-if="!checking && chapter && elsewhere.length"
+          :value="`${elsewhere.length} ${t('workshop.chapters.issuesElsewhere', elsewhere.length)}`"
+          severity="danger"
+          icon="pi pi-directions"
+          class="elsewhere"
+          role="button"
+          tabindex="0"
+          @click="editor.reveal(elsewhere[0]!)"
+          @keydown.enter="editor.reveal(elsewhere[0]!)"
+        />
         <span class="spacer" />
+        <Select
+          v-if="chapterOptions.length > 1"
+          v-model="shownChapter"
+          :options="chapterOptions"
+          option-label="label"
+          option-value="id"
+          size="small"
+          :aria-label="t('workshop.chapters.show')"
+          class="chapter-select"
+        />
         <Button
           icon="pi pi-undo"
           severity="secondary"
@@ -249,11 +293,16 @@ function started(game: GameView) {
       <div v-else class="body">
         <ScenarioGraph
           class="graph"
-          :scenario="draft"
+          :chapter="chapter"
+          :scenario="view?.scenario ?? draft"
+          :whole="draft"
+          :portals="view?.portals"
+          :portal-positions="portalSpots"
           :positions="positions"
           :selected="selected"
           :issues="issuesByNode"
           @select="(nodeId) => (selected = nodeId)"
+          @open="editor.reveal"
           @move="editor.move"
           @connect="editor.connect"
         />
@@ -276,8 +325,10 @@ function started(game: GameView) {
             v-else
             :scenario="draft"
             :issues="scenarioIssues"
+            :chapter="chapter"
             @change="editor.change"
-            @select="(nodeId) => (selected = nodeId)"
+            @select="editor.reveal"
+            @show="(id) => (chapter = id)"
           />
         </aside>
       </div>
@@ -316,6 +367,12 @@ h1 {
 }
 .spacer {
   flex: 1;
+}
+.chapter-select {
+  min-width: 12rem;
+}
+.elsewhere {
+  cursor: pointer;
 }
 .body {
   display: grid;

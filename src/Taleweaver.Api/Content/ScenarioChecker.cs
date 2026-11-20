@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Taleweaver.Api.Common;
 
 namespace Taleweaver.Api.Content;
@@ -21,8 +22,11 @@ public sealed record ScenarioReport(IReadOnlyList<ScenarioIssue> Errors, IReadOn
 /// conditions, figures beyond the numbered cards, hidden cards).
 /// Errors make the scenario unplayable; warnings do not.
 /// </summary>
-public static class ScenarioChecker
+public static partial class ScenarioChecker
 {
+    [GeneratedRegex("^[a-z0-9]+(-[a-z0-9]+)*$")]
+    private static partial Regex ChapterIdPattern();
+
     private static readonly HashSet<string> CatalogKinds = ["combatant", "item", "item-upgrade", "tile", "token", "initiative"];
     private static readonly HashSet<string> BlockingTerrain = ["obstructing", "dangerous"];
 
@@ -100,6 +104,31 @@ public static class ScenarioChecker
 
         private void Warn(string code, string where, string message) => Warnings.Add(new ScenarioIssue($"Scenarios.{code}", where, message));
 
+        /// <summary>A campaign folder: chapter ids are folder names, unique, and every step sits in one of them.</summary>
+        private void CheckChapters(Scenario scenario)
+        {
+            if (scenario.Chapters is not { Count: > 0 } chapters)
+            {
+                return;
+            }
+
+            var ids = chapters.Select(c => c.Id).ToList();
+            foreach (var duplicate in ids.GroupBy(i => i).Where(g => g.Count() > 1))
+            {
+                Error("DuplicateChapter", "chapters", $"duplicate chapter id '{duplicate.Key}'");
+            }
+
+            foreach (var bad in ids.Where(i => !ChapterIdPattern().IsMatch(i)))
+            {
+                Error("BadChapterId", "chapters", $"'{bad}': only lower-case letters, digits and dashes (it is a folder name)");
+            }
+
+            foreach (var node in scenario.Nodes.Where(n => n.Chapter is null || !ids.Contains(n.Chapter)))
+            {
+                Error("UnknownChapter", node.Id, node.Chapter is null ? "the step is in no chapter" : $"unknown chapter '{node.Chapter}'");
+            }
+        }
+
         public void CheckNodes(Scenario scenario)
         {
             var ids = scenario.Nodes.Select(n => n.Id).ToList();
@@ -113,6 +142,7 @@ public static class ScenarioChecker
                 Error("UnknownStart", "start", $"unknown node '{scenario.Start}'");
             }
 
+            CheckChapters(scenario);
             CollectVariables(scenario);
             foreach (var node in scenario.Nodes)
             {

@@ -34,8 +34,17 @@ public sealed record Scenario
     /// <summary>What only the workshop reads (where each node sits on the graph); the engine ignores it.</summary>
     public JsonElement? Editor { get; init; }
 
+    /// <summary>
+    /// The chapters of a campaign folder, in order (see Storage.CampaignFolder); null for a single-file scenario.
+    /// Each node of a chapter names it in <see cref="Node.Chapter"/>.
+    /// </summary>
+    public IReadOnlyList<ScenarioChapter>? Chapters { get; init; }
+
     public IReadOnlyList<Node> Nodes { get; init; } = [];
 }
+
+/// <summary>A chapter of a campaign folder: its folder name and its title.</summary>
+public sealed record ScenarioChapter(string Id, LocalizedText? Title = null);
 
 public sealed record ScenarioSource(string? File, string? Reference, string? Version);
 
@@ -60,7 +69,7 @@ public sealed record Node
     /// <summary>scene, encounter, choice…</summary>
     public required string Type { get; init; }
 
-    /// <summary>Chapter of a campaign folder the step comes from (set when the folder is read, see CampaignFolder).</summary>
+    /// <summary>Chapter of a campaign folder the step belongs to (one of <see cref="Scenario.Chapters"/>; not written in the step's file).</summary>
     public string? Chapter { get; init; }
 
     public LocalizedText? Name { get; init; }

@@ -18,6 +18,7 @@ import type { BoardPieces } from '@/features/table'
 import { pick, type LocalizedText } from '@/shared/lib/localized'
 import { usePreferences } from '@/shared/lib/preferences'
 import type { DraftEnd, DraftNode, DraftRule, DraftScenario, ScenarioIssue } from '../api/types'
+import { chapterCaption, chaptersOf } from '../lib/chapters'
 import { choiceOf, exitsOf, setChoice, setExit, setText, text, withChoice } from '../lib/graph'
 import { addDiagram, diagramBoard, diagramsOf, removeDiagram, updateDiagram, type DraftDiagram } from '../lib/diagrams'
 import { mapOf, setupOf } from '../lib/map'
@@ -50,6 +51,15 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const { language } = storeToRefs(usePreferences())
+
+/** With chapters: the one the step belongs to (moving it moves its file on save). */
+const chapterOptions = computed(() =>
+  chaptersOf(props.scenario).map((c) => ({ id: c.id, label: `${chapterCaption(c, language.value)} (${c.id})` })),
+)
+const chapter = computed({
+  get: () => props.node.chapter,
+  set: (value: string | undefined) => patch({ chapter: value }),
+})
 
 function patch(fields: Partial<DraftNode>) {
   emit('change', { ...props.node, ...fields })
@@ -266,6 +276,18 @@ const hiddenRules = computed(() => {
     <Message v-for="(issue, i) in warnings ?? []" :key="`w${i}`" severity="warn" size="small">{{
       issue.message
     }}</Message>
+
+    <div v-if="chapterOptions.length" class="field">
+      <label for="node-chapter">{{ t('workshop.chapters.stepChapter') }}</label>
+      <Select
+        v-model="chapter"
+        input-id="node-chapter"
+        :options="chapterOptions"
+        option-label="label"
+        option-value="id"
+        size="small"
+      />
+    </div>
 
     <!-- Scene -->
     <template v-if="node.type !== 'encounter'">

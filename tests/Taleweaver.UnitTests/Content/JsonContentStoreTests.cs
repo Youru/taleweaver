@@ -108,12 +108,128 @@ public class JsonContentStoreTests
 
             scenario!.Nodes.Select(n => (n.Id, n.Chapter)).Should().Equal(("b", "one"), ("a", "one"), ("c", "two"));
             list.Should().ContainSingle(s => s.Id == "hb:scenario/act1", "the files of a campaign folder are not scenarios of their own");
+            scenario.Chapters.Should().Equal(new ScenarioChapter("one"), new ScenarioChapter("two"));
         }
         finally
         {
             Directory.Delete(root, recursive: true);
         }
     }
+
+    [Fact]
+    public async Task SaveScenarioAsync_HomebrewWithChapters_WritesAFolderAndReadsItBack()
+    {
+        var root = Directory.CreateTempSubdirectory("taleweaver-").FullName;
+        try
+        {
+            var store = RepositoryContent.CreateStore(root);
+            var ct = TestContext.Current.CancellationToken;
+
+            await store.SaveScenarioAsync(Campaign(), ct);
+
+            var folder = Path.Combine(root, "scenarios", "homebrew", "saga");
+            File.Exists(Path.Combine(folder, "campaign.json")).Should().BeTrue();
+            File.Exists(Path.Combine(folder, "ch-2", "c.json")).Should().BeTrue();
+            File.ReadAllText(Path.Combine(folder, "ch-1", "a.json")).Should().NotContain("chapter", "the folder says it");
+            var read = await store.GetScenarioAsync("homebrew:scenario/saga", ct);
+            read!.Nodes.Select(n => (n.Id, n.Chapter)).Should().Equal(("b", "ch-1"), ("a", "ch-1"), ("c", "ch-2"));
+            read.Chapters![0].Title!["en"].Should().Be("One");
+            (await store.ListScenariosAsync(ct)).Should().ContainSingle(s => s.Id == "homebrew:scenario/saga").Which.Editable.Should().BeTrue();
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task SaveScenarioAsync_StepMovedAndChapterDropped_LeavesNoOrphanFile()
+    {
+        var root = Directory.CreateTempSubdirectory("taleweaver-").FullName;
+        try
+        {
+            var store = RepositoryContent.CreateStore(root);
+            var ct = TestContext.Current.CancellationToken;
+            var campaign = Campaign();
+            await store.SaveScenarioAsync(campaign, ct);
+
+            await store.SaveScenarioAsync(campaign with
+            {
+                Chapters = [campaign.Chapters![0]],
+                Nodes = campaign.Nodes.Select(n => n with { Chapter = "ch-1" }).ToList(),
+            }, ct);
+
+            var folder = Path.Combine(root, "scenarios", "homebrew", "saga");
+            Directory.Exists(Path.Combine(folder, "ch-2")).Should().BeFalse();
+            var read = await store.GetScenarioAsync("homebrew:scenario/saga", ct);
+            read!.Nodes.Select(n => (n.Id, n.Chapter)).Should().Equal(("b", "ch-1"), ("a", "ch-1"), ("c", "ch-1"));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task SaveScenarioAsync_ChaptersAddedOrRemoved_MovesBetweenFileAndFolder()
+    {
+        var root = Directory.CreateTempSubdirectory("taleweaver-").FullName;
+        try
+        {
+            var store = RepositoryContent.CreateStore(root);
+            var ct = TestContext.Current.CancellationToken;
+            var homebrew = Path.Combine(root, "scenarios", "homebrew");
+            var single = Campaign() with { Chapters = null, Nodes = Campaign().Nodes.Select(n => n with { Chapter = null }).ToList() };
+            await store.SaveScenarioAsync(single, ct);
+
+            await store.SaveScenarioAsync(Campaign(), ct);
+            File.Exists(Path.Combine(homebrew, "saga.json")).Should().BeFalse();
+            Directory.Exists(Path.Combine(homebrew, "saga")).Should().BeTrue();
+
+            await store.SaveScenarioAsync(single, ct);
+            File.Exists(Path.Combine(homebrew, "saga.json")).Should().BeTrue();
+            Directory.Exists(Path.Combine(homebrew, "saga")).Should().BeFalse();
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task DeleteScenarioAsync_HomebrewCampaign_RemovesTheFolder()
+    {
+        var root = Directory.CreateTempSubdirectory("taleweaver-").FullName;
+        try
+        {
+            var store = RepositoryContent.CreateStore(root);
+            var ct = TestContext.Current.CancellationToken;
+            await store.SaveScenarioAsync(Campaign(), ct);
+
+            var deleted = await store.DeleteScenarioAsync("homebrew:scenario/saga", ct);
+
+            deleted.Should().BeTrue();
+            Directory.Exists(Path.Combine(root, "scenarios", "homebrew", "saga")).Should().BeFalse();
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    private static Scenario Campaign() => new()
+    {
+        Id = "homebrew:scenario/saga",
+        Title = new Dictionary<string, string> { ["en"] = "Saga" },
+        Start = "b",
+        Chapters = [new ScenarioChapter("ch-1", new Dictionary<string, string> { ["en"] = "One" }), new ScenarioChapter("ch-2")],
+        Nodes =
+        [
+            new Node { Id = "b", Type = "scene", Chapter = "ch-1", Next = "a" },
+            new Node { Id = "a", Type = "scene", Chapter = "ch-1", Next = "c" },
+            new Node { Id = "c", Type = "scene", Chapter = "ch-2", Next = "@end" },
+        ],
+    };
 
     private static IEnumerable<string> Differences(JsonNode? actual, JsonNode? expected, string path)
     {

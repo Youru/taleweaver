@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 import { VueFlow, useVueFlow, type Connection, type Edge, type EdgeChange, type Node } from '@vue-flow/core'
@@ -12,23 +12,34 @@ import AutoComplete, { type AutoCompleteCompleteEvent, type AutoCompleteOptionSe
 import { pick } from '@/shared/lib/localized'
 import { usePreferences } from '@/shared/lib/preferences'
 import type { DraftScenario, Position } from '../api/types'
+import { chapterCaption, chaptersOf, portalId, type Portal } from '../lib/chapters'
 import { captionOf, endingsOf, exitsOf, isEnding, type Exit } from '../lib/graph'
 import { searchNodes, type SearchHit } from '../lib/search'
 import EndingNode from './EndingNode.vue'
+import PortalNode from './PortalNode.vue'
 import StepNode from './StepNode.vue'
 
 /**
  * The scenario as a graph: drag a node to place it, pull a link from an exit (right) to a node
  * (left) to branch, drag a link's end elsewhere to change it, or select it and press Delete.
+ * With chapters, `scenario` is one chapter and `whole` the scenario: the steps of the other chapters
+ * linked to this one are portals, and a click on one opens its chapter.
  */
 const props = defineProps<{
   scenario: DraftScenario
   positions: Record<string, Position>
   selected: string | null
   issues: Map<string, number>
+  whole?: DraftScenario
+  portals?: Portal[]
+  portalPositions?: Record<string, Position>
+  /** The chapter shown: when it changes, the graph is fitted to it. */
+  chapter?: string | null
 }>()
 const emit = defineEmits<{
   select: [id: string | null]
+  /** Go to a step, maybe in another chapter. */
+  open: [id: string]
   move: [id: string, position: Position]
   connect: [source: string, exit: string, target: string | undefined]
 }>()
@@ -41,13 +52,39 @@ const { getSelectedEdges, fitView } = useVueFlow('workshop-graph')
 const query = ref('')
 const hits = ref<SearchHit[]>([])
 function search(event: AutoCompleteCompleteEvent) {
-  hits.value = searchNodes(props.scenario, event.query, language.value)
+  hits.value = searchNodes(whole.value, event.query, language.value)
 }
 function goTo(event: AutoCompleteOptionSelectEvent) {
   const hit = event.value as SearchHit
-  emit('select', hit.id)
-  void fitView({ nodes: [hit.id], duration: 400, maxZoom: 1 })
+  emit('open', hit.id)
+  // After the chapter of the step is shown, if it changed
+  setTimeout(() => void fitView({ nodes: [hit.id], duration: 400, maxZoom: 1 }), 150)
   query.value = ''
+}
+
+const whole = computed(() => props.whole ?? props.scenario)
+watch(
+  () => props.chapter,
+  // Once the new nodes are measured
+  () => void nextTick(() => setTimeout(() => void fitView({ duration: 300 }), 50)),
+)
+const inView = computed(() => new Set(props.scenario.nodes.map((n) => n.id)))
+/** Where a link ends on this graph: the step, an ending, or the portal of a step of another chapter. */
+const endOf = (target: string) => (isEnding(target) || inView.value.has(target) ? target : portalId('out', target))
+
+function portalData(portal: Portal) {
+  const node = whole.value.nodes.find((n) => n.id === portal.node)
+  const chapter = chapterCaption(
+    chaptersOf(whole.value).find((c) => c.id === portal.chapter),
+    language.value,
+  )
+  const caption = node ? captionOf(node, language.value) : portal.node
+  return {
+    direction: portal.direction,
+    caption,
+    chapter: chapter || t('workshop.chapters.none'),
+    title: t('workshop.chapters.openPortal', { step: caption, chapter }),
+  }
 }
 
 interface EndingLabel {
@@ -77,7 +114,7 @@ const nodes = computed<Node[]>(() => [
     data: {
       type: node.type,
       caption: captionOf(node, language.value),
-      start: node.id === props.scenario.start,
+      start: node.id === whole.value.start,
       issues: props.issues.get(node.id) ?? 0,
       exits: exitsOf(node).map((exit, i) => ({ ...exit, text: exitText(exit, i) })),
     },
@@ -88,22 +125,56 @@ const nodes = computed<Node[]>(() => [
     position: props.positions[id] ?? { x: 0, y: 0 },
     data: ending(id),
   })),
+  ...(props.portals ?? []).map((portal) => ({
+    id: portal.id,
+    type: 'portal',
+    position: props.portalPositions?.[portal.id] ?? { x: 0, y: 0 },
+    draggable: false,
+    data: portalData(portal),
+  })),
 ])
 
-const edges = computed<Edge[]>(() =>
-  props.scenario.nodes.flatMap((node) =>
+const edges = computed<Edge[]>(() => [
+  ...props.scenario.nodes.flatMap((node) =>
     exitsOf(node)
       .filter((exit) => !!exit.target)
       .map((exit) => ({
         id: `${node.id}|${exit.key}`,
         source: node.id,
         sourceHandle: exit.key,
-        target: exit.target!,
+        target: endOf(exit.target!),
         updatable: true,
         class: `exit-${exit.kind}${isEnding(exit.target) ? ' to-ending' : ''}`,
       })),
   ),
+  ...entries.value,
+])
+
+/** From each entry portal to the steps of this chapter it leads to. */
+const entries = computed<Edge[]>(() =>
+  (props.portals ?? [])
+    .filter((p) => p.direction === 'in')
+    .flatMap((portal) => {
+      const node = whole.value.nodes.find((n) => n.id === portal.node)
+      return (node ? exitsOf(node) : [])
+        .filter((exit) => exit.target && inView.value.has(exit.target))
+        .map((exit) => ({
+          id: `${portal.id}|${exit.key}`,
+          source: portal.id,
+          target: exit.target!,
+          updatable: false,
+          selectable: false,
+          class: `exit-${exit.kind} from-portal`,
+        }))
+    }),
 )
+
+function onNodeClick(node: Node) {
+  if (node.type === 'portal') {
+    const portal = props.portals?.find((p) => p.id === node.id)
+    if (portal) emit('open', portal.node)
+  } else emit('select', node.type === 'step' ? node.id : null)
+}
 
 function onConnect(connection: Connection) {
   if (connection.sourceHandle) emit('connect', connection.source, connection.sourceHandle, connection.target)
@@ -116,7 +187,8 @@ function onEdgeUpdate({ edge, connection }: { edge: Edge; connection: Connection
 
 function onEdgesChange(changes: EdgeChange[]) {
   for (const change of changes)
-    if (change.type === 'remove' && change.sourceHandle) emit('connect', change.source, change.sourceHandle, undefined)
+    if (change.type === 'remove' && change.sourceHandle && !change.source.startsWith('portal:'))
+      emit('connect', change.source, change.sourceHandle, undefined)
 }
 
 /** Delete removes the selected links (never a node: that is done from its sheet). */
@@ -124,7 +196,8 @@ function onKeydown(event: KeyboardEvent) {
   if (event.key !== 'Delete' && event.key !== 'Backspace') return
   if ((event.target as HTMLElement).closest('input, textarea')) return
   for (const edge of getSelectedEdges.value)
-    if (edge.sourceHandle) emit('connect', edge.source, edge.sourceHandle, undefined)
+    if (edge.sourceHandle && !edge.source.startsWith('portal:'))
+      emit('connect', edge.source, edge.sourceHandle, undefined)
 }
 </script>
 
@@ -170,7 +243,7 @@ function onKeydown(event: KeyboardEvent) {
       @node-drag-stop="
         ({ node }) => emit('move', node.id, { x: Math.round(node.position.x), y: Math.round(node.position.y) })
       "
-      @node-click="({ node }) => emit('select', node.type === 'step' ? node.id : null)"
+      @node-click="({ node }) => onNodeClick(node)"
       @pane-click="emit('select', null)"
     >
       <template #node-step="stepProps">
@@ -178,6 +251,9 @@ function onKeydown(event: KeyboardEvent) {
       </template>
       <template #node-ending="endingProps">
         <EndingNode :data="endingProps.data" />
+      </template>
+      <template #node-portal="portalProps">
+        <PortalNode :data="portalProps.data" />
       </template>
       <Background :gap="24" />
       <Controls :show-interactive="false" />
@@ -231,6 +307,9 @@ function onKeydown(event: KeyboardEvent) {
 }
 .graph :deep(.exit-option .vue-flow__edge-path) {
   stroke: #6d28d9;
+}
+.graph :deep(.from-portal .vue-flow__edge-path) {
+  stroke-dasharray: 6 4;
 }
 .graph :deep(.vue-flow__edge.selected .vue-flow__edge-path) {
   stroke-width: 5;
