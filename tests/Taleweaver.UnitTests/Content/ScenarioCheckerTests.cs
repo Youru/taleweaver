@@ -242,6 +242,27 @@ public class ScenarioCheckerTests
     }
 
     [Fact]
+    public void Check_TwoTokensSharingAHiddenText_ReportsWarning()
+    {
+        var encounter = Encounter() with
+        {
+            Map = Board() with
+            {
+                Tokens =
+                [
+                    new MapToken { Id = "t1", Type = "hb:token/totem", Color = "red", X = 1, Y = 1 },
+                    new MapToken { Id = "t2", Type = "hb:token/totem", Color = "red", X = 3, Y = 3 },
+                ],
+            },
+            Tokens = new Dictionary<string, TokenRule> { ["totem:red"] = new() { Mode = "adjacent" } },
+        };
+
+        var report = ScenarioChecker.Check(Scenario(encounter), Catalog);
+
+        report.Warnings.Should().Contain(w => w.Code == "Scenarios.SharedHiddenText" && w.Message.Contains("t1, t2"));
+    }
+
+    [Fact]
     public void Check_ReferenceMissingFromCatalogue_ReportsWarning()
     {
         var encounter = Encounter() with

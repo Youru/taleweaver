@@ -296,6 +296,14 @@ public static class ScenarioChecker
             var tokenKeys = new HashSet<string>();
             foreach (var (name, map, _, _) in boards)
             {
+                // Two tokens of the same type and colour on one board share their hidden text: usually a slip.
+                foreach (var shared in map.Tokens.Where(t => t.Color is not null).GroupBy(t => TokenKey(t.Type, t.Color!))
+                             .Where(g => g.Count() > 1 && encounter.Tokens.ContainsKey(g.Key)))
+                {
+                    Warn("SharedHiddenText", $"{id}/{name}",
+                        $"{shared.Count()} tokens '{shared.Key}' ({string.Join(", ", shared.Select(t => t.Id))}) share one hidden text");
+                }
+
                 foreach (var token in map.Tokens)
                 {
                     if (!tokenIds.Add(token.Id))
