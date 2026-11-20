@@ -14,6 +14,7 @@ import { usePreferences } from '@/shared/lib/preferences'
 import type { DraftAction, DraftNode, DraftScenario } from '../api/types'
 import { atOf, isSimple, newAction, SIMPLE_ACTIONS, spotOf, type SimpleAction, type Spot } from '../lib/events'
 import { diagramsOf } from '../lib/diagrams'
+import { hiddenRulesOf } from '../lib/hiddenRules'
 import { mapOf, tokenKey } from '../lib/map'
 import JsonField from './JsonField.vue'
 import TargetSelect from './TargetSelect.vue'
@@ -102,6 +103,9 @@ const familyOptions = computed(() =>
 )
 const diagramOptions = computed(() =>
   diagramsOf(props.node).map((d) => ({ value: d.id, label: pick(d.label, language.value) || d.id })),
+)
+const hiddenRuleOptions = computed(() =>
+  hiddenRulesOf(props.node).map((r) => ({ value: r.id, label: pick(r.name, language.value) || r.id })),
 )
 const endOptions = computed(() =>
   (props.node.endConditions ?? []).map((e) => ({
@@ -382,6 +386,17 @@ const num = (value: unknown) => (typeof value === 'number' ? value : undefined)
             :placeholder="t('workshop.events.pickDiagram')"
             :aria-label="t('workshop.events.diagram')"
             @update:model-value="(v) => patch(index, { diagram: v })"
+          />
+
+          <Select
+            v-else-if="action.do === 'readHiddenRule'"
+            :model-value="str(action.rule)"
+            :options="hiddenRuleOptions"
+            option-label="label"
+            option-value="value"
+            :placeholder="t('workshop.hiddenRules.pick')"
+            :aria-label="t('workshop.hiddenRules.rule', { id: str(action.rule) ?? '' })"
+            @update:model-value="(v) => patch(index, { rule: v })"
           />
 
           <p v-else-if="action.do === 'restore'" class="empty">{{ t('workshop.events.restoreHelp') }}</p>

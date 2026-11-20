@@ -4,7 +4,6 @@ import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 import Button from 'primevue/button'
 import InputNumber from 'primevue/inputnumber'
-import InputText from 'primevue/inputtext'
 import MultiSelect from 'primevue/multiselect'
 import Select from 'primevue/select'
 import ToggleSwitch from 'primevue/toggleswitch'
@@ -13,6 +12,7 @@ import { pick } from '@/shared/lib/localized'
 import { usePreferences } from '@/shared/lib/preferences'
 import type { DraftAction, DraftNode, DraftScenario } from '../api/types'
 import { activatableKeys, TRIGGERS, triggerTokens, type DraftEvent, type DraftTrigger } from '../lib/events'
+import { hiddenRulesOf } from '../lib/hiddenRules'
 import { mapOf } from '../lib/map'
 import ActionList from './ActionList.vue'
 import JsonField from './JsonField.vue'
@@ -60,6 +60,9 @@ const familyOptions = computed(() =>
 )
 const areaOptions = computed(() =>
   mapOf(props.node).areas.map((a) => ({ value: a.id, label: pick(a.name, language.value) || a.id })),
+)
+const ruleOptions = computed(() =>
+  hiddenRulesOf(props.node).map((r) => ({ value: r.id, label: pick(r.name, language.value) || r.id })),
 )
 const actions = computed({
   get: () => props.event.actions ?? [],
@@ -139,13 +142,16 @@ const actions = computed({
         :aria-label="t('workshop.events.area')"
         @update:model-value="(v) => patchTrigger({ area: v ?? undefined })"
       />
-      <InputText
+      <Select
         v-else-if="parameter === 'rule'"
-        :model-value="event.trigger.rule ?? ''"
-        size="small"
+        :model-value="event.trigger.rule"
+        :options="ruleOptions"
+        option-label="label"
+        option-value="value"
+        show-clear
         :placeholder="t('workshop.events.anyRule')"
         :aria-label="t('workshop.events.rule')"
-        @update:model-value="(v) => patchTrigger({ rule: v })"
+        @update:model-value="(v) => patchTrigger({ rule: v ?? undefined })"
       />
     </div>
 

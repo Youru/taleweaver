@@ -23,6 +23,8 @@ import { addDiagram, diagramBoard, diagramsOf, removeDiagram, updateDiagram, typ
 import { mapOf, setupOf } from '../lib/map'
 import BoardRules from './BoardRules.vue'
 import { eventsOf } from '../lib/events'
+import { addHiddenRule, hiddenRulesOf, removeHiddenRule, updateHiddenRule } from '../lib/hiddenRules'
+import HiddenRuleCard from './HiddenRuleCard.vue'
 import TargetSelect from './TargetSelect.vue'
 import TextField from './TextField.vue'
 
@@ -222,13 +224,13 @@ function removeDiagramRule(d: DraftDiagram, index: number) {
     updateDiagram(props.node, d.id, () => next),
   )
 }
-/** What the encounter keeps from the file that this sheet does not edit yet. */
-const untouched = computed(() =>
-  ['hiddenRules'].filter((key) => {
-    const value = props.node[key]
-    return Array.isArray(value) ? value.length > 0 : !!value && Object.keys(value).length > 0
-  }),
-)
+/** The hidden rules, each followed by its parts (A, B…). */
+const hiddenRules = computed(() => {
+  const rules = hiddenRulesOf(props.node)
+  const ids = new Set(rules.map((r) => r.id))
+  const roots = rules.filter((r) => !r.partOf || !ids.has(r.partOf))
+  return roots.flatMap((root) => [root, ...rules.filter((r) => r.partOf === root.id)])
+})
 </script>
 
 <template>
@@ -320,6 +322,7 @@ const untouched = computed(() =>
         <Tab value="sheet">{{ t('workshop.events.tabSheet') }}</Tab>
         <Tab value="tokens">{{ t('workshop.events.tabTokens') }}</Tab>
         <Tab value="events">{{ t('workshop.events.tabEvents', { n: eventsOf(node).length }) }}</Tab>
+        <Tab value="hiddenRules">{{ t('workshop.hiddenRules.tab', { n: hiddenRulesOf(node).length }) }}</Tab>
       </TabList>
       <TabPanels class="panels">
         <TabPanel value="tokens">
@@ -338,6 +341,27 @@ const untouched = computed(() =>
             :pieces="pieces"
             show="events"
             @change="(n) => emit('change', n)"
+          />
+        </TabPanel>
+        <TabPanel value="hiddenRules" class="hidden-rules">
+          <p class="hint">{{ t('workshop.hiddenRules.hint') }}</p>
+          <HiddenRuleCard
+            v-for="rule in hiddenRules"
+            :key="rule.id"
+            :rule="rule"
+            :scenario="scenario"
+            :node="node"
+            :pieces="pieces"
+            @change="(fields) => emit('change', updateHiddenRule(node, rule.id, fields))"
+            @remove="emit('change', removeHiddenRule(node, rule.id))"
+            @add-part="emit('change', addHiddenRule(node, language, rule.id))"
+          />
+          <Button
+            :label="t('workshop.hiddenRules.add')"
+            icon="pi pi-plus"
+            size="small"
+            text
+            @click="emit('change', addHiddenRule(node, language))"
           />
         </TabPanel>
         <TabPanel value="sheet" class="encounter">
@@ -551,11 +575,6 @@ const untouched = computed(() =>
             </li>
           </ol>
           <Button :label="t('workshop.addDiagram')" icon="pi pi-plus" size="small" text @click="newDiagram" />
-
-          <p v-if="untouched.length" class="later">
-            <i class="pi pi-info-circle" aria-hidden="true" />
-            {{ t('workshop.keptFromFile', { list: untouched.join(', ') }) }}
-          </p>
         </TabPanel>
       </TabPanels>
     </Tabs>
@@ -715,9 +734,9 @@ ol {
   padding-left: 0.5rem;
   border-left: 2px solid var(--p-content-border-color);
 }
-.later {
-  margin: 0.5rem 0 0;
-  font-size: 0.85rem;
-  color: var(--p-text-muted-color);
+.hidden-rules {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
 }
 </style>

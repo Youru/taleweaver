@@ -76,6 +76,7 @@ export const SIMPLE_ACTIONS = [
   'goToNode',
   'placeDiagram',
   'navigate',
+  'readHiddenRule',
 ] as const
 export type SimpleAction = (typeof SIMPLE_ACTIONS)[number]
 export const isSimple = (action: DraftAction): action is DraftAction & { do: SimpleAction } =>
