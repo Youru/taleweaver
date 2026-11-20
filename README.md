@@ -2,7 +2,7 @@
 
 Back-end de l'outil : éditeur de scénarios et compagnon de jeu pour Middara. Architecture : [docs/design/backend-architecture.md](../docs/design/backend-architecture.md). Standards : skill `dotnet-backend`.
 
-⚠️ L'API sert le contenu sous droits du dépôt (`packs/`, `scenarios/`, `assets/`) : elle écoute sur `localhost` uniquement, pour un usage personnel.
+⚠️ L'API sert le contenu sous droits du dépôt (`packs/`, `scenarios/`, `assets/`) : elle écoute sur `localhost`. Le créateur autorise l'usage des assets tant qu'il n'est pas commercial (2026-11-20) : une ouverture au réseau, pour la room et le jeu à distance, est possible, jamais payante.
 
 ## Lancer
 
@@ -73,7 +73,7 @@ cd taleweaver/web && npm install && npm run dev
     - « Imprimer » ouvre la boîte de dialogue du navigateur (« Enregistrer au format PDF ») ; sans boîte de dialogue : `npm run pdf -- <id du scénario> [fichier.pdf] [--node <rencontre>] [--cards] [--clear] [--base http://localhost:5173]`, l'appli lancée ;
     - polices : Cinzel et Optima ne sont pas installées (pas de téléchargement) ; la page prend **Palatino Linotype** (titres en petites capitales, introduction en italique) et **Candara** (texte), présentes sous Windows. Le PDF pèse environ 40 Mo pour Blight (fonds de page en 300 dpi) ;
     - logique dans `lib/printable.ts` (testée).
-- ⚠️ Les images appartiennent à Succubus Publishing : l'API les lit sur le disque local et ne doit jamais être exposée en ligne avec elles.
+- ⚠️ Les images appartiennent à Succubus Publishing : l'API les lit sur le disque local. Usage non commercial seulement (autorisation du créateur, 2026-11-20).
 - Les textes de l'interface et la mise en forme du journal sont dans `src/shared/i18n/messages.ts`. Le contenu du jeu garde ses propres textes `{ en, fr }`.
 - Vérifications :
 
