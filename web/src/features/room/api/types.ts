@@ -1,4 +1,4 @@
-import type { AdventurerState, OwnedItem } from '@/features/games'
+import type { AdventurerState, LogEntry, OwnedItem } from '@/features/games'
 import type { LocalizedText } from '@/shared/lib/localized'
 
 /** The room as the GM sees it (GET /api/games/{id}/room). */
@@ -44,7 +44,38 @@ export interface PlayerView {
   gold: number
   stash: OwnedItem[]
   unassigned: OwnedItem[]
-  encounter?: { round: number; urgency: number; ended: boolean } | null
+  encounter?: PlayerEncounter | null
+  /** The public lines of the log (room-spec §8), with their place in the GM's log. */
+  log: { index: number; entry: LogEntry }[]
+}
+
+/** The encounter as the table sees it: never the AI, the hidden rules nor the end conditions. */
+export interface PlayerEncounter {
+  round: number
+  urgency: number
+  ended: boolean
+  initiativeTrack: string[]
+  currentTurn: number
+  playedCards: string[]
+  combatants: PlayerCombatant[]
+  activation?: { initiativeCard: string; figures: string[] } | null
+  /** Effects on each adventurer's figure, by name. */
+  adventurerEffects: Record<string, string[]>
+}
+
+export interface PlayerCombatant {
+  instance: string
+  card: string
+  family: string
+  number: number
+  initiativeCards: string[]
+  damage: number
+  effects: string[]
+  defeated: boolean
+  /** From the combatant's card: a phone may not read the cards themselves (their AI is the GM's). */
+  name?: LocalizedText | null
+  image?: string | null
+  health?: number | null
 }
 
 export interface PartyMemberView {

@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.SignalR;
+using Taleweaver.Api.Content;
 using Taleweaver.Api.Engine;
 using Taleweaver.Api.Features.Games;
 using Taleweaver.Api.Storage;
@@ -15,13 +16,15 @@ public sealed class RoomNotifier : IGameObserver
     private readonly RoomService _rooms;
     private readonly IServiceScopeFactory _scopes;
     private readonly IContentStore _content;
+    private readonly CatalogProvider _catalog;
 
-    public RoomNotifier(IHubContext<RoomHub> hub, RoomService rooms, IServiceScopeFactory scopes, IContentStore content)
+    public RoomNotifier(IHubContext<RoomHub> hub, RoomService rooms, IServiceScopeFactory scopes, IContentStore content, CatalogProvider catalog)
     {
         _hub = hub;
         _rooms = rooms;
         _scopes = scopes;
         _content = content;
+        _catalog = catalog;
         rooms.Changed += RoomChangedAsync;
     }
 
@@ -47,7 +50,8 @@ public sealed class RoomNotifier : IGameObserver
     public async Task<PlayerView> ViewAsync(Game game, Room? room, Seat? seat, IReadOnlyCollection<string> adventurers, CancellationToken cancellationToken)
     {
         var scenario = await _content.GetScenarioAsync(game.Scenario, cancellationToken);
-        return PlayerViewProjector.Project(game.Id, game.UpdatedAt.ToUnixTimeMilliseconds(), game.State, scenario?.Title, adventurers, room, seat);
+        var catalog = await _catalog.GetAsync(cancellationToken);
+        return PlayerViewProjector.Project(game.Id, game.UpdatedAt.ToUnixTimeMilliseconds(), game.State, scenario?.Title, adventurers, room, seat, catalog);
     }
 
     private async Task RoomChangedAsync(Room room)

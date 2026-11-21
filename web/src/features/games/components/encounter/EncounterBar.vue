@@ -22,6 +22,8 @@ defineProps<{
   /** Cards can be moved on the track (an item, an ability): `busy` while a command runs. */
   movable?: boolean
   busy?: boolean
+  /** Seat colour of each adventurer held by a phone (room-spec §7.3). */
+  seatColors?: Record<string, string>
 }>()
 const emit = defineEmits<{ nextTurn: []; moveCard: [card: string, by: number] }>()
 
@@ -58,6 +60,7 @@ const { language } = storeToRefs(usePreferences())
       :large="readonly"
       :movable="movable && !encounter.ended"
       :busy="busy"
+      :seat-colors="seatColors"
       @move="(card, by) => emit('moveCard', card, by)"
     />
   </section>

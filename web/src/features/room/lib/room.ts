@@ -41,3 +41,29 @@ export function nextAdventurer(names: string[], current: string | undefined, ste
   const index = current ? names.indexOf(current) : -1
   return names[(index + step + names.length) % names.length]
 }
+
+const ADVENTURER = 'adventurer:'
+
+/**
+ * Where the seat's adventurers stand on the track (room-spec §5.2): the one playing now, or the one playing
+ * right after the card in play ("get ready"). Cards are "adventurer:<name>" or catalogue ids.
+ */
+export function turnOf(
+  encounter: { round: number; ended: boolean; initiativeTrack: string[]; currentTurn: number; playedCards: string[] },
+  mine: string[],
+): { playing?: string; next?: string; after?: string } {
+  if (encounter.ended || encounter.round === 0) return {}
+  const owner = (card: string | undefined) =>
+    card?.startsWith(ADVENTURER) && mine.includes(card.slice(ADVENTURER.length))
+      ? card.slice(ADVENTURER.length)
+      : undefined
+  const current = encounter.initiativeTrack[encounter.currentTurn]
+  const played = new Set(encounter.playedCards)
+  const next = encounter.initiativeTrack.find((card) => !played.has(card) && card !== current)
+  const playing = owner(current)
+  const coming = owner(next)
+  return {
+    ...(playing ? { playing } : {}),
+    ...(coming && current ? { next: coming, after: current } : {}),
+  }
+}

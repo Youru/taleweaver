@@ -98,7 +98,25 @@ watch(
   },
   { immediate: true },
 )
-watch(open, (value) => value && void load(), { immediate: true })
+// Loaded at once (the seat colours show on the track), then again each time the panel opens.
+void load()
+watch(open, (value) => value && void load())
+
+/** Each held adventurer's seat colour, for the GM's initiative track (room-spec §7.3). */
+const emit = defineEmits<{ colors: [colors: Record<string, string>] }>()
+watch(
+  room,
+  (value) =>
+    emit(
+      'colors',
+      Object.fromEntries(
+        value?.status === 'open'
+          ? value.seats.flatMap((seat) => seat.adventurers.map((name) => [name, seatColors[seat.color] ?? seat.color]))
+          : [],
+      ),
+    ),
+  { immediate: true },
+)
 
 useRoomHub(
   `game=${encodeURIComponent(props.gameId)}`,

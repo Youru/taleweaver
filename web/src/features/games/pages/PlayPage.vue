@@ -139,6 +139,8 @@ function endingLabel(ending: string | undefined) {
 /** The party's items, in their own window. */
 const inventoryOpen = ref(false)
 const roomOpen = ref(false)
+/** The seat colour of each adventurer held by a phone (the room's), shown on the initiative track. */
+const seatColors = ref<Record<string, string>>({})
 const toHandOut = computed(() => state.value?.campaign.unassigned?.length ?? 0)
 
 function itemCommand(value: ItemCommand) {
@@ -238,6 +240,7 @@ function moveFigure(figure: string, to: Cell) {
         :game-id="id"
         :party="state.campaign.party"
         :active-group="state.campaign.activeGroup"
+        @colors="(colors) => (seatColors = colors)"
       />
       <InventoryDialog
         v-model:open="inventoryOpen"
@@ -257,6 +260,7 @@ function moveFigure(figure: string, to: Cell) {
           :node="node"
           :disabled="!!state.prompt || command.isPending.value"
           movable
+          :seat-colors="seatColors"
           :busy="command.isPending.value"
           @next-turn="encounterCommand({ type: 'nextTurn' })"
           @move-card="(card, by) => encounterCommand({ type: 'moveInitiative', card, by })"

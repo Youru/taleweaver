@@ -1,17 +1,19 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 import Message from 'primevue/message'
 import { useAdventurers } from '@/features/catalog'
+import { GameJournal } from '@/features/games'
 import { assetUrl } from '@/shared/api/assets'
 import { pick } from '@/shared/lib/localized'
 import { usePreferences } from '@/shared/lib/preferences'
 import type { HubStatus } from '../api/roomHub'
 import type { PlayerView } from '../api/types'
-import { nextAdventurer, seatColors } from '../lib/room'
+import { nextAdventurer, seatColors, turnOf } from '../lib/room'
 import EquipmentTab from './EquipmentTab.vue'
 import HeroTab from './HeroTab.vue'
+import TurnTab from './TurnTab.vue'
 
 /**
  * The phone (room-spec §5): portrait, one column, the adventurer switcher and the live status on top, the tabs
@@ -23,7 +25,15 @@ const { t } = useI18n()
 const { language } = storeToRefs(usePreferences())
 const cards = useAdventurers()
 
-const tab = ref<'hero' | 'equipment'>('hero')
+type Tab = 'hero' | 'equipment' | 'turn' | 'journal'
+const chosen = ref<Tab>('hero')
+const fighting = computed(() => !!props.view.encounter && !props.view.encounter.ended)
+/** The Tour tab exists only during an encounter: outside one, the hero's sheet shows instead. */
+const tab = computed<Tab>({
+  get: () => (chosen.value === 'turn' && !fighting.value ? 'hero' : chosen.value),
+  set: (value) => (chosen.value = value),
+})
+const journal = computed(() => props.view.log.map((line) => line.entry))
 const names = computed(() => props.view.adventurers.map((a) => a.name))
 const current = computed(
   () => props.view.adventurers.find((a) => a.name === props.followed) ?? props.view.adventurers[0],
@@ -32,6 +42,34 @@ const cardOf = (name: string) => cards.data.value?.find((c) => pick(c.name, 'en'
 const color = computed(() => seatColors[props.view.seat?.color ?? ''] ?? 'var(--p-primary-color)')
 const healthLeft = computed(() => (current.value?.health ?? 0) - (current.value?.damage ?? 0))
 const healthRatio = computed(() => (current.value?.health ? Math.max(0, healthLeft.value) / current.value.health : 0))
+const effectsNow = computed(() =>
+  current.value ? (props.view.encounter?.adventurerEffects[current.value.name] ?? []) : [],
+)
+
+// A hit makes the strip flash red and shake, a heal flashes green (room-spec §5.2); same adventurer only.
+const hit = ref<'hurt' | 'healed' | null>(null)
+const delta = ref(0)
+let hitTimer: ReturnType<typeof setTimeout> | undefined
+watch([() => current.value?.name, healthLeft], ([name, left], [before, previous]) => {
+  if (name !== before || previous === undefined || left === previous) return
+  delta.value = left - previous
+  hit.value = left < previous ? 'hurt' : 'healed'
+  clearTimeout(hitTimer)
+  hitTimer = setTimeout(() => (hit.value = null), 900)
+})
+
+// "Your turn!" (room-spec §5.2): full screen and a vibration when one of the seat's adventurers starts playing.
+const turn = computed(() => (props.view.encounter ? turnOf(props.view.encounter, names.value) : {}))
+const calling = ref<string | null>(null)
+watch(
+  () => turn.value.playing,
+  (playing, before) => {
+    if (!playing || playing === before) return
+    calling.value = playing
+    if (playing !== current.value?.name) emit('follow', playing)
+    if (!props.view.impersonated) navigator.vibrate?.([200, 100, 200])
+  },
+)
 
 let touchX: number | undefined
 function touchStart(event: TouchEvent) {
@@ -72,7 +110,7 @@ function touchEnd(event: TouchEvent) {
         {{ view.impersonated ? t('room.player.gm') : view.seat?.displayName }}
       </span>
     </header>
-    <div v-if="current" class="strip" :aria-label="t('room.player.status')">
+    <div v-if="current" class="strip" :class="hit" :aria-label="t('room.player.status')">
       <span class="health" :title="t('room.player.health')">
         <i class="pi pi-heart-fill" aria-hidden="true" />
         {{ healthLeft }}/{{ current.health ?? '?' }}
@@ -87,6 +125,10 @@ function touchEnd(event: TouchEvent) {
           aria-hidden="true"
         />
         <span class="sr-only">{{ t('room.player.spLeft', { n: current.stamina ?? 0 }) }}</span>
+      </span>
+      <span v-if="hit" class="delta" aria-hidden="true">{{ delta > 0 ? `+${delta}` : delta }}</span>
+      <span v-if="effectsNow.length" class="effects-count" :title="t('room.player.effects')">
+        <i class="pi pi-sparkles" aria-hidden="true" /> {{ effectsNow.length }}
       </span>
       <span v-if="view.encounter && !view.encounter.ended" class="round">
         {{ t('room.player.round', { round: view.encounter.round }) }}
@@ -106,8 +148,12 @@ function touchEnd(event: TouchEvent) {
         </ul>
       </div>
       <Transition v-else name="flip" mode="out-in">
+        <TurnTab v-if="tab === 'turn'" key="turn" :view="view" :followed="current.name" />
+        <div v-else-if="tab === 'journal'" key="journal" class="journal">
+          <GameJournal :log="journal" page />
+        </div>
         <HeroTab
-          v-if="tab === 'hero'"
+          v-else-if="tab === 'hero'"
           :key="`hero-${current.name}`"
           :adventurer="current"
           :card="cardOf(current.name)"
@@ -131,11 +177,111 @@ function touchEnd(event: TouchEvent) {
         <i class="pi pi-briefcase" aria-hidden="true" />
         <span>{{ t('room.player.equipmentTab') }}</span>
       </button>
+      <button
+        v-if="fighting"
+        type="button"
+        role="tab"
+        :aria-selected="tab === 'turn'"
+        :class="{ alert: turn.playing }"
+        @click="tab = 'turn'"
+      >
+        <i class="pi pi-bolt" aria-hidden="true" />
+        <span>{{ t('room.player.turnTab') }}</span>
+      </button>
+      <button type="button" role="tab" :aria-selected="tab === 'journal'" @click="tab = 'journal'">
+        <i class="pi pi-book" aria-hidden="true" />
+        <span>{{ t('room.player.journalTab') }}</span>
+      </button>
     </nav>
+
+    <Transition name="call">
+      <button v-if="calling" type="button" class="your-turn" @click="calling = null">
+        <img v-if="cardOf(calling)?.image" :src="assetUrl(cardOf(calling)?.image)" alt="" aria-hidden="true" />
+        <strong>{{ t('room.player.yourTurn', { name: calling }) }}</strong>
+        <span>{{ t('room.player.tapToClose') }}</span>
+      </button>
+    </Transition>
   </div>
 </template>
 
 <style scoped>
+.journal {
+  padding: 0.5rem 0.75rem 1rem;
+}
+.strip.hurt {
+  animation: shake 0.4s;
+  background: color-mix(in srgb, #ef4444 30%, var(--p-content-background));
+}
+.strip.healed {
+  background: color-mix(in srgb, #22c55e 30%, var(--p-content-background));
+}
+.delta {
+  font-weight: 700;
+}
+.strip.hurt .delta {
+  color: #ef4444;
+}
+.strip.healed .delta {
+  color: #16a34a;
+}
+@keyframes shake {
+  20%,
+  60% {
+    transform: translateX(-4px);
+  }
+  40%,
+  80% {
+    transform: translateX(4px);
+  }
+}
+.tabs button.alert {
+  color: var(--seat);
+}
+.your-turn {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  border: 0;
+  background: color-mix(in srgb, var(--seat) 88%, #000);
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+.your-turn img {
+  width: min(60vw, 16rem);
+  border-radius: 0.8rem;
+  box-shadow: 0 0.5rem 2rem rgb(0 0 0 / 40%);
+}
+.your-turn strong {
+  font-size: 1.8rem;
+  padding: 0 1.5rem;
+  text-align: center;
+}
+.call-enter-active,
+.call-leave-active {
+  transition:
+    opacity 0.25s,
+    transform 0.25s;
+}
+.call-enter-from,
+.call-leave-to {
+  opacity: 0;
+  transform: scale(1.05);
+}
+@media (prefers-reduced-motion: reduce) {
+  .strip.hurt {
+    animation: none;
+  }
+  .call-enter-from,
+  .call-leave-to {
+    transform: none;
+  }
+}
 .player {
   min-height: 100dvh;
   display: flex;

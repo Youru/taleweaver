@@ -19,6 +19,8 @@ const props = defineProps<{
   movable?: boolean
   /** A command is running: the arrows wait. */
   busy?: boolean
+  /** Seat colour of each adventurer held by a phone (room-spec §7.3): a ring around their card. */
+  seatColors?: Record<string, string>
 }>()
 const emit = defineEmits<{ move: [card: string, by: number] }>()
 
@@ -31,6 +33,9 @@ function describe(card: (typeof track.value)[number]) {
   const numbers = card.figures.map((f) => f.number).join(', ')
   return numbers ? `${text} (${t('play.trackFigures', { numbers })})` : text
 }
+
+const seatOf = (id: string) =>
+  id.startsWith('adventurer:') ? props.seatColors?.[id.slice('adventurer:'.length)] : undefined
 
 const selected = ref<string | null>(null)
 function toggle(card: string) {
@@ -61,7 +66,8 @@ watch(
       <li
         v-for="card in track"
         :key="card.id"
-        :class="[card.side, card.state]"
+        :class="[card.side, card.state, { held: seatOf(card.id) }]"
+        :style="seatOf(card.id) ? { '--seat': seatOf(card.id) } : undefined"
         :aria-current="card.state === 'current' ? 'step' : undefined"
         :aria-label="movable ? undefined : describe(card)"
         :title="describe(card)"
@@ -113,6 +119,10 @@ watch(
 </template>
 
 <style scoped>
+li.held .card {
+  outline: 3px solid var(--seat);
+  outline-offset: 1px;
+}
 .initiative {
   --card-w: 3.6rem;
   display: flex;

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { joinUrls, nextAdventurer, normalizeCode, xpLeft } from './room'
+import { joinUrls, nextAdventurer, normalizeCode, turnOf, xpLeft } from './room'
 import { forgetSeat, storeSeat, storedSeat } from './seatStorage'
 
 describe('room', () => {
@@ -32,5 +32,29 @@ describe('seatStorage', () => {
     expect(storedSeat('KRVA')).toEqual({ code: 'KRVA', seatId: 's-1', token: 't' })
     forgetSeat('Krva')
     expect(storedSeat('KRVA')).toBeUndefined()
+  })
+})
+
+describe('turnOf', () => {
+  const encounter = {
+    round: 2,
+    ended: false,
+    initiativeTrack: ['um1:initiative/fragor', 'adventurer:Rook', 'adventurer:Iris'],
+    currentTurn: 0,
+    playedCards: ['um1:initiative/fragor'],
+  }
+
+  it('warns the seat whose adventurer plays next', () => {
+    expect(turnOf(encounter, ['Rook'])).toEqual({ next: 'Rook', after: 'um1:initiative/fragor' })
+  })
+
+  it('tells the seat its adventurer is playing', () => {
+    const playing = { ...encounter, currentTurn: 1, playedCards: [...encounter.playedCards, 'adventurer:Rook'] }
+    expect(turnOf(playing, ['Rook', 'Iris'])).toEqual({ playing: 'Rook', next: 'Iris', after: 'adventurer:Rook' })
+  })
+
+  it('says nothing between rounds nor to another seat', () => {
+    expect(turnOf({ ...encounter, round: 0 }, ['Rook'])).toEqual({})
+    expect(turnOf(encounter, ['Iris'])).toEqual({})
   })
 })
