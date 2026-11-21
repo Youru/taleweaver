@@ -14,6 +14,7 @@ public static class EncountersEndpoints
         ReachEndCondition.Map(group);
         MoveFigure.Map(group);
         RevealArea.Map(group);
+        MoveInitiativeCard.Map(group);
         return app;
     }
 }

@@ -38,6 +38,12 @@ internal sealed partial class Session(GameState state, GameContext context)
             return Move(command.Instance, command.To);
         }
 
+        // Nor does moving a card on the track: the figure playing goes on, the order of the next turns changes.
+        if (command.Type == GameCommands.MoveInitiative)
+        {
+            return MoveInitiative(command.Card, command.Value ?? 0);
+        }
+
         // While a figure goes through its AI steps, the GM may still report what happens on the board.
         // The AI question is set aside: its consequences run first, then the same step is asked again.
         var reportsAllowed = State.Prompt is null || State.Prompt.Kind == PromptKinds.AiCondition;

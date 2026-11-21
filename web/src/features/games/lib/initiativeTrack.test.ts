@@ -104,6 +104,29 @@ describe('initiativeTrack', () => {
     expect(first).toMatchObject({ label: 'brute', image: undefined, side: 'opponent', state: 'current' })
   })
 
+  it('follows the cards moved: one played sent to the back stays played, the next is the first not played', () => {
+    const track = initiativeTrack(
+      encounter({
+        initiativeTrack: [
+          'um1:initiative/agares',
+          'um1:initiative/cave-sickle-1-3',
+          'adventurer:Damocles',
+          'adventurer:Rook',
+        ],
+        currentTurn: 1,
+        playedCards: ['adventurer:Rook', 'um1:initiative/cave-sickle-1-3'],
+      }),
+      cards,
+    )
+
+    expect(track.map((c) => [c.label, c.state])).toEqual([
+      ['Agares', 'next'],
+      ['Cave Sickle 1-3', 'current'],
+      ['Damocles', 'later'],
+      ['Rook', 'played'],
+    ])
+  })
+
   it('has no turn yet before the first round', () => {
     expect(initiativeTrack(encounter({ round: 0 }), cards).every((c) => c.state === 'later')).toBe(true)
   })

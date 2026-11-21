@@ -38,6 +38,8 @@ export interface EncounterState {
   ended: boolean
   initiativeTrack: string[]
   currentTurn: number
+  /** Cards that had their turn this round, the one playing included. */
+  playedCards?: string[]
   combatants: CombatantState[]
   tokens: BoardToken[]
   placedDiagrams: string[]
@@ -105,6 +107,8 @@ export type EncounterCommand =
   /** figure: a combatant's instance, or "adventurer:<name>". */
   | { type: 'move'; figure: string; to: Cell }
   | { type: 'revealArea'; area: string }
+  /** An initiative card moved `by` places, negative toward the front. */
+  | { type: 'moveInitiative'; card: string; by: number }
 
 export interface Cell {
   x: number

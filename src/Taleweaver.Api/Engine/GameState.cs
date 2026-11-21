@@ -90,6 +90,12 @@ public sealed class EncounterState
     /// <summary>Index of the card taking its turn; -1 before the first turn of the round.</summary>
     public int CurrentTurn { get; set; } = -1;
 
+    /// <summary>
+    /// Cards that had their turn this round, the one playing included: once cards are moved on the track,
+    /// the next turn is the card nearest the front that has not played (rulebook p. 36), not the next index.
+    /// </summary>
+    public List<string> PlayedCards { get; set; } = [];
+
     public List<CombatantState> Combatants { get; set; } = [];
 
     public List<BoardToken> Tokens { get; set; } = [];

@@ -375,6 +375,7 @@ internal sealed partial class Session
         if (encounter.Round > 0)
         {
             ShuffleTrack();
+            encounter.PlayedCards.Clear();
             encounter.CurrentTurn = 0;
             Log("initiativeRebuilt", args: Args(("track", string.Join(", ", encounter.InitiativeTrack))));
             BeginTurn();

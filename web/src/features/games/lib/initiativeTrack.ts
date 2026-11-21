@@ -36,14 +36,18 @@ export interface TrackFigure {
 export function initiativeTrack(encounter: EncounterState, cards: readonly InitiativeCard[]): TrackCard[] {
   const byId = new Map(cards.map((card) => [card.id, card]))
   const started = encounter.round > 0
-  return encounter.initiativeTrack.map((id, index) => {
+  const track = encounter.initiativeTrack
+  // Cards moved on the track: what played is not "before the current index" any more (p. 36)
+  const played = new Set(encounter.playedCards ?? track.slice(0, encounter.currentTurn + 1))
+  const next = track.findIndex((id) => !played.has(id))
+  return track.map((id, index) => {
     const state: TrackCard['state'] = !started
       ? 'later'
-      : index < encounter.currentTurn
-        ? 'played'
-        : index === encounter.currentTurn
-          ? 'current'
-          : index === encounter.currentTurn + 1
+      : index === encounter.currentTurn
+        ? 'current'
+        : played.has(id)
+          ? 'played'
+          : index === next
             ? 'next'
             : 'later'
     const adventurer = id.startsWith(ADVENTURER)

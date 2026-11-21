@@ -19,8 +19,11 @@ defineProps<{
   disabled?: boolean
   /** Read-only (the table alone shows it without the button). */
   readonly?: boolean
+  /** Cards can be moved on the track (an item, an ability): `busy` while a command runs. */
+  movable?: boolean
+  busy?: boolean
 }>()
-const emit = defineEmits<{ nextTurn: [] }>()
+const emit = defineEmits<{ nextTurn: []; moveCard: [card: string, by: number] }>()
 
 const { t } = useI18n()
 const { language } = storeToRefs(usePreferences())
@@ -48,7 +51,15 @@ const { language } = storeToRefs(usePreferences())
       :disabled="disabled || encounter.ended"
       @click="emit('nextTurn')"
     />
-    <InitiativeTrack v-if="encounter.round > 0" class="track" :encounter="encounter" :large="readonly" />
+    <InitiativeTrack
+      v-if="encounter.round > 0"
+      class="track"
+      :encounter="encounter"
+      :large="readonly"
+      :movable="movable && !encounter.ended"
+      :busy="busy"
+      @move="(card, by) => emit('moveCard', card, by)"
+    />
   </section>
 </template>
 

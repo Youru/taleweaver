@@ -33,6 +33,9 @@ public sealed record GameCommand
     /// <summary>RevealArea: fog area.</summary>
     public string? Area { get; init; }
 
+    /// <summary>MoveInitiative: the card moved on the track (its places in <see cref="Value"/>: negative toward the front).</summary>
+    public string? Card { get; init; }
+
     public static GameCommand Answer(string option) => new() { Type = GameCommands.Answer, Option = option };
 
     public static GameCommand AnswerNumber(int value) => new() { Type = GameCommands.Answer, Value = value };
@@ -51,6 +54,9 @@ public sealed record GameCommand
     /// <summary>Moves a figure: a combatant's instance, or "adventurer:&lt;name&gt;".</summary>
     public static GameCommand Move(string figure, Cell to) => new() { Type = GameCommands.Move, Instance = figure, To = to };
 
+    /// <summary>Moves an initiative card: <paramref name="by"/> places, negative toward the front.</summary>
+    public static GameCommand MoveInitiative(string card, int by) => new() { Type = GameCommands.MoveInitiative, Card = card, Value = by };
+
     public static GameCommand RevealArea(string area) => new() { Type = GameCommands.RevealArea, Area = area };
 
     public static GameCommand ReachEndCondition(string endCondition) => new() { Type = GameCommands.ReachEndCondition, EndCondition = endCondition };
@@ -67,4 +73,5 @@ public static class GameCommands
     public const string ReachEndCondition = "reachEndCondition";
     public const string Move = "move";
     public const string RevealArea = "revealArea";
+    public const string MoveInitiative = "moveInitiative";
 }

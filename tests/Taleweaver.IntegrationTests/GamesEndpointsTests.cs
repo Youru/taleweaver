@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Taleweaver.Api.Common;
 using Taleweaver.Api.Content;
 using Taleweaver.Api.Engine;
+using Taleweaver.Api.Features.Encounters;
 using Taleweaver.Api.Features.Games;
 using Taleweaver.Api.Storage;
 
@@ -164,6 +165,29 @@ public class GamesEndpointsTests(HomebrewFactory factory) : IClassFixture<Homebr
         var game = await StartAsync();
 
         var response = await _client.PutAsJsonAsync($"/api/games/{game.Id}/encounter/figures/brute-1/position", new { x = -1, y = 3 }, Token);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task MoveInitiativeCard_LastCardToTheFront_SavesTheNewOrder()
+    {
+        var game = await StartAsync();
+        await PostAsync($"/api/games/{game.Id}/answer", new AnswerQuestion.Request("continue", null));
+        var track = (await PostAsync($"/api/games/{game.Id}/encounter/next-turn")).State.Encounter!.InitiativeTrack;
+
+        var response = await _client.PostAsJsonAsync($"/api/games/{game.Id}/encounter/initiative/moves", new MoveInitiativeCard.Request(track[^1], -9), JsonDefaults.Options, Token);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await Read(response)).State.Encounter!.InitiativeTrack[0].Should().Be(track[^1]);
+    }
+
+    [Fact]
+    public async Task MoveInitiativeCard_NoPlaces_ReturnsValidationProblem()
+    {
+        var game = await StartAsync();
+
+        var response = await _client.PostAsJsonAsync($"/api/games/{game.Id}/encounter/initiative/moves", new MoveInitiativeCard.Request("adventurer:Rook", 0), JsonDefaults.Options, Token);
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }

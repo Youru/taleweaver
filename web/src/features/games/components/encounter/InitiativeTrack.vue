@@ -9,9 +9,18 @@ import { initiativeTrack } from '../../lib/initiativeTrack'
 /**
  * The round's initiative track as the players deal it (rulebook p. 36): the cards from the front to the
  * back, the one playing raised, those that played greyed, and on a group's card its figures in
- * activation order. Shuffled again at the start of every round.
+ * activation order. Shuffled again at the start of every round. With `movable`, a card touched can be
+ * moved one place forward (toward the front) or backward; it stays selected to move it again.
  */
-const props = defineProps<{ encounter: EncounterState; large?: boolean }>()
+const props = defineProps<{
+  encounter: EncounterState
+  large?: boolean
+  /** An item or an ability moves cards (p. 36): a card touched shows its arrows. */
+  movable?: boolean
+  /** A command is running: the arrows wait. */
+  busy?: boolean
+}>()
+const emit = defineEmits<{ move: [card: string, by: number] }>()
 
 const { t } = useI18n()
 const catalog = useInitiativeCards()
@@ -22,6 +31,17 @@ function describe(card: (typeof track.value)[number]) {
   const numbers = card.figures.map((f) => f.number).join(', ')
   return numbers ? `${text} (${t('play.trackFigures', { numbers })})` : text
 }
+
+const selected = ref<string | null>(null)
+function toggle(card: string) {
+  selected.value = selected.value === card ? null : card
+}
+watch(
+  () => props.encounter.initiativeTrack,
+  (track) => {
+    if (selected.value && !track.includes(selected.value)) selected.value = null
+  },
+)
 
 // The card playing stays in view when the track is longer than the screen
 const list = ref<HTMLElement | null>(null)
@@ -43,18 +63,47 @@ watch(
         :key="card.id"
         :class="[card.side, card.state]"
         :aria-current="card.state === 'current' ? 'step' : undefined"
-        :aria-label="describe(card)"
+        :aria-label="movable ? undefined : describe(card)"
         :title="describe(card)"
       >
-        <div class="card">
+        <component
+          :is="movable ? 'button' : 'div'"
+          class="card"
+          :class="{ selected: selected === card.id }"
+          :type="movable ? 'button' : undefined"
+          :aria-pressed="movable ? selected === card.id : undefined"
+          :aria-label="movable ? describe(card) : undefined"
+          @click="movable && toggle(card.id)"
+          @keydown.esc="selected = null"
+        >
           <img v-if="card.image" :src="assetUrl(card.image)" alt="" loading="lazy" />
           <span v-else class="blank">{{ card.label }}</span>
           <span class="order" aria-hidden="true">{{ card.order }}</span>
-        </div>
+        </component>
         <ul v-if="card.figures.length" class="figures" aria-hidden="true">
           <li v-for="figure in card.figures" :key="figure.instance" :class="figure.state">{{ figure.number }}</li>
         </ul>
-        <span v-if="card.state === 'current' || card.state === 'next'" class="tag" aria-hidden="true">
+        <div v-if="movable && selected === card.id" class="arrows">
+          <button
+            type="button"
+            :aria-label="t('play.trackForward', { label: card.label })"
+            :title="t('play.trackForward', { label: card.label })"
+            :disabled="busy || card.order === 1"
+            @click="emit('move', card.id, -1)"
+          >
+            <i class="pi pi-chevron-left" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            :aria-label="t('play.trackBackward', { label: card.label })"
+            :title="t('play.trackBackward', { label: card.label })"
+            :disabled="busy || card.order === track.length"
+            @click="emit('move', card.id, 1)"
+          >
+            <i class="pi pi-chevron-right" aria-hidden="true" />
+          </button>
+        </div>
+        <span v-else-if="card.state === 'current' || card.state === 'next'" class="tag" aria-hidden="true">
           {{ t(`play.trackState.${card.state}`) }}
         </span>
       </li>
@@ -115,6 +164,43 @@ ol > li {
 .opponent .card {
   border-color: #8f1515;
   background: #8f1515;
+}
+button.card {
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+}
+button.card:focus-visible {
+  outline: 2px dashed var(--p-primary-color);
+  outline-offset: 2px;
+}
+ol .card.selected {
+  outline: 3px dashed var(--p-orange-400);
+  outline-offset: 1px;
+}
+.arrows {
+  display: flex;
+  gap: 0.2rem;
+}
+.arrows button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6rem;
+  height: 1.4rem;
+  padding: 0;
+  border: 1px solid var(--p-content-border-color);
+  border-radius: 0.3rem;
+  background: var(--p-content-background);
+  color: var(--p-text-color);
+  cursor: pointer;
+}
+.arrows button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.arrows i {
+  font-size: 0.7rem;
 }
 .card img {
   display: block;

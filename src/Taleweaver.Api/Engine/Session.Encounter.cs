@@ -60,7 +60,9 @@ internal sealed partial class Session
     private Result NextTurn()
     {
         var encounter = Encounter;
-        if (encounter.Round == 0 || encounter.CurrentTurn + 1 >= encounter.InitiativeTrack.Count)
+        // The card nearest the front that has not played yet: a turn is never skipped nor played twice (p. 36)
+        var next = encounter.Round == 0 ? -1 : encounter.InitiativeTrack.FindIndex(c => !encounter.PlayedCards.Contains(c));
+        if (next < 0)
         {
             if (encounter.Round > 0)
             {
@@ -75,8 +77,40 @@ internal sealed partial class Session
             return Result.Success();
         }
 
-        encounter.CurrentTurn++;
+        encounter.CurrentTurn = next;
         BeginTurn();
+        return Result.Success();
+    }
+
+    /// <summary>
+    /// An item or an ability moves a card forward (toward the front, <paramref name="by"/> negative) or backward
+    /// (p. 36). The card playing goes on; a card moved in front of it that has not played plays next.
+    /// </summary>
+    private Result MoveInitiative(string? card, int by)
+    {
+        var encounter = Encounter;
+        var track = encounter.InitiativeTrack;
+        var from = card is null ? -1 : track.IndexOf(card);
+        if (from < 0)
+        {
+            return GameEngine.Errors.UnknownCard(card);
+        }
+
+        var to = Math.Clamp(from + by, 0, track.Count - 1);
+        if (to == from)
+        {
+            return Result.Success();
+        }
+
+        var current = encounter.CurrentTurn >= 0 && encounter.CurrentTurn < track.Count ? track[encounter.CurrentTurn] : null;
+        track.RemoveAt(from);
+        track.Insert(to, card!);
+        if (current is not null)
+        {
+            encounter.CurrentTurn = track.IndexOf(current);
+        }
+
+        Log("initiativeMoved", args: Args(("card", card), ("from", Number(from + 1)), ("to", Number(to + 1))));
         return Result.Success();
     }
 
@@ -86,6 +120,7 @@ internal sealed partial class Session
         encounter.Round++;
         encounter.RoundLog = new RoundLog();
         ShuffleTrack();
+        encounter.PlayedCards.Clear();
         encounter.CurrentTurn = 0;
         Log("roundStart", args: Args(("round", Number(encounter.Round)), ("track", string.Join(", ", encounter.InitiativeTrack))));
         Fire(e => e.Trigger.On == "roundStart" && (e.Trigger.Round is null || e.Trigger.Round == encounter.Round));
@@ -142,6 +177,11 @@ internal sealed partial class Session
         }
 
         var card = encounter.InitiativeTrack[encounter.CurrentTurn];
+        if (!encounter.PlayedCards.Contains(card))
+        {
+            encounter.PlayedCards.Add(card);
+        }
+
         var adventurer = card.StartsWith(AdventurerCard, StringComparison.Ordinal) ? card[AdventurerCard.Length..] : null;
         var statusEffects = Encounter.Adventurers.FirstOrDefault(a => a.Name == adventurer)?.Effects.Where(IsStatusEffect).ToList() ?? [];
         Log("turn", args: Args(("card", card), ("adventurer", adventurer),

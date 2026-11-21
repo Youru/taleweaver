@@ -55,16 +55,27 @@ internal sealed class EngineDriver
     {
         do
         {
-            Do(GameCommand.NextTurn());
-            while (State.Prompt?.Kind == PromptKinds.AiCondition)
-            {
-                Answer(aiAnswer);
-            }
+            Turn(aiAnswer);
         }
-        while (State.Encounter is { Ended: false } e && e.CurrentTurn + 1 < e.InitiativeTrack.Count);
+        while (State.Encounter is { Ended: false } e && e.InitiativeTrack.Any(c => !e.PlayedCards.Contains(c)));
 
         return this;
     }
+
+    /// <summary>The next turn, its AI conditions answered with <paramref name="aiAnswer"/>.</summary>
+    public EngineDriver Turn(string aiAnswer = "no")
+    {
+        Do(GameCommand.NextTurn());
+        while (State.Prompt?.Kind == PromptKinds.AiCondition)
+        {
+            Answer(aiAnswer);
+        }
+
+        return this;
+    }
+
+    /// <summary>The card taking its turn.</summary>
+    public string CurrentCard => Encounter.InitiativeTrack[Encounter.CurrentTurn];
 
     public IEnumerable<string> Codes => State.Log.Select(l => l.Code);
 

@@ -156,7 +156,10 @@ function moveFigure(figure: string, to: Cell) {
           :encounter="encounter"
           :node="node"
           :disabled="!!state.prompt || command.isPending.value"
+          movable
+          :busy="command.isPending.value"
           @next-turn="encounterCommand({ type: 'nextTurn' })"
+          @move-card="(card, by) => encounterCommand({ type: 'moveInitiative', card, by })"
         />
         <div class="encounter">
           <TableView

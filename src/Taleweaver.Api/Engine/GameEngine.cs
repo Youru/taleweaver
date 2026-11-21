@@ -10,9 +10,10 @@ public static class GameEngine
 {
     /// <summary>
     /// Raised when the engine computes a different state from the same history (new fields, rule fixes).
-    /// A game saved by an older engine is replayed when loaded. 2: positions; 3: moves, adventurers on the board, fog.
+    /// A game saved by an older engine is replayed when loaded. 2: positions; 3: moves, adventurers on the board, fog;
+    /// 4: every starting zone filled, initiative cards played this round (cards moved on the track).
     /// </summary>
-    public const int Version = 3;
+    public const int Version = 4;
 
     public static class Errors
     {
@@ -30,6 +31,8 @@ public static class GameEngine
         public static Error InactiveEndCondition(string? id) => Error.Conflict("Encounters.InactiveEndCondition", $"End condition '{id}' is not active.");
 
         public static Error UnknownFigure(string? figure) => Error.NotFound("Encounters.UnknownFigure", $"No figure '{figure}' on the board.");
+
+        public static Error UnknownCard(string? card) => Error.NotFound("Encounters.UnknownCard", $"No initiative card '{card}' on the track.");
 
         public static Error UnknownArea(string? area) => Error.NotFound("Encounters.UnknownArea", $"No hidden area '{area}' on the board.");
 

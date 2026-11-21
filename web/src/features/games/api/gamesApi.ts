@@ -36,6 +36,11 @@ export const gamesApi = {
         return http<GameView>(`${base}/figures/${e(command.figure)}/position`, { method: 'PUT', body: command.to })
       case 'revealArea':
         return http<GameView>(`${base}/areas/${e(command.area)}/reveal`, { method: 'POST' })
+      case 'moveInitiative':
+        return http<GameView>(`${base}/initiative/moves`, {
+          method: 'POST',
+          body: { card: command.card, by: command.by },
+        })
     }
   },
 }

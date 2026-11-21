@@ -76,7 +76,15 @@ function run(value: EncounterCommand) {
           <Button :label="t('table.gmView')" icon="pi pi-book" severity="secondary" text />
         </RouterLink>
       </header>
-      <EncounterBar v-if="encounter" :encounter="encounter" :node="node" readonly />
+      <EncounterBar
+        v-if="encounter"
+        :encounter="encounter"
+        :node="node"
+        readonly
+        movable
+        :busy="command.isPending.value"
+        @move-card="(card, by) => run({ type: 'moveInitiative', card, by })"
+      />
       <Message v-if="commandError" severity="error" closable @close="command.reset()">{{ commandError }}</Message>
       <TableView
         v-if="encounter"

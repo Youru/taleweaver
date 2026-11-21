@@ -210,6 +210,50 @@ public class GameEngineTests
     }
 
     [Fact]
+    public void MoveInitiative_CardNotPlayedMovedToTheFront_PlaysNext()
+    {
+        var game = Game().Continue().Turn();
+        var last = game.Encounter.InitiativeTrack[^1];
+
+        game.Do(GameCommand.MoveInitiative(last, -5));
+
+        game.Encounter.InitiativeTrack[0].Should().Be(last);
+        game.CurrentCard.Should().NotBe(last);
+        game.Turn();
+        game.CurrentCard.Should().Be(last);
+        game.Encounter.CurrentTurn.Should().Be(0);
+    }
+
+    [Fact]
+    public void MoveInitiative_PlayedCardMovedToTheBack_DoesNotPlayAgain()
+    {
+        var game = Game().Continue().Turn();
+        var first = game.CurrentCard;
+        var others = game.Encounter.InitiativeTrack.Skip(1).ToList();
+
+        game.Do(GameCommand.MoveInitiative(first, 2));
+
+        game.Encounter.InitiativeTrack[^1].Should().Be(first);
+        game.CurrentCard.Should().Be(first);
+        game.Turn();
+        game.CurrentCard.Should().Be(others[0]);
+        game.Turn();
+        game.CurrentCard.Should().Be(others[1]);
+        game.Turn();
+        game.Encounter.Round.Should().Be(2);
+    }
+
+    [Fact]
+    public void MoveInitiative_CardNotOnTheTrack_IsRefused()
+    {
+        var game = Game().Continue().Turn();
+
+        var result = GameEngine.Apply(game.State, GameCommand.MoveInitiative("hb:initiative/imp-1-3", 1), game.Context);
+
+        result.Error.Should().Be(GameEngine.Errors.UnknownCard("hb:initiative/imp-1-3"));
+    }
+
+    [Fact]
     public void NextTurn_RoundWithoutTrueStepDefeatOrSpawn_AddsUrgencyAndTheFourthLoses()
     {
         var game = Game().Continue();
