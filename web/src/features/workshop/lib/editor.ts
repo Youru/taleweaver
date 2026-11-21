@@ -1,4 +1,5 @@
 import { computed, onBeforeUnmount, ref, watch, type Ref } from 'vue'
+import { newStoryRound } from './storyRound'
 import type { Language } from '@/shared/lib/localized'
 import type { DraftNode, DraftScenario, Position, ScenarioReport } from '../api/types'
 import { workshopApi } from '../api/workshopApi'
@@ -10,6 +11,7 @@ import { createHistory } from './history'
 export interface NewNodeLabels {
   scene: string
   encounter: string
+  storyRound: string
   win: string
   lose: string
 }
@@ -120,14 +122,16 @@ export function useEditor(saved: Ref<DraftScenario | undefined>, language: Ref<L
     change({ ...d, editor: { ...d.editor, positions: { ...saved, [id]: position } } })
   }
 
-  function add(type: 'scene' | 'encounter', labels: NewNodeLabels, at?: Position) {
+  function add(type: 'scene' | 'encounter' | 'storyRound', labels: NewNodeLabels, at?: Position) {
     const d = draft.value
     if (!d) return
     const id = freshId(d, type)
     const made =
       type === 'scene'
         ? newScene(id, language.value, labels.scene)
-        : newEncounter(id, language.value, { name: labels.encounter, win: labels.win, lose: labels.lose })
+        : type === 'storyRound'
+          ? newStoryRound(id, language.value, labels.storyRound)
+          : newEncounter(id, language.value, { name: labels.encounter, win: labels.win, lose: labels.lose })
     const node = chapter.value ? { ...made, chapter: chapter.value } : made
     const spot = at ?? { x: Math.max(0, ...Object.values(positions.value).map((p) => p.x)) + 300, y: 0 }
     change({

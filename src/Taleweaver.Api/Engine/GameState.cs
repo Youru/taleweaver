@@ -19,6 +19,9 @@ public sealed class GameState
 
     public required CampaignState Campaign { get; set; }
 
+    /// <summary>The Bounty being played from a Story Round: its nodes are the ones read until it ends.</summary>
+    public BountyState? Bounty { get; set; }
+
     public EncounterState? Encounter { get; set; }
 
     /// <summary>The question the GM must answer before anything else can happen.</summary>
@@ -93,6 +96,37 @@ public sealed class CampaignState
 
     /// <summary>Story Rounds the party Ventured Forth from: they cannot return to them.</summary>
     public List<string> StoryRoundsLeft { get; set; } = [];
+
+    /// <summary>Bounties won: never attempted again in this Adventure (p. 13).</summary>
+    public List<string> BountiesCompleted { get; set; } = [];
+
+    /// <summary>Bounties attempted, won or lost.</summary>
+    public List<string> BountiesAttempted { get; set; } = [];
+
+    /// <summary>Story Rounds where a Bounty was attempted: only one per named Story Round.</summary>
+    public List<string> BountyStoryRounds { get; set; } = [];
+
+    /// <summary>Item Upgrades unlocked (Adventure Sheet): for sale at every Shop and Train from now on (p. 28).</summary>
+    public List<string> UnlockedUpgrades { get; set; } = [];
+}
+
+public sealed class BountyState
+{
+    public required string Scenario { get; set; }
+
+    /// <summary>The Story Round the party comes back to.</summary>
+    public required string StoryRound { get; set; }
+
+    /// <summary>Kind of the last end condition reached (win, lose): a Bounty ending on a win is completed.</summary>
+    public string? LastEnd { get; set; }
+}
+
+/// <summary>A Discipline learnt by an adventurer, and the XP it cost (its card's cost, +1 per Discipline of the same level).</summary>
+public sealed class LearnedDiscipline
+{
+    public required string Id { get; set; }
+
+    public int Xp { get; set; }
 }
 
 public sealed class StoryRoundState
@@ -121,6 +155,9 @@ public sealed class AdventurerState
 
     /// <summary>Unselectable (p. 11): away from the story, cannot be chosen nor trade, still gains every member's rewards.</summary>
     public bool Unselectable { get; set; }
+
+    /// <summary>Disciplines learnt with XP (or given by the story): <see cref="Xp"/> counts every XP gained, spent or not.</summary>
+    public List<LearnedDiscipline> Disciplines { get; set; } = [];
 
     /// <summary>Items equipped (rulebook p. 25: 2 hands of weapons, 1 armor, 1 core, 1 accessory, 3 relics, 3 consumables).</summary>
     public List<OwnedItem> Equipped { get; set; } = [];
@@ -152,6 +189,9 @@ public sealed class OwnedItem
 
     /// <summary>Equipped on its back side (DOUBLE), or Flipped by an ability.</summary>
     public bool Flipped { get; set; }
+
+    /// <summary>Item Upgrades attached to the card (catalogue ids, p. 28).</summary>
+    public List<string> Upgrades { get; set; } = [];
 }
 
 public sealed class EncounterState

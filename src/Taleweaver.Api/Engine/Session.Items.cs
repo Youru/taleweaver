@@ -19,6 +19,8 @@ internal sealed partial class Session
 
     private static class ItemErrors
     {
+        public static Error UnknownUpgrade(string? id) => Error.NotFound("Items.UnknownUpgrade", $"No Item Upgrade '{id}' in the catalogue.");
+
         public static Error UnknownItem(string? id) => Error.NotFound("Items.UnknownItem", $"No item '{id}' in the catalogue.");
 
         public static Error NotOwned(string? id) => Error.NotFound("Items.NotOwned", $"The party holds no item '{id}'.");
@@ -42,6 +44,9 @@ internal sealed partial class Session
         GameCommands.DiscardItem => DiscardItem(command),
         GameCommands.FlipItem => FlipItem(command),
         GameCommands.UseItem => UseItem(command),
+        GameCommands.UnlockUpgrade => UnlockUpgrade(command.Item),
+        GameCommands.AttachUpgrade => AttachUpgrade(command),
+        GameCommands.DetachUpgrade => DetachUpgrade(command),
         _ => GameEngine.Errors.UnknownCommand(command.Type),
     };
 
@@ -88,6 +93,59 @@ internal sealed partial class Session
         State.Campaign.Items.Add(card.Id);
         Log("itemAdded", args: Args(("item", card.Id), ("id", owned.Id), ("owner", command.Owner), ("slot", SlotOf(command.Owner, command.Slot)),
             ("price", price > 0 ? Number(price) : null), ("gold", price > 0 ? Number(State.Campaign.Gold) : null), ("drawn", replaced is null ? null : "true")));
+        return Result.Success();
+    }
+
+    private Result UnlockUpgrade(string? id)
+    {
+        if (Catalog.FindUpgrade(id) is not { } upgrade)
+        {
+            return ItemErrors.UnknownUpgrade(id);
+        }
+
+        if (!State.Campaign.UnlockedUpgrades.Contains(upgrade.Id))
+        {
+            State.Campaign.UnlockedUpgrades.Add(upgrade.Id);
+        }
+
+        Log("upgradeUnlocked", args: Args(("upgrade", upgrade.Id)));
+        return Result.Success();
+    }
+
+    /// <summary>An Item Upgrade put on a card (p. 28): bought for its price, or free for a Material traded in.</summary>
+    private Result AttachUpgrade(GameCommand command)
+    {
+        if (Catalog.FindUpgrade(command.Item) is not { } upgrade)
+        {
+            return ItemErrors.UnknownUpgrade(command.Item);
+        }
+
+        if (FindOwned(command.Instance) is not { } found)
+        {
+            return ItemErrors.NotOwned(command.Instance);
+        }
+
+        var price = Math.Max(0, command.Value ?? 0);
+        if (price > State.Campaign.Gold)
+        {
+            return ItemErrors.NotEnoughGold(price, State.Campaign.Gold);
+        }
+
+        State.Campaign.Gold -= price;
+        found.Owned.Upgrades.Add(upgrade.Id);
+        Log("upgradeAttached", args: Args(("upgrade", upgrade.Id), ("item", found.Owned.Item), ("id", found.Owned.Id),
+            ("price", price > 0 ? Number(price) : null), ("gold", price > 0 ? Number(State.Campaign.Gold) : null)));
+        return Result.Success();
+    }
+
+    private Result DetachUpgrade(GameCommand command)
+    {
+        if (FindOwned(command.Instance) is not { } found || !found.Owned.Upgrades.Remove(command.Item ?? ""))
+        {
+            return ItemErrors.NotOwned(command.Item);
+        }
+
+        Log("upgradeDetached", args: Args(("upgrade", command.Item), ("id", found.Owned.Id)));
         return Result.Success();
     }
 

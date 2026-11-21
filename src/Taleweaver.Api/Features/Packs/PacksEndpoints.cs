@@ -24,6 +24,7 @@ public static class PacksEndpoints
         GetEffects.Map(catalog);
         GetInitiativeCards.Map(catalog);
         GetItems.Map(catalog);
+        GetUpgradesAndDisciplines.Map(catalog);
         return app;
     }
 }

@@ -6,14 +6,14 @@ import Button from 'primevue/button'
 import Checkbox from 'primevue/checkbox'
 import InputNumber from 'primevue/inputnumber'
 import Select from 'primevue/select'
-import type { CatalogItem } from '@/features/catalog'
+import { useItemUpgrades, type CatalogItem } from '@/features/catalog'
 import type { Cell, EncounterState, ItemCommand, ItemSlot, OwnedItem } from '@/features/games'
 import type { ScenarioNode } from '@/features/scenarios'
 import { BoardCanvas, boardLayout, useBoardPieces } from '@/features/table'
 import { assetUrl } from '@/shared/api/assets'
 import { pick } from '@/shared/lib/localized'
 import { usePreferences } from '@/shared/lib/preferences'
-import { discardedOnUse, salePrice, suggestedToken, type Place } from '../lib/inventory'
+import { discardedOnUse, salePrice, suggestedToken, upgradePrice, type Place } from '../lib/inventory'
 import ItemStatsLine from './ItemStatsLine.vue'
 
 /**
@@ -29,12 +29,39 @@ const props = defineProps<{
   encounter?: EncounterState
   node?: ScenarioNode
   busy: boolean
+  /** Item Upgrades unlocked (Adventure Sheet): bought for their price, the others only for a Material traded in. */
+  unlockedUpgrades?: string[]
 }>()
 const emit = defineEmits<{ command: [command: ItemCommand]; draw: []; close: [] }>()
 
 const { t } = useI18n()
 const { language } = storeToRefs(usePreferences())
 const pieces = useBoardPieces()
+
+// Item Upgrades (p. 28): attached for the price of the card's tier, free for a Material traded in
+const upgrades = useItemUpgrades()
+const upgradeName = (id: string) => pick(upgrades.data.value?.find((u) => u.id === id)?.name, language.value) || id
+const upgradeOptions = computed(() =>
+  (upgrades.data.value ?? [])
+    .map((u) => ({
+      value: u.id,
+      unlocked: !!props.unlockedUpgrades?.includes(u.id),
+      label: `${pick(u.name, language.value)} · ${u.tags.join(', ')}`,
+    }))
+    .sort((a, b) => Number(b.unlocked) - Number(a.unlocked) || a.label.localeCompare(b.label)),
+)
+const upgradeChoice = ref<string | null>(null)
+const upgradeCost = ref<number | null>(null)
+watch(upgradeChoice, (id) => {
+  const unlocked = !!id && !!props.unlockedUpgrades?.includes(id)
+  upgradeCost.value = unlocked ? upgradePrice(props.card?.tier) : 0
+})
+function attach() {
+  if (!upgradeChoice.value) return
+  emit('command', { type: 'attachUpgrade', id: props.owned.id, upgrade: upgradeChoice.value, price: upgradeCost.value ?? 0 })
+  upgradeChoice.value = null
+}
+const isMaterial = computed(() => !!props.card?.tags.some((tag) => tag.toUpperCase().includes('MATERIAL')))
 
 const name = computed(() => pick(props.card?.name, language.value) || props.owned.item || '')
 const side = computed(() =>
@@ -182,6 +209,50 @@ function sell() {
         </div>
       </div>
 
+      <div class="upgrades">
+        <p v-if="isMaterial" class="hint">{{ t('inventory.materialHint') }}</p>
+        <p v-if="owned.upgrades?.length" class="attached">
+          <span v-for="u in owned.upgrades" :key="u" class="upgrade">
+            <i class="pi pi-wrench" aria-hidden="true" /> {{ upgradeName(u) }}
+            <Button
+              icon="pi pi-times"
+              text
+              rounded
+              size="small"
+              :aria-label="t('inventory.detachUpgrade', { name: upgradeName(u) })"
+              :disabled="busy"
+              @click="emit('command', { type: 'detachUpgrade', id: owned.id, upgrade: u })"
+            />
+          </span>
+        </p>
+        <div class="row">
+          <Select
+            v-model="upgradeChoice"
+            :options="upgradeOptions"
+            option-label="label"
+            option-value="value"
+            filter
+            :placeholder="t('inventory.upgradePlaceholder')"
+            :aria-label="t('inventory.upgradePlaceholder')"
+            class="grow"
+          >
+            <template #option="{ option }">
+              <span :class="{ locked: !option.unlocked }">{{ option.label }}</span>
+              <i v-if="option.unlocked" class="pi pi-unlock" :aria-label="t('inventory.unlocked')" />
+            </template>
+          </Select>
+          <InputNumber
+            v-model="upgradeCost"
+            :min="0"
+            :max="999"
+            suffix=" or"
+            :aria-label="t('inventory.upgradePrice')"
+            input-class="price-input"
+          />
+          <Button :label="t('inventory.attachUpgrade')" icon="pi pi-wrench" size="small" :disabled="busy || !upgradeChoice" @click="attach" />
+        </div>
+      </div>
+
       <div class="actions">
         <Button
           v-if="swapSlot"
@@ -315,6 +386,39 @@ function sell() {
 </template>
 
 <style scoped>
+.upgrades {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin: 0.5rem 0;
+}
+.upgrades .row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+}
+.upgrades .grow {
+  flex: 1;
+  min-width: 10rem;
+}
+.upgrades .hint {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--p-text-muted-color);
+}
+.attached {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.locked {
+  color: var(--p-text-muted-color);
+}
+:deep(.price-input) {
+  width: 5.5rem;
+}
 .detail {
   display: flex;
   flex-direction: column;

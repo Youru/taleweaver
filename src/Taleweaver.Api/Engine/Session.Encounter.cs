@@ -687,6 +687,11 @@ internal sealed partial class Session
         State.Prompt = null;
         State.PendingActions.Clear();
         Log("encounterEnd", condition.Text, Args(("endCondition", condition.Id), ("kind", condition.Kind)));
+        if (State.Bounty is { } bounty)
+        {
+            bounty.LastEnd = condition.Kind;
+        }
+
         BankLootGold();
         if (condition.Reward is not null)
         {

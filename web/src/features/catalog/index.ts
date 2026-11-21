@@ -1,2 +1,11 @@
-export type { CatalogItem, Combatant, ItemStats, GameEffect, InitiativeCard, SymbolAbilityCard } from './api/types'
-export { useCombatants, useEffects, useInitiativeCards, useItems } from './api/queries'
+export type {
+  CatalogDiscipline,
+  CatalogItem,
+  CatalogUpgrade,
+  Combatant,
+  ItemStats,
+  GameEffect,
+  InitiativeCard,
+  SymbolAbilityCard,
+} from './api/types'
+export { useCombatants, useDisciplines, useEffects, useInitiativeCards, useItems, useItemUpgrades } from './api/queries'

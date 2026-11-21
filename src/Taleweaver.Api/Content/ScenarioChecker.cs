@@ -27,7 +27,7 @@ public static partial class ScenarioChecker
     [GeneratedRegex("^[a-z0-9]+(-[a-z0-9]+)*$")]
     private static partial Regex ChapterIdPattern();
 
-    private static readonly HashSet<string> CatalogKinds = ["combatant", "item", "item-upgrade", "tile", "token", "initiative"];
+    private static readonly HashSet<string> CatalogKinds = ["combatant", "item", "item-upgrade", "discipline", "tile", "token", "initiative"];
     private static readonly HashSet<string> BlockingTerrain = ["obstructing", "dangerous"];
 
     /// <summary>The actions the engine plays (Engine/Session.Actions.cs); any other is skipped in play.</summary>
@@ -37,7 +37,7 @@ public static partial class ScenarioChecker
         "askChoice", "askSkillCheck", "readHiddenRule", "placeToken", "removeToken", "activateToken", "spawn",
         "appendAiStep", "revealArea", "placeDiagram", "addEndCondition", "endEncounter", "addUrgency",
         "restoreCombatant", "replaceInitiativeCard", "defeatAdventurer", "navigate", "addVar", "branch", "askNumber",
-        "joinParty", "leaveParty", "setInjured", "setUnselectable", "setActiveGroup",
+        "unlockUpgrade", "joinParty", "leaveParty", "setInjured", "setUnselectable", "setActiveGroup",
     };
 
     /// <summary>The triggers the engine fires.</summary>

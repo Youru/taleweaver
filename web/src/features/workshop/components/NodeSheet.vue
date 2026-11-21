@@ -26,6 +26,7 @@ import BoardRules from './BoardRules.vue'
 import { eventsOf } from '../lib/events'
 import { addHiddenRule, hiddenRulesOf, removeHiddenRule, updateHiddenRule } from '../lib/hiddenRules'
 import HiddenRuleCard from './HiddenRuleCard.vue'
+import StoryRoundFields from './StoryRoundFields.vue'
 import TargetSelect from './TargetSelect.vue'
 import TextField from './TextField.vue'
 
@@ -289,8 +290,11 @@ const hiddenRules = computed(() => {
       />
     </div>
 
+    <!-- Story Round -->
+    <StoryRoundFields v-if="node.type === 'storyRound'" :node="node" :scenario="scenario" @change="(n) => emit('change', n)" />
+
     <!-- Scene -->
-    <template v-if="node.type !== 'encounter'">
+    <template v-else-if="node.type !== 'encounter'">
       <TextField v-model="title" :label="t('workshop.sceneTitle')" />
       <TextField v-model="narrative" :label="t('workshop.narrative')" long :rows="8" />
       <div class="toggle">

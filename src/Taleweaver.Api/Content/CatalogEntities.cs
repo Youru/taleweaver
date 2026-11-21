@@ -89,6 +89,26 @@ public sealed record ItemUpgrade
     public string? Image { get; init; }
 }
 
+/// <summary>A Discipline card (rulebook p. 24, 33): its tree and level; a Story Discipline has no level and is never bought with XP.</summary>
+public sealed record Discipline
+{
+    public required string Id { get; init; }
+
+    public required LocalizedText Name { get; init; }
+
+    /// <summary>assemblage, cruor, martial, sanctus, subterfuge, story.</summary>
+    public required string Tree { get; init; }
+
+    public int? Level { get; init; }
+
+    public bool Story { get; init; }
+
+    /// <summary>XP cost printed on the card, when known.</summary>
+    public int? Cost { get; init; }
+
+    public string? Image { get; init; }
+}
+
 /// <summary>A map tile side. Tiles are 6×6 squares.</summary>
 public sealed record Tile
 {

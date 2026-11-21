@@ -14,6 +14,8 @@ public static class PartyEndpoints
 
     public sealed record StatusRequest(bool Value);
 
+    public sealed record DisciplineRequest(string Discipline, int Xp);
+
     public static IEndpointRouteBuilder MapPartyEndpoints(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/api/games/{id}/party").WithTags("Party");
@@ -21,6 +23,14 @@ public static class PartyEndpoints
                 string id, ActiveGroupRequest request, GameRunner runner, CancellationToken cancellationToken) =>
                 (await runner.ExecuteAsync(id, GameCommand.SetActiveGroup([.. request.Adventurers]), cancellationToken)).ToResponse())
             .WithName("SetActiveGroup");
+        group.MapPost("/{adventurer}/disciplines", async Task<Results<Ok<GameView>, ProblemHttpResult>> (
+                string id, string adventurer, DisciplineRequest request, GameRunner runner, CancellationToken cancellationToken) =>
+                (await runner.ExecuteAsync(id, GameCommand.LearnDiscipline(adventurer, request.Discipline, request.Xp), cancellationToken)).ToResponse())
+            .WithName("LearnDiscipline");
+        group.MapDelete("/{adventurer}/disciplines/{discipline}", async Task<Results<Ok<GameView>, ProblemHttpResult>> (
+                string id, string adventurer, string discipline, GameRunner runner, CancellationToken cancellationToken) =>
+                (await runner.ExecuteAsync(id, GameCommand.ForgetDiscipline(adventurer, discipline), cancellationToken)).ToResponse())
+            .WithName("ForgetDiscipline");
         group.MapPut("/{adventurer}/{status}", async Task<Results<Ok<GameView>, ProblemHttpResult>> (
                 string id, string adventurer, string status, StatusRequest request, GameRunner runner, CancellationToken cancellationToken) =>
                 (await runner.ExecuteAsync(id, GameCommand.SetAdventurerStatus(adventurer, status, request.Value), cancellationToken)).ToResponse())

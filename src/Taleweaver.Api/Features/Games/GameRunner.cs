@@ -146,6 +146,19 @@ public sealed class GameRunner(IGameStore games, IContentStore content, CatalogP
             return Errors.ScenarioNotFound(scenarioId);
         }
 
-        return new GameContext(scenario, await catalogs.GetAsync(cancellationToken), new SeededRandomSource(seed));
+        // The Bounties its Story Rounds may send the party to (rulebook p. 13): loaded only when it has some.
+        var bounties = new Dictionary<string, Scenario>();
+        if (scenario.Nodes.Any(n => n.IsStoryRound && n.BountyDifficulty is not null))
+        {
+            foreach (var summary in (await content.ListScenariosAsync(cancellationToken)).Where(s => s.Kind == "bounty" && s.Id != scenario.Id))
+            {
+                if (await content.GetScenarioAsync(summary.Id, cancellationToken) is { } bounty)
+                {
+                    bounties[bounty.Id] = bounty;
+                }
+            }
+        }
+
+        return new GameContext(scenario, await catalogs.GetAsync(cancellationToken), new SeededRandomSource(seed)) { Bounties = bounties };
     }
 }

@@ -19,6 +19,13 @@ internal sealed partial class Session
             case InternalActions.AskStoryRound:
                 AskStoryRound();
                 break;
+            case "unlockUpgrade":
+                if (!UnlockUpgrade(action.Ref).IsSuccess)
+                {
+                    Log("manualAction", action.Text, Args(("do", action.Do), ("upgrade", action.Ref)));
+                }
+
+                break;
             case "joinParty" or "leaveParty" or "setInjured" or "setUnselectable" or "setActiveGroup":
                 DoPartyAction(action);
                 break;

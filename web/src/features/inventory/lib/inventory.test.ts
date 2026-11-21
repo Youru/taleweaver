@@ -3,6 +3,7 @@ import type { CatalogItem } from '@/features/catalog'
 import type { AdventurerState, CampaignState } from '@/features/games'
 import type { TokenPiece } from '@/features/table'
 import {
+  upgradePrice,
   allItems,
   discardedOnUse,
   equippedCounts,
@@ -135,5 +136,14 @@ describe('playerMat', () => {
     ])
     expect(mat.rows.find((r) => r.type === 'relic')!.slots.filter((s) => !s.owned)).toHaveLength(3)
     expect(mat.pack.map((s) => s.owned?.id)).toEqual(['d', undefined, undefined])
+  })
+})
+
+describe('upgradePrice', () => {
+  it('follows the tier of the card, nothing for a tier with no price', () => {
+    expect(upgradePrice('mundane')).toBe(15)
+    expect(upgradePrice('rare')).toBe(75)
+    expect(upgradePrice('monster')).toBe(0)
+    expect(upgradePrice(undefined)).toBe(0)
   })
 })

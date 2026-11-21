@@ -26,6 +26,14 @@ export interface StoryHeading {
 const tones: Record<string, LogTone> = {
   scene: 'narrative',
   storyRound: 'narrative',
+  bountyStart: 'narrative',
+  bountyEnd: 'reward',
+  consumableDiscarded: 'muted',
+  upgradeUnlocked: 'reward',
+  upgradeAttached: 'reward',
+  upgradeDetached: 'muted',
+  disciplineLearnt: 'reward',
+  disciplineForgotten: 'muted',
   storyRoundReturn: 'narrative',
   sideQuest: 'narrative',
   ventureForth: 'narrative',
@@ -90,7 +98,7 @@ export const toneOf = (code: string): LogTone => tones[code] ?? 'info'
 /** Arguments made readable: content ids shortened, the turn's owner named. */
 function readableArgs(entry: LogEntry): Record<string, string> {
   const args: Record<string, string> = { ...entry.args }
-  for (const key of ['card', 'from', 'to', 'item', 'diagram', 'token']) {
+  for (const key of ['card', 'from', 'to', 'item', 'diagram', 'token', 'upgrade', 'discipline', 'scenario']) {
     const value = args[key]
     if (value) args[key] = shortId(value)
   }

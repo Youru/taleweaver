@@ -8,6 +8,9 @@ namespace Taleweaver.UnitTests.Engine;
 public class StoryRoundTests
 {
     private const string Sword = "hb:item/sword";
+    private const string Potion = "hb:item/potion";
+    private const string Spiked = "hb:item-upgrade/spiked";
+    private const string BountyId = "hb:scenario/lair";
     private static readonly string[] Uniques = ["hb:item/crown", "hb:item/ring"];
 
     [Fact]
@@ -120,6 +123,122 @@ public class StoryRoundTests
         ScenarioChecker.Check(scenario, Catalog()).Errors.Select(e => e.Code).Should().Contain("Scenarios.StoryRoundWithoutExit");
     }
 
+    [Fact]
+    public void Explore_OffersTheBountiesTheStoryRoundAllows()
+    {
+        var game = BountyGame().Answer("explore");
+
+        game.State.Prompt!.Options.Select(o => o.Id).Should().Equal("quest:rats", "bounty:" + BountyId, "venture:0");
+    }
+
+    [Fact]
+    public void ABounty_IsPlayedInTheSameGame_ThenBackToShopAndTrain_WonForGood()
+    {
+        var game = BountyGame().Answer("explore").Answer("bounty:" + BountyId);
+
+        game.State.Bounty!.Scenario.Should().Be(BountyId);
+        game.Encounter.Node.Should().Be("lair");
+        game.Do(GameCommand.ReachEndCondition("win")).Continue();
+
+        game.State.Bounty.Should().BeNull();
+        game.State.Status.Should().Be(GameStatus.InProgress);
+        game.State.Campaign.CurrentNode.Should().Be("town");
+        game.State.Campaign.StoryRound!.Phase.Should().Be(StoryRoundPhases.Shop);
+        game.State.Campaign.Gold.Should().Be(150, "the Bounty's reward is kept");
+        game.State.Campaign.BountiesCompleted.Should().Equal(BountyId);
+        game.Answer("explore").State.Prompt!.Options.Select(o => o.Id).Should().NotContain("bounty:" + BountyId);
+    }
+
+    [Fact]
+    public void ABountyLost_KeepsItsRewards_AndWaitsForTheNextStoryRound()
+    {
+        var game = BountyGame().Answer("explore").Answer("bounty:" + BountyId);
+
+        game.Do(GameCommand.ReachEndCondition("lose")).Continue();
+
+        game.State.Campaign.BountiesCompleted.Should().BeEmpty();
+        game.State.Campaign.BountiesAttempted.Should().Equal(BountyId);
+        game.State.Campaign.Gold.Should().Be(110, "the rewards earned before losing are kept");
+        game.Answer("explore").State.Prompt!.Options.Select(o => o.Id).Should().NotContain("bounty:" + BountyId, "one Bounty per named Story Round");
+    }
+
+    [Fact]
+    public void LeavingShopAndTrain_DiscardsTheConsumablesNotEquipped()
+    {
+        var game = Game();
+        game.Do(GameCommand.AddItem(Potion, "Rook", "equipped"))
+            .Do(GameCommand.AddItem(Potion, "Rook", "pack"))
+            .Do(GameCommand.AddItem(Potion, "stash"))
+            .Do(GameCommand.AddItem(Sword, "stash"));
+
+        game.Answer("explore");
+
+        game.State.Campaign.Party.Single(a => a.Name == "Rook").Equipped.Select(i => i.Item).Should().Equal(Potion);
+        game.State.Campaign.Party.Single(a => a.Name == "Rook").Pack.Should().BeEmpty();
+        game.State.Campaign.Stash.Select(i => i.Item).Should().Equal(Sword);
+    }
+
+    [Fact]
+    public void ItemUpgrades_AreUnlocked_ThenBoughtOntoACard()
+    {
+        var game = Game();
+        game.Do(GameCommand.AddItem(Sword, "Rook", "equipped"));
+
+        game.Do(GameCommand.UnlockUpgrade(Spiked)).Do(GameCommand.AttachUpgrade("item-1", Spiked, 30));
+
+        game.State.Campaign.UnlockedUpgrades.Should().Equal(Spiked);
+        game.State.Campaign.Party.Single(a => a.Name == "Rook").Equipped.Single().Upgrades.Should().Equal(Spiked);
+        game.State.Campaign.Gold.Should().Be(70);
+        game.Do(GameCommand.DetachUpgrade("item-1", Spiked));
+        game.State.Campaign.Party.Single(a => a.Name == "Rook").Equipped.Single().Upgrades.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Disciplines_AreLearntWithTheXpLeft()
+    {
+        var game = Game();
+
+        game.Do(GameCommand.LearnDiscipline("Zeke", "hb:discipline/gore-shot", 2));
+
+        Refused(game, GameCommand.LearnDiscipline("Zeke", "hb:discipline/blood-rage", 2)).Should().Be("Party.NotEnoughXp");
+        game.State.Campaign.Party.Single(a => a.Name == "Zeke").Disciplines.Single().Should().BeEquivalentTo(new { Id = "hb:discipline/gore-shot", Xp = 2 });
+        game.Do(GameCommand.ForgetDiscipline("Zeke", "hb:discipline/gore-shot"));
+        game.State.Campaign.Party.Single(a => a.Name == "Zeke").Disciplines.Should().BeEmpty();
+    }
+
+    private static EngineDriver BountyGame()
+    {
+        var scenario = Scenario();
+        scenario = scenario with { Nodes = [scenario.Nodes[0] with { BountyDifficulty = 1 }, .. scenario.Nodes.Skip(1)] };
+        var bounty = new Scenario
+        {
+            Id = BountyId,
+            Kind = "bounty",
+            Difficulty = 1,
+            Title = En("The Lair"),
+            Start = "lair",
+            Nodes =
+            [
+                new Node
+                {
+                    Id = "lair",
+                    Type = Node.EncounterType,
+                    LootLevel = "common",
+                    Mechanics = [],
+                    Setup = new Setup { Combatants = [new CombatantPlacement { Family = "brute" }] },
+                    Events = [new ScenarioEvent { Id = "pay", Trigger = new EventTrigger { On = "encounterStart" }, Actions = [new ScenarioAction { Do = "gainGold", Amount = 10 }] }],
+                    EndConditions =
+                    [
+                        new EndCondition { Id = "win", Kind = "win", Mechanics = [new ScenarioAction { Do = "gainGold", Amount = 40 }], Next = "@currentStoryRound" },
+                        new EndCondition { Id = "lose", Kind = "lose", Next = "@currentStoryRound" },
+                    ],
+                },
+            ],
+        };
+        var context = new GameContext(scenario, Catalog(), new SeededRandomSource(7)) { Bounties = new Dictionary<string, Scenario> { [BountyId] = bounty } };
+        return new EngineDriver(scenario, context.Catalog, context, "Nightingale", "Rook", "Zeke");
+    }
+
     private static string Refused(EngineDriver game, GameCommand command)
     {
         var result = GameEngine.Apply(game.State, command, game.Context);
@@ -151,9 +270,11 @@ public class StoryRoundTests
             Items =
             [
                 new Item { Id = Sword, Name = En("Sword"), Type = "weapon", Tier = "common", Cost = 40 },
+                new Item { Id = Potion, Name = En("Potion"), Type = "consumable", Tier = "common", Cost = 5 },
                 new Item { Id = Uniques[0], Name = En("Crown"), Type = "relic", Tier = "common", Unique = true, Cost = 90 },
                 new Item { Id = Uniques[1], Name = En("Ring"), Type = "accessory", Tier = "common", Unique = true, Cost = 70 },
             ],
+            ItemUpgrades = [new ItemUpgrade { Id = Spiked, Name = En("Spiked") }],
         },
     ]);
 
@@ -173,6 +294,7 @@ public class StoryRoundTests
                 Mechanics =
                 [
                     new ScenarioAction { Do = "gainGold", Amount = 100 },
+                    new ScenarioAction { Do = "gainXp", Amount = 3, Each = true },
                     new ScenarioAction { Do = "joinParty", Extra = Extra(("adventurer", "Remi")) },
                 ],
                 Store = new Store { Items = [new StoreFilter { Tiers = ["common"] }], Unique = new StoreUnique("common") },

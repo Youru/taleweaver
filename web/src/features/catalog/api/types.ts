@@ -100,3 +100,27 @@ export interface ItemStats {
   health?: number | null
   movement?: number | null
 }
+
+/** Mirrors Taleweaver.Api.Content.ItemUpgrade. */
+export interface CatalogUpgrade {
+  id: string
+  name: LocalizedText
+  cost?: number | null
+  /** "WEAPON UPGRADE", "ARMOR UPGRADE"… */
+  tags: string[]
+  text?: LocalizedText | null
+  image?: string | null
+}
+
+/** Mirrors Taleweaver.Api.Content.Discipline. */
+export interface CatalogDiscipline {
+  id: string
+  name: LocalizedText
+  /** assemblage, cruor, martial, sanctus, subterfuge, story. */
+  tree: string
+  level?: number | null
+  story?: boolean
+  /** XP printed on the card, when known. */
+  cost?: number | null
+  image?: string | null
+}

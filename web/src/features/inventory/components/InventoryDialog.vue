@@ -227,6 +227,7 @@ function isSelected(owned: OwnedItem, place: Place) {
           :encounter="encounter"
           :node="node"
           :busy="busy"
+          :unlocked-upgrades="campaign.unlockedUpgrades"
           @command="emit('command', $event)"
           @draw="replacing = selected.owned"
           @close="selectedId = null"

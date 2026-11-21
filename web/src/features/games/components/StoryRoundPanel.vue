@@ -1,17 +1,19 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 import Button from 'primevue/button'
 import Checkbox from 'primevue/checkbox'
+import InputNumber from 'primevue/inputnumber'
+import Select from 'primevue/select'
 import Message from 'primevue/message'
 import Tag from 'primevue/tag'
-import { useItems } from '@/features/catalog'
+import { useDisciplines, useItems, useItemUpgrades } from '@/features/catalog'
 import type { ScenarioNode } from '@/features/scenarios'
 import { pick } from '@/shared/lib/localized'
 import { usePreferences } from '@/shared/lib/preferences'
-import type { CampaignState, PartyCommand } from '../api/types'
-import { activeMembers } from '../lib/storyRound'
+import type { CampaignState, ItemCommand, PartyCommand } from '../api/types'
+import { activeMembers, disciplineCost, xpLeft } from '../lib/storyRound'
 
 /**
  * A Story Round (rulebook p. 13), above its question: the three phases, what the Store sells (the Unique Item
@@ -23,11 +25,53 @@ const props = defineProps<{
   node?: ScenarioNode
   busy: boolean
 }>()
-const emit = defineEmits<{ party: [command: PartyCommand]; shop: [] }>()
+const emit = defineEmits<{ party: [command: PartyCommand]; item: [command: ItemCommand]; shop: [] }>()
 
 const { t } = useI18n()
 const { language } = storeToRefs(usePreferences())
 const catalog = useItems()
+const upgradeCatalog = useItemUpgrades()
+const disciplineCatalog = useDisciplines()
+
+// ---- Item Upgrades unlocked (p. 28): for sale at every Shop and Train ----
+const upgradeName = (id: string) => pick(upgradeCatalog.data.value?.find((u) => u.id === id)?.name, language.value) || id
+const unlocked = computed(() => props.campaign.unlockedUpgrades ?? [])
+const lockedUpgrades = computed(() =>
+  (upgradeCatalog.data.value ?? [])
+    .filter((u) => !unlocked.value.includes(u.id))
+    .map((u) => ({ value: u.id, label: pick(u.name, language.value) })),
+)
+const toUnlock = ref<string | null>(null)
+
+// ---- Training: Disciplines learnt with XP (p. 24, 33) ----
+const disciplineName = (id: string) =>
+  pick(disciplineCatalog.data.value?.find((d) => d.id === id)?.name, language.value) || id
+const learnable = computed(() =>
+  (disciplineCatalog.data.value ?? [])
+    .filter((d) => !d.story)
+    .map((d) => ({
+      value: d.id,
+      label: `${pick(d.name, language.value)} · ${t(`storyRound.trees.${d.tree}`, d.tree)} ${d.level ?? ''}`,
+    })),
+)
+/** What the GM is about to teach each adventurer: the card, and its XP (printed cost +1 per card of that level). */
+const learning = reactive<Record<string, { discipline: string | null; xp: number | null }>>({})
+function draft(name: string) {
+  return (learning[name] ??= { discipline: null, xp: null })
+}
+function pickDiscipline(name: string, id: string | null) {
+  const entry = draft(name)
+  entry.discipline = id
+  const adventurer = props.campaign.party.find((a) => a.name === name)
+  const card = disciplineCatalog.data.value?.find((d) => d.id === id)
+  entry.xp = adventurer && card ? disciplineCost(card, adventurer, disciplineCatalog.data.value ?? []) : null
+}
+function learn(name: string) {
+  const entry = draft(name)
+  if (!entry.discipline || entry.xp == null) return
+  emit('party', { type: 'learn', adventurer: name, discipline: entry.discipline, xp: entry.xp })
+  learning[name] = { discipline: null, xp: null }
+}
 
 const round = computed(() => props.campaign.storyRound)
 const phases = ['shop', 'explore', 'ventureForth'] as const
@@ -49,6 +93,10 @@ const lines = computed(() =>
     return [tiers, types].filter(Boolean).join(' · ') || t('storyRound.everything')
   }),
 )
+const bounties = computed(() => ({
+  completed: props.campaign.bountiesCompleted ?? [],
+  attempted: (props.campaign.bountiesAttempted ?? []).filter((b) => !props.campaign.bountiesCompleted?.includes(b)),
+}))
 const attempted = computed(() =>
   (props.node?.sideQuests ?? []).filter((q) => props.campaign.sideQuestsAttempted?.includes(q.id ?? q.node)),
 )
@@ -87,8 +135,93 @@ function toggleActive(name: string, on: boolean) {
       <p class="hint">{{ t('storyRound.shopHint') }}</p>
       <Button :label="t('storyRound.openStore')" icon="pi pi-shop" :disabled="busy" @click="emit('shop')" />
     </div>
+
+    <div v-if="round.phase === 'shop'" class="block">
+      <h3>{{ t('storyRound.upgradesTitle') }}</h3>
+      <p class="hint">{{ t('storyRound.upgradesHint') }}</p>
+      <p v-if="unlocked.length" class="chips">
+        <Tag v-for="id in unlocked" :key="id" :value="upgradeName(id)" severity="secondary" />
+      </p>
+      <div class="row">
+        <Select
+          v-model="toUnlock"
+          :options="lockedUpgrades"
+          option-label="label"
+          option-value="value"
+          filter
+          :placeholder="t('storyRound.unlockPlaceholder')"
+          :aria-label="t('storyRound.unlockPlaceholder')"
+          class="grow"
+        />
+        <Button
+          :label="t('storyRound.unlock')"
+          icon="pi pi-unlock"
+          size="small"
+          :disabled="busy || !toUnlock"
+          @click="toUnlock && (emit('item', { type: 'unlockUpgrade', upgrade: toUnlock }), (toUnlock = null))"
+        />
+      </div>
+    </div>
+
+    <div v-if="round.phase === 'shop'" class="block">
+      <h3>{{ t('storyRound.training') }}</h3>
+      <p class="hint">{{ t('storyRound.trainingHint') }}</p>
+      <div v-for="a in campaign.party" :key="a.name" class="trainee">
+        <p class="who">
+          <strong>{{ a.name }}</strong>
+          <span class="xp">{{ t('storyRound.xpLeft', { left: xpLeft(a), total: a.xp }) }}</span>
+        </p>
+        <p v-if="a.disciplines?.length" class="chips">
+          <Tag v-for="(d, i) in a.disciplines" :key="`${d.id}-${i}`" severity="secondary">
+            {{ disciplineName(d.id) }} ({{ d.xp }} XP)
+            <button
+              type="button"
+              class="forget"
+              :aria-label="t('storyRound.forget', { name: disciplineName(d.id) })"
+              :disabled="busy"
+              @click="emit('party', { type: 'forget', adventurer: a.name, discipline: d.id })"
+            >
+              <i class="pi pi-times" aria-hidden="true" />
+            </button>
+          </Tag>
+        </p>
+        <div class="row">
+          <Select
+            :model-value="learning[a.name]?.discipline ?? null"
+            :options="learnable"
+            option-label="label"
+            option-value="value"
+            filter
+            :placeholder="t('storyRound.disciplinePlaceholder')"
+            :aria-label="t('storyRound.disciplineFor', { name: a.name })"
+            class="grow"
+            @update:model-value="pickDiscipline(a.name, $event)"
+          />
+          <InputNumber
+            :model-value="learning[a.name]?.xp ?? null"
+            :min="0"
+            :max="99"
+            :placeholder="t('storyRound.xpCost')"
+            :aria-label="t('storyRound.xpCostFor', { name: a.name })"
+            input-class="xp-input"
+            @update:model-value="draft(a.name).xp = $event"
+          />
+          <Button
+            :label="t('storyRound.learn')"
+            icon="pi pi-plus"
+            size="small"
+            :disabled="busy || !learning[a.name]?.discipline || learning[a.name]?.xp == null || (learning[a.name]?.xp ?? 0) > xpLeft(a)"
+            @click="learn(a.name)"
+          />
+        </div>
+      </div>
+    </div>
     <p v-else-if="attempted.length" class="hint">
       {{ t('storyRound.attempted', { quests: attempted.map((q) => pick(q.label, language) || q.node).join(', ') }) }}
+    </p>
+    <p v-if="round.phase === 'explore' && (bounties.completed.length || bounties.attempted.length)" class="hint">
+      <template v-if="bounties.completed.length">{{ t('storyRound.bountiesWon', { list: bounties.completed.join(', ') }) }} </template>
+      <template v-if="bounties.attempted.length">{{ t('storyRound.bountiesLost', { list: bounties.attempted.join(', ') }) }}</template>
     </p>
 
     <div class="block">
@@ -206,6 +339,41 @@ h3 {
 }
 .party {
   border-collapse: collapse;
+}
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+.grow {
+  flex: 1;
+  min-width: 12rem;
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin: 0 0 0.4rem;
+}
+.trainee + .trainee {
+  margin-top: 0.6rem;
+}
+.who {
+  margin: 0 0 0.25rem;
+  display: flex;
+  gap: 0.5rem;
+  align-items: baseline;
+}
+.forget {
+  border: 0;
+  background: none;
+  cursor: pointer;
+  padding: 0 0 0 0.25rem;
+  color: inherit;
+}
+:deep(.xp-input) {
+  width: 5rem;
 }
 .party th,
 .party td {

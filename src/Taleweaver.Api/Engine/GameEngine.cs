@@ -13,9 +13,10 @@ public static class GameEngine
     /// A game saved by an older engine is replayed when loaded. 2: positions; 3: moves, adventurers on the board, fog;
     /// 4: every starting zone filled, initiative cards played this round (cards moved on the track);
     /// 5: the party's items (stash, equipped, pack, items to hand out);
-    /// 6: Story Rounds (phases, Store's Unique Items), Active Group, Injured and Unselectable members.
+    /// 6: Story Rounds (phases, Store's Unique Items), Active Group, Injured and Unselectable members;
+    /// 7: Bounties played from a Story Round, Consumables discarded after Shop and Train, Item Upgrades, Disciplines.
     /// </summary>
-    public const int Version = 6;
+    public const int Version = 7;
 
     public static class Errors
     {

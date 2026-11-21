@@ -45,9 +45,24 @@ export const gamesApi = {
   },
   party: (id: string, command: PartyCommand) => {
     const base = `${games}/${e(id)}/party`
-    return command.type === 'activeGroup'
-      ? http<GameView>(`${base}/active-group`, { method: 'PUT', body: { adventurers: command.adventurers } })
-      : http<GameView>(`${base}/${e(command.adventurer)}/${command.status}`, { method: 'PUT', body: { value: command.value } })
+    switch (command.type) {
+      case 'activeGroup':
+        return http<GameView>(`${base}/active-group`, { method: 'PUT', body: { adventurers: command.adventurers } })
+      case 'status':
+        return http<GameView>(`${base}/${e(command.adventurer)}/${command.status}`, {
+          method: 'PUT',
+          body: { value: command.value },
+        })
+      case 'learn':
+        return http<GameView>(`${base}/${e(command.adventurer)}/disciplines`, {
+          method: 'POST',
+          body: { discipline: command.discipline, xp: command.xp },
+        })
+      case 'forget':
+        return http<GameView>(`${base}/${e(command.adventurer)}/disciplines/${e(command.discipline)}`, {
+          method: 'DELETE',
+        })
+    }
   },
   items: (id: string, command: ItemCommand) => {
     const base = `${games}/${e(id)}/items`
@@ -72,6 +87,15 @@ export const gamesApi = {
         return http<GameView>(`${base}/${e(command.id)}/discard`, { method: 'POST', body: { gold: command.gold } })
       case 'flip':
         return http<GameView>(`${base}/${e(command.id)}/flipped`, { method: 'PUT', body: { flipped: command.flipped } })
+      case 'unlockUpgrade':
+        return http<GameView>(`${base}/upgrades/unlocked`, { method: 'POST', body: { upgrade: command.upgrade } })
+      case 'attachUpgrade':
+        return http<GameView>(`${base}/${e(command.id)}/upgrades`, {
+          method: 'POST',
+          body: { upgrade: command.upgrade, price: command.price },
+        })
+      case 'detachUpgrade':
+        return http<GameView>(`${base}/${e(command.id)}/upgrades/${e(command.upgrade)}`, { method: 'DELETE' })
       case 'use':
         return http<GameView>(`${base}/${e(command.id)}/use`, {
           method: 'POST',

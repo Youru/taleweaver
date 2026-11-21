@@ -148,7 +148,7 @@ export function endingsOf(scenario: DraftScenario): string[] {
 
 /** A node's caption on the graph and in the lists. */
 export function captionOf(node: DraftNode, language: Language): string {
-  return pick(node.type === 'encounter' ? node.name : node.title, language) || node.id
+  return pick(node.type === 'encounter' ? node.name : node.type === 'storyRound' ? (node.name ?? node.title) : node.title, language) || node.id
 }
 
 export const COLUMN = 300

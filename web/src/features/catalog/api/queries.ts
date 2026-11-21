@@ -1,7 +1,7 @@
 import { useQueries, useQuery } from '@tanstack/vue-query'
 import { computed, toValue, type MaybeRefOrGetter } from 'vue'
 import { http } from '@/shared/api/http'
-import type { CatalogItem, Combatant, GameEffect, InitiativeCard } from './types'
+import type { CatalogDiscipline, CatalogItem, CatalogUpgrade, Combatant, GameEffect, InitiativeCard } from './types'
 
 /** "um1:combatant/fragor-1-3-common" → "/api/packs/um1/combatants/fragor-1-3-common". */
 export function combatantPath(id: string): string {
@@ -59,6 +59,24 @@ export function useItems() {
   return useQuery({
     queryKey: catalogKeys.items,
     queryFn: ({ signal }) => http<CatalogItem[]>('/api/catalog/items', { signal }),
+    staleTime: Infinity,
+  })
+}
+
+/** The Item Upgrades of the enabled packs (rulebook p. 28). */
+export function useItemUpgrades() {
+  return useQuery({
+    queryKey: ['catalog', 'itemUpgrades'] as const,
+    queryFn: ({ signal }) => http<CatalogUpgrade[]>('/api/catalog/item-upgrades', { signal }),
+    staleTime: Infinity,
+  })
+}
+
+/** The Discipline cards of the enabled packs (rulebook p. 24, 33). */
+export function useDisciplines() {
+  return useQuery({
+    queryKey: ['catalog', 'disciplines'] as const,
+    queryFn: ({ signal }) => http<CatalogDiscipline[]>('/api/catalog/disciplines', { signal }),
     staleTime: Infinity,
   })
 }

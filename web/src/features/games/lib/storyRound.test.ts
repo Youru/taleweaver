@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { CatalogItem } from '@/features/catalog'
 import type { CampaignState } from '../api/types'
-import { activeMembers, storeItems } from './storyRound'
+import { activeMembers, disciplineCost, storeItems, xpLeft } from './storyRound'
 
 const item = (id: string, tier: string | null, type: string, extra: Partial<CatalogItem> = {}): CatalogItem => ({
   id,
@@ -48,5 +48,23 @@ describe('activeMembers', () => {
 
   it('keeps to the Active Group when there is one', () => {
     expect(activeMembers({ party, activeGroup: ['Zeke'] } as CampaignState)).toEqual(['Zeke'])
+  })
+})
+
+describe('xpLeft and disciplineCost', () => {
+  const catalog = [
+    { id: 'gore-shot', name: { en: 'Gore Shot' }, tree: 'cruor', level: 1, cost: 2 },
+    { id: 'blade-works', name: { en: 'Blade Works' }, tree: 'martial', level: 1, cost: 2 },
+    { id: 'blood-rage', name: { en: 'Blood Rage' }, tree: 'cruor', level: 2 },
+  ]
+  const zeke = { name: 'Zeke', xp: 6, disciplines: [{ id: 'gore-shot', xp: 2 }] }
+
+  it('counts the XP the Disciplines cost', () => {
+    expect(xpLeft(zeke)).toBe(4)
+  })
+
+  it('adds 1 XP per Discipline of the same level, and leaves an unknown cost to the GM', () => {
+    expect(disciplineCost(catalog[1]!, zeke, catalog)).toBe(3)
+    expect(disciplineCost(catalog[2]!, zeke, catalog)).toBeNull()
   })
 })

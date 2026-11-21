@@ -16,6 +16,7 @@ internal sealed partial class Session
     private const string ExploreOption = "explore";
     private const string QuestPrefix = "quest:";
     private const string VenturePrefix = "venture:";
+    private const string BountyPrefix = "bounty:";
 
     private static class PartyErrors
     {
@@ -26,6 +27,11 @@ internal sealed partial class Session
         public static readonly Error EmptyGroup = Error.Validation("Party.EmptyGroup", "The Active Group needs at least one adventurer.");
 
         public static Error TooLarge(int count) => Error.Validation("Party.TooLarge", $"The Active Group has at most 4 adventurers, not {count}.");
+
+        public static Error UnknownDiscipline(string? discipline) => Error.NotFound("Party.UnknownDiscipline", $"No Discipline '{discipline}'.");
+
+        public static Error NotEnoughXp(string name, int cost, int left) =>
+            Error.Conflict("Party.NotEnoughXp", $"The Discipline costs {cost} XP, {name} has {left} left.");
 
         public static Error UnknownStatus(string? status) => Error.Validation("Party.UnknownStatus", $"'{status}' is neither \"injured\" nor \"unselectable\".");
     }
@@ -90,7 +96,7 @@ internal sealed partial class Session
 
     private void AskStoryRound()
     {
-        if (State.Campaign.StoryRound is not { } round || Scenario.Nodes.FirstOrDefault(n => n.Id == round.Node) is not { } node)
+        if (State.Campaign.StoryRound is not { } round || Campaign.Nodes.FirstOrDefault(n => n.Id == round.Node) is not { } node)
         {
             return;
         }
@@ -105,17 +111,20 @@ internal sealed partial class Session
         var quests = node.SideQuests
             .Where(q => !State.Campaign.SideQuestsAttempted.Contains(q.Key))
             .Select(q => new PromptOption(QuestPrefix + q.Key, q.Label ?? Text(q.Node, q.Node)));
+        var bounties = BountiesOffered(node)
+            .Select(b => new PromptOption(BountyPrefix + b.Id, b.Title));
         var exits = node.VentureForth
             .Select((v, i) => new PromptOption(VenturePrefix + i.ToString(System.Globalization.CultureInfo.InvariantCulture), v.Label ?? Text(v.Node, v.Node)));
-        Ask(PromptKinds.StoryRound, Text("Explore: choose a Side Quest, or Venture Forth.", "Explorer : choisir une quête annexe, ou continuer l'histoire."), quests.Concat(exits));
+        Ask(PromptKinds.StoryRound, Text("Explore: choose a Side Quest, or Venture Forth.", "Explorer : choisir une quête annexe, ou continuer l'histoire."), quests.Concat(bounties).Concat(exits));
     }
 
     private void AnswerStoryRound(string option)
     {
         var round = State.Campaign.StoryRound!;
-        var node = Scenario.Nodes.First(n => n.Id == round.Node);
+        var node = Campaign.Nodes.First(n => n.Id == round.Node);
         if (option == ExploreOption)
         {
+            DiscardUnusedConsumables();
             round.Phase = StoryRoundPhases.Explore;
             Log("storyRoundExplore", args: Args(("node", node.Id)));
             AskStoryRound();
@@ -132,11 +141,126 @@ internal sealed partial class Session
             return;
         }
 
+        if (option.StartsWith(BountyPrefix, StringComparison.Ordinal))
+        {
+            StartBounty(node, context.Bounties[option[BountyPrefix.Length..]]);
+            return;
+        }
+
         var exit = node.VentureForth[int.Parse(option[VenturePrefix.Length..], System.Globalization.CultureInfo.InvariantCulture)];
         State.Campaign.StoryRound = null;
         State.Campaign.StoryRoundsLeft.Add(node.Id);
         Log("ventureForth", exit.Label, Args(("node", exit.Node), ("from", node.Id), ("page", Number(exit.Page))));
         GoToNode(exit.Node);
+    }
+
+    /// <summary>
+    /// The Bounties this Story Round allows (p. 13): its difficulty or less (a Bounty without one is allowed), never
+    /// one already won, and only one per named Story Round.
+    /// </summary>
+    private IEnumerable<Scenario> BountiesOffered(Node node) =>
+        node.BountyDifficulty is not { } most || State.Campaign.BountyStoryRounds.Contains(node.Id)
+            ? []
+            : context.Bounties.Values
+                .Where(b => (b.Difficulty ?? 0) <= most && !State.Campaign.BountiesCompleted.Contains(b.Id))
+                .OrderBy(b => b.Difficulty ?? 0).ThenBy(b => b.Id, StringComparer.Ordinal);
+
+    private void StartBounty(Node storyRound, Scenario bounty)
+    {
+        State.Campaign.StoryRound!.Phase = StoryRoundPhases.SideQuest;
+        State.Campaign.BountyStoryRounds.Add(storyRound.Id);
+        if (!State.Campaign.BountiesAttempted.Contains(bounty.Id))
+        {
+            State.Campaign.BountiesAttempted.Add(bounty.Id);
+        }
+
+        State.Bounty = new BountyState { Scenario = bounty.Id, StoryRound = storyRound.Id };
+        Log("bountyStart", bounty.Title, Args(("scenario", bounty.Id), ("difficulty", Number(bounty.Difficulty))));
+        GoToNode(bounty.Start);
+    }
+
+    /// <summary>
+    /// The Bounty is over, whatever its ending says: won when it ends on "@victory", or on a won encounter. Its rewards
+    /// are kept either way (p. 13); the party is back at the Story Round's Shop and Train.
+    /// </summary>
+    private void EndBounty(BountyState bounty, string ending)
+    {
+        var won = ending == "@victory" || (ending != "@defeat" && bounty.LastEnd == "win");
+        if (won && !State.Campaign.BountiesCompleted.Contains(bounty.Scenario))
+        {
+            State.Campaign.BountiesCompleted.Add(bounty.Scenario);
+        }
+
+        if (!State.Campaign.AttemptedScenarios.Contains(bounty.Scenario))
+        {
+            State.Campaign.AttemptedScenarios.Add(bounty.Scenario);
+        }
+
+        State.Bounty = null;
+        State.Encounter = null;
+        State.PendingActions.Clear();
+        Log("bountyEnd", args: Args(("scenario", bounty.Scenario), ("won", won ? "true" : "false")));
+        var storyRound = Campaign.Nodes.First(n => n.Id == bounty.StoryRound);
+        State.Campaign.CurrentNode = storyRound.Id;
+        EnterStoryRound(storyRound, returning: true);
+    }
+
+    /// <summary>End of Shop and Train (p. 25, 27): every Consumable neither equipped nor sold is discarded.</summary>
+    private void DiscardUnusedConsumables()
+    {
+        var lists = new[] { State.Campaign.Stash, State.Campaign.Unassigned }.Concat(State.Campaign.Party.Select(a => a.Pack));
+        foreach (var list in lists)
+        {
+            foreach (var owned in list.Where(o => (Catalog.FindItem(o.Item)?.Type ?? o.Type) == "consumable").ToList())
+            {
+                list.Remove(owned);
+                Log("consumableDiscarded", args: Args(("item", owned.Item ?? owned.Type), ("id", owned.Id)));
+            }
+        }
+    }
+
+    // ---- Disciplines ----
+
+    private Result LearnDiscipline(string? adventurer, string? discipline, int xp)
+    {
+        if (Member(adventurer) is not { } member)
+        {
+            return PartyErrors.UnknownAdventurer(adventurer);
+        }
+
+        if (string.IsNullOrWhiteSpace(discipline))
+        {
+            return PartyErrors.UnknownDiscipline(discipline);
+        }
+
+        var cost = Math.Max(0, xp);
+        var left = member.Xp - member.Disciplines.Sum(d => d.Xp);
+        if (cost > left)
+        {
+            return PartyErrors.NotEnoughXp(member.Name, cost, left);
+        }
+
+        member.Disciplines.Add(new LearnedDiscipline { Id = discipline, Xp = cost });
+        Log("disciplineLearnt", args: Args(("adventurer", member.Name), ("discipline", discipline), ("xp", Number(cost))));
+        return Result.Success();
+    }
+
+    private Result ForgetDiscipline(string? adventurer, string? discipline)
+    {
+        if (Member(adventurer) is not { } member)
+        {
+            return PartyErrors.UnknownAdventurer(adventurer);
+        }
+
+        var index = member.Disciplines.FindLastIndex(d => d.Id == discipline);
+        if (index < 0)
+        {
+            return PartyErrors.UnknownDiscipline(discipline);
+        }
+
+        member.Disciplines.RemoveAt(index);
+        Log("disciplineForgotten", args: Args(("adventurer", member.Name), ("discipline", discipline)));
+        return Result.Success();
     }
 
     // ---- The party ----

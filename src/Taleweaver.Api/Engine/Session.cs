@@ -12,7 +12,12 @@ internal sealed partial class Session(GameState state, GameContext context)
 {
     public GameState State { get; } = state;
 
-    private Scenario Scenario => context.Scenario;
+    /// <summary>The scenario being read: the Bounty's while one is played from a Story Round, else the game's.</summary>
+    private Scenario Scenario =>
+        State.Bounty is { } bounty && context.Bounties.TryGetValue(bounty.Scenario, out var played) ? played : context.Scenario;
+
+    /// <summary>The game's own scenario (its Story Rounds), even while a Bounty is played.</summary>
+    private Scenario Campaign => context.Scenario;
 
     private Catalog Catalog => context.Catalog;
 
@@ -106,9 +111,16 @@ internal sealed partial class Session(GameState state, GameContext context)
         // Leaving a node drops what was left of it (e.g. a scene's "next" after a choice that branched).
         State.PendingActions.Clear();
         State.Encounter = null;
+        // The end of a Bounty, whatever it says: back to the Story Round it was chosen from.
+        if (State.Bounty is { } bounty && (target is null || target.StartsWith('@')))
+        {
+            EndBounty(bounty, target ?? "@end");
+            return;
+        }
+
         // A Side Quest comes back to its Story Round, which starts again at Shop and Train (p. 13).
         if (target == CurrentStoryRound && State.Campaign.StoryRound is { } round
-            && Scenario.Nodes.FirstOrDefault(n => n.Id == round.Node) is { IsStoryRound: true } storyRound)
+            && Campaign.Nodes.FirstOrDefault(n => n.Id == round.Node) is { IsStoryRound: true } storyRound)
         {
             State.Campaign.CurrentNode = storyRound.Id;
             EnterStoryRound(storyRound, returning: true);
@@ -215,6 +227,8 @@ internal sealed partial class Session(GameState state, GameContext context)
     {
         GameCommands.SetActiveGroup => SetActiveGroup(command.Adventurers),
         GameCommands.SetAdventurerStatus => SetAdventurerStatus(command.Instance, command.Effect, command.Active ?? true),
+        GameCommands.LearnDiscipline => LearnDiscipline(command.Instance, command.Item, command.Value ?? 0),
+        GameCommands.ForgetDiscipline => ForgetDiscipline(command.Instance, command.Item),
         _ => GameEngine.Errors.UnknownCommand(command.Type),
     };
 

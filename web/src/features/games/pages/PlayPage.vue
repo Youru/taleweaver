@@ -11,6 +11,7 @@ import TabList from 'primevue/tablist'
 import TabPanel from 'primevue/tabpanel'
 import TabPanels from 'primevue/tabpanels'
 import Tabs from 'primevue/tabs'
+import Tag from 'primevue/tag'
 import { useAiAdvice } from '@/features/ai'
 import { useCombatants, useItems } from '@/features/catalog'
 import { DuelDialog } from '@/features/duel'
@@ -54,7 +55,9 @@ const page = computed(() => storyPage(state.value?.log ?? []))
 const unplaced = computed(() => encounter.value?.adventurers.filter((a) => !a.position).map((a) => a.name) ?? [])
 /** An end condition was reached: what follows (grade, reward, choice) is the story again, not the table. */
 const encounterOver = computed(() => !!encounter.value && isEncounterOver(state.value?.log ?? []))
-const scenario = useScenario(() => game.data.value?.scenario)
+// During a Bounty played from a Story Round, its own scenario holds the nodes read
+const scenario = useScenario(() => state.value?.bounty?.scenario ?? game.data.value?.scenario)
+const campaignScenario = useScenario(() => game.data.value?.scenario)
 const node = computed(() => scenario.data.value?.nodes.find((n) => n.id === encounter.value?.node))
 const cards = useCombatants(() => encounter.value?.combatants.map((c) => c.card) ?? [])
 
@@ -142,7 +145,7 @@ function itemCommand(value: ItemCommand) {
 const storyRoundNode = computed(() => {
   const round = state.value?.campaign.storyRound
   if (!round || round.phase === 'sideQuest' || encounter.value) return undefined
-  return scenario.data.value?.nodes.find((n) => n.id === round.node)
+  return campaignScenario.data.value?.nodes.find((n) => n.id === round.node)
 })
 const catalogItems = useItems()
 const store = computed(() => {
@@ -173,7 +176,12 @@ function moveFigure(figure: string, to: Cell) {
     </Message>
     <template v-else-if="state && game.data.value">
       <header class="top">
-        <h1>{{ pick(scenario.data.value?.title, language) || game.data.value.scenario }}</h1>
+        <h1>{{ pick(campaignScenario.data.value?.title, language) || game.data.value.scenario }}</h1>
+        <Tag
+          v-if="state.bounty"
+          icon="pi pi-flag"
+          :value="t('storyRound.bountyPlaying', { name: pick(scenario.data.value?.title, language) })"
+        />
         <span>{{ t('play.gold', { gold: state.campaign.gold }) }}</span>
         <span
           v-for="adventurer in state.campaign.party"
@@ -364,6 +372,7 @@ function moveFigure(figure: string, to: Cell) {
           :node="storyRoundNode"
           :busy="command.isPending.value"
           @party="partyCommand"
+          @item="itemCommand"
           @shop="inventoryOpen = true"
         />
         <PromptPanel

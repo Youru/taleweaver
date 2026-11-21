@@ -1,3 +1,7 @@
+using Microsoft.AspNetCore.Http.HttpResults;
+using Taleweaver.Api.Engine;
+using Taleweaver.Api.Features.Games;
+
 namespace Taleweaver.Api.Features.Items;
 
 /// <summary>
@@ -6,6 +10,8 @@ namespace Taleweaver.Api.Features.Items;
 /// </summary>
 public static class ItemsEndpoints
 {
+    public sealed record UpgradeRequest(string Upgrade, int? Price = null);
+
     public static IEndpointRouteBuilder MapItemsEndpoints(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/api/games/{id}/items").WithTags("Items");
@@ -14,6 +20,18 @@ public static class ItemsEndpoints
         DiscardItem.Map(group);
         FlipItem.Map(group);
         UseItem.Map(group);
+        group.MapPost("/upgrades/unlocked", async Task<Results<Ok<GameView>, ProblemHttpResult>> (
+                string id, UpgradeRequest request, GameRunner runner, CancellationToken cancellationToken) =>
+                (await runner.ExecuteAsync(id, GameCommand.UnlockUpgrade(request.Upgrade), cancellationToken)).ToResponse())
+            .WithName("UnlockUpgrade");
+        group.MapPost("/{item}/upgrades", async Task<Results<Ok<GameView>, ProblemHttpResult>> (
+                string id, string item, UpgradeRequest request, GameRunner runner, CancellationToken cancellationToken) =>
+                (await runner.ExecuteAsync(id, GameCommand.AttachUpgrade(item, request.Upgrade, request.Price), cancellationToken)).ToResponse())
+            .WithName("AttachUpgrade");
+        group.MapDelete("/{item}/upgrades/{upgrade}", async Task<Results<Ok<GameView>, ProblemHttpResult>> (
+                string id, string item, string upgrade, GameRunner runner, CancellationToken cancellationToken) =>
+                (await runner.ExecuteAsync(id, GameCommand.DetachUpgrade(item, upgrade), cancellationToken)).ToResponse())
+            .WithName("DetachUpgrade");
         return app;
     }
 }

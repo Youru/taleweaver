@@ -18,6 +18,8 @@ export interface GameState {
   status: GameStatus
   ending?: string
   campaign: CampaignState
+  /** The Bounty played from a Story Round: its nodes are the ones read until it ends. */
+  bounty?: { scenario: string; storyRound: string; lastEnd?: string | null } | null
   encounter?: EncounterState
   prompt?: Prompt
   log: LogEntry[]
@@ -42,6 +44,10 @@ export interface CampaignState {
   storeUniques?: Record<string, string[]>
   sideQuestsAttempted?: string[]
   storyRoundsLeft?: string[]
+  bountiesCompleted?: string[]
+  bountiesAttempted?: string[]
+  /** Item Upgrades unlocked (Adventure Sheet). */
+  unlockedUpgrades?: string[]
 }
 
 export interface StoryRoundState {
@@ -54,6 +60,8 @@ export interface AdventurerState {
   xp: number
   injured?: boolean
   unselectable?: boolean
+  /** Disciplines learnt: `xp` counts every XP gained, the XP left is xp minus their cost. */
+  disciplines?: { id: string; xp: number }[]
   equipped?: OwnedItem[]
   pack?: OwnedItem[]
 }
@@ -70,6 +78,8 @@ export interface OwnedItem {
   /** itemLoot, monsterLoot, uniqueLoot, scenario, gm. */
   source?: string | null
   flipped: boolean
+  /** Item Upgrades attached (catalogue ids). */
+  upgrades?: string[]
 }
 
 /** Who holds an item: an adventurer's name, the Party Stash, or the items still to hand out. */
@@ -83,6 +93,9 @@ export type ItemCommand =
   | { type: 'discard'; id: string; gold?: number }
   | { type: 'flip'; id: string; flipped: boolean }
   | { type: 'use'; id: string; discard: boolean; token?: string; at?: Cell }
+  | { type: 'unlockUpgrade'; upgrade: string }
+  | { type: 'attachUpgrade'; id: string; upgrade: string; price?: number }
+  | { type: 'detachUpgrade'; id: string; upgrade: string }
 
 export interface EncounterState {
   node: string
@@ -151,6 +164,8 @@ export interface GameSummary {
 export type PartyCommand =
   | { type: 'activeGroup'; adventurers: string[] }
   | { type: 'status'; adventurer: string; status: 'injured' | 'unselectable'; value: boolean }
+  | { type: 'learn'; adventurer: string; discipline: string; xp: number }
+  | { type: 'forget'; adventurer: string; discipline: string }
 
 export type Answer = { option: string; value?: undefined } | { value: number; option?: undefined }
 

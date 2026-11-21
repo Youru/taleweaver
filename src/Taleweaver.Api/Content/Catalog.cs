@@ -42,6 +42,10 @@ public sealed class Catalog
     public Combatant? FindCombatant(string id) => _combatants.GetValueOrDefault(id);
 
     /// <summary>The item card of this id (the last pack's, when several define it).</summary>
+    public ItemUpgrade? FindUpgrade(string? id) => id is null ? null : Packs.SelectMany(p => p.ItemUpgrades).LastOrDefault(u => u.Id == id);
+
+    public Discipline? FindDiscipline(string? id) => id is null ? null : Packs.SelectMany(p => p.Disciplines).LastOrDefault(d => d.Id == id);
+
     public Item? FindItem(string? id) => id is null ? null : Packs.SelectMany(p => p.Items).LastOrDefault(i => i.Id == id);
 
     public TokenType? FindToken(string? id) => id is null ? null : Packs.SelectMany(p => p.Tokens).LastOrDefault(t => t.Id == id);
@@ -73,6 +77,7 @@ public sealed class Catalog
         pack.Combatants.Select(c => c.Id)
             .Concat(pack.Items.Select(i => i.Id))
             .Concat(pack.ItemUpgrades.Select(u => u.Id))
+            .Concat(pack.Disciplines.Select(d => d.Id))
             .Concat(pack.Tiles.Select(t => t.Id))
             .Concat(pack.Tokens.Select(t => t.Id))
             .Concat(pack.InitiativeCards.Select(i => i.Id));

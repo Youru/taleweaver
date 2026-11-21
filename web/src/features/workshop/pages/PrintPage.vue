@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { storeOf } from '../lib/storyRound'
 import { computed, provide, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
@@ -174,7 +175,10 @@ function choose(value: string) {
 /** What a scene leads to, in words: "The ambush, p. 3". */
 const leads = (node: DraftNode) =>
   exitsOf(node).map((exit) => ({
-    label: pick(exit.label, language.value),
+    label:
+      exit.kind === 'sideQuest' || exit.kind === 'ventureForth'
+        ? `${t(`workshop.${exit.kind}`)} : ${pick(exit.label, language.value)}`
+        : pick(exit.label, language.value),
     to: exit.target?.startsWith('@') ? endingLabel(exit.target) : exit.target ? stepLabel(exit.target) : '—',
   }))
 const stepLabel = (id: string) => {
@@ -182,8 +186,36 @@ const stepLabel = (id: string) => {
   const page = pageOfNode(id)
   return page ? t('workshop.print.stepAt', { step: caption, number: page }) : caption
 }
-const otherMechanics = (node: DraftNode) =>
-  (node.mechanics ?? []).filter((a) => a !== choiceOf(node)).map((a: DraftAction) => actionLine(a))
+const otherMechanics = (node: DraftNode) => [
+  ...(node.mechanics ?? []).filter((a) => a !== choiceOf(node)).map((a: DraftAction) => actionLine(a)),
+  ...(node.type === 'storyRound' ? storyRoundLines(node) : []),
+]
+/** A Story Round's three phases, as the books print them (p. 13). */
+function storyRoundLines(node: DraftNode): string[] {
+  const store = storeOf(node)
+  const sold = [
+    ...store.items.map((line) =>
+      t('workshop.print.storeLine', {
+        what:
+          [
+            ...(line.tiers ?? []).map((tier) => t(`workshop.loot.${tier}`)),
+            ...(line.types ?? []).map((type) => t(`inventory.types.${type}`)),
+          ].join(' · ') || t('storyRound.everything'),
+      }),
+    ),
+    ...(store.upgrades ? [t('storyRound.upgrades')] : []),
+    ...(store.unique
+      ? [t('workshop.print.storeUnique', { n: store.unique.count, tier: t(`workshop.loot.${store.unique.tier}`) })]
+      : []),
+  ]
+  const bounty = typeof node.bountyDifficulty === 'number' ? [t('workshop.print.bounty', { n: node.bountyDifficulty })] : []
+  return [
+    `${t('storyRound.phase.shop').toUpperCase()} — ${t('workshop.print.shopText')} ${sold.join(' ; ')}.`,
+    `${t('storyRound.phase.explore').toUpperCase()} — ${t('workshop.print.exploreText')}`,
+    ...bounty,
+    `${t('storyRound.phase.ventureForth').toUpperCase()} — ${t('workshop.print.ventureText')}`,
+  ]
+}
 function actionLine(action: DraftAction): string {
   const amount = typeof action.amount === 'number' ? ` ${action.amount}` : ''
   const label = t(`workshop.events.do.${action.do}`, action.do)
@@ -305,7 +337,7 @@ const backTo = computed(() =>
           <ol class="contents">
             <li v-for="node in steps" :key="node.id">
               {{ captionOf(node, language) }}
-              <em>{{ node.type === 'encounter' ? t('workshop.encounter') : t('workshop.scene') }}</em>
+              <em>{{ node.type === 'encounter' ? t('workshop.encounter') : node.type === 'storyRound' ? t('workshop.storyRound') : t('workshop.scene') }}</em>
               <span class="dots" />
               <span class="page-number">{{ pageStarts.get(node.id) }}</span>
             </li>

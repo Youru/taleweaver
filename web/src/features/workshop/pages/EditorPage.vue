@@ -115,6 +115,7 @@ const errorCount = computed(() => report.value?.errors.length ?? 0)
 const labels = computed(() => ({
   scene: t('workshop.newScene'),
   encounter: t('workshop.newEncounter'),
+  storyRound: t('workshop.newStoryRound'),
   win: t('workshop.defaultWin'),
   lose: t('workshop.defaultLose'),
 }))
@@ -266,6 +267,13 @@ function started(game: GameView) {
           severity="secondary"
           outlined
           @click="editor.add('encounter', labels)"
+        />
+        <Button
+          :label="t('workshop.addStoryRound')"
+          icon="pi pi-shop"
+          severity="secondary"
+          outlined
+          @click="editor.add('storyRound', labels)"
         />
         <Button
           :label="dirty ? t('workshop.save') : t('workshop.saved')"

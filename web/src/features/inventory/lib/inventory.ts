@@ -128,6 +128,12 @@ export function salePrice(item: CatalogItem | undefined): number | undefined {
   return price === undefined ? undefined : item.unique ? price * 2 : price
 }
 
+/** The Gold it costs to put an unlocked Item Upgrade on a card of this tier (rulebook p. 28); 0 when unknown (story, monster). */
+const upgradePrices: Record<string, number> = { mundane: 15, common: 30, uncommon: 50, rare: 75 }
+export function upgradePrice(tier: string | null | undefined): number {
+  return (tier && upgradePrices[tier]) || 0
+}
+
 /**
  * The token a card places on the board ("Place a Plank token on an adjacent space"), found in the
  * catalogue by name: the smallest token whose name has every word ("Small Plank" before "Large Plank").

@@ -42,6 +42,8 @@ public sealed record Pack
 
     public IReadOnlyList<ItemUpgrade> ItemUpgrades { get; init; } = [];
 
+    public IReadOnlyList<Discipline> Disciplines { get; init; } = [];
+
     public IReadOnlyList<Tile> Tiles { get; init; } = [];
 
     public IReadOnlyList<TokenType> Tokens { get; init; } = [];
