@@ -150,7 +150,7 @@ function touchEnd(event: TouchEvent) {
       <Transition v-else name="flip" mode="out-in">
         <TurnTab v-if="tab === 'turn'" key="turn" :view="view" :followed="current.name" />
         <div v-else-if="tab === 'journal'" key="journal" class="journal">
-          <GameJournal :log="journal" page />
+          <GameJournal :log="journal" page :highlight="names" />
         </div>
         <HeroTab
           v-else-if="tab === 'hero'"

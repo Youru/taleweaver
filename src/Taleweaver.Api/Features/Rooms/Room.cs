@@ -15,6 +15,12 @@ public sealed class Room
 
     public List<Seat> Seats { get; set; } = [];
 
+    /// <summary>
+    /// The GM's second screen (a tablet in the middle of the table): the hash of its token, which acts as the GM's
+    /// device for this game while the room is open. Null when there is none.
+    /// </summary>
+    public string? ScreenTokenHash { get; set; }
+
     public bool IsOpen => Status == RoomStatus.Open;
 }
 
@@ -45,7 +51,7 @@ public sealed class Seat
 }
 
 /// <summary>The room as the GM sees it: seats with their connection, the addresses phones can reach.</summary>
-public sealed record RoomView(string GameId, string Code, string Status, IReadOnlyList<SeatView> Seats, IReadOnlyList<string> LanAddresses);
+public sealed record RoomView(string GameId, string Code, string Status, IReadOnlyList<SeatView> Seats, IReadOnlyList<string> LanAddresses, bool HasScreen);
 
 public sealed record SeatView(string Id, string DisplayName, string Color, IReadOnlyList<string> Adventurers, string? Followed, DateTimeOffset LastSeen, bool Connected);
 

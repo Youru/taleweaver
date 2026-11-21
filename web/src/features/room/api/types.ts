@@ -9,6 +9,8 @@ export interface RoomView {
   seats: SeatView[]
   /** Private IPv4 addresses of the GM's machine: where the phones of the same Wi-Fi reach it. */
   lanAddresses: string[]
+  /** A second screen of the GM's has a token (room-spec §7). */
+  hasScreen: boolean
 }
 
 export interface SeatView {

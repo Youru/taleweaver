@@ -25,6 +25,14 @@ export const router = createRouter({
       props: true,
       meta: { bare: true },
     },
+    // The GM's second screen (a tablet): keeps the token of the QR code, then shows the table.
+    {
+      path: '/screen/:gameId/:token',
+      name: 'screen',
+      component: () => import('@/features/room/screen/ScreenPage.vue'),
+      props: true,
+      meta: { bare: true },
+    },
     { path: '/', name: 'home', component: () => import('@/features/home/pages/HomePage.vue') },
     { path: '/games/:id', name: 'play', component: () => import('@/features/games/pages/PlayPage.vue'), props: true },
     {

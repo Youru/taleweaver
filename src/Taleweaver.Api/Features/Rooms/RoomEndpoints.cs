@@ -16,6 +16,9 @@ public static class RoomEndpoints
 
     public sealed record JoinResponse(string SeatId, string SeatToken, PlayerView View);
 
+    /// <summary>The second screen's token, given once: it goes in the QR code the GM shows the tablet.</summary>
+    public sealed record ScreenResponse(string Token);
+
     public sealed record AssignRequest(IReadOnlyList<string> Adventurers);
 
     public sealed record SeatUpdate(string? DisplayName, string? Color, string? Followed);
@@ -67,6 +70,15 @@ public static class RoomEndpoints
         group.MapDelete("/seats/{seat}", async Task<Results<Ok<RoomView>, ProblemHttpResult>> (string id, string seat, RoomService rooms, CancellationToken ct) =>
                 ToResponse(await rooms.RemoveSeatAsync(id, seat, ct), rooms))
             .WithName("RemoveSeat");
+        group.MapPost("/screen", async Task<Results<Ok<ScreenResponse>, ProblemHttpResult>> (string id, RoomService rooms, CancellationToken ct) =>
+            {
+                var token = await rooms.CreateScreenAsync(id, ct);
+                return token.IsSuccess ? TypedResults.Ok(new ScreenResponse(token.Value)) : token.Error!.ToProblem();
+            })
+            .WithName("CreateScreen");
+        group.MapDelete("/screen", async Task<Results<Ok<RoomView>, ProblemHttpResult>> (string id, RoomService rooms, CancellationToken ct) =>
+                ToResponse(await rooms.RevokeScreenAsync(id, ct), rooms))
+            .WithName("RevokeScreen");
 
         // The GM plays an adventurer as a player, in a tab of their own (room-spec §7): no seat, no room needed.
         group.MapGet("/impersonate/{adventurer}", async Task<Results<Ok<PlayerView>, ProblemHttpResult>> (

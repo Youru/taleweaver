@@ -5,6 +5,13 @@ import { shortId } from './ids'
 const ADVENTURER = 'adventurer:'
 
 /** A card of the round's track, as the players see it (rulebook p. 36). */
+/** The phone of the room holding an adventurer (room-spec §7.3): its colour, its player, whether it is connected. */
+export interface HeldBy {
+  color: string
+  name: string
+  connected: boolean
+}
+
 export interface TrackCard {
   /** The card's id on the track ("um1:initiative/cave-sickle-1-3", "adventurer:Rook"). */
   id: string

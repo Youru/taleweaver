@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { useInitiativeCards } from '@/features/catalog'
 import { assetUrl } from '@/shared/api/assets'
 import type { EncounterState } from '../../api/types'
-import { initiativeTrack } from '../../lib/initiativeTrack'
+import { initiativeTrack, type HeldBy } from '../../lib/initiativeTrack'
 
 /**
  * The round's initiative track as the players deal it (rulebook p. 36): the cards from the front to the
@@ -19,8 +19,8 @@ const props = defineProps<{
   movable?: boolean
   /** A command is running: the arrows wait. */
   busy?: boolean
-  /** Seat colour of each adventurer held by a phone (room-spec §7.3): a ring around their card. */
-  seatColors?: Record<string, string>
+  /** The phone holding each adventurer (room-spec §7.3): a ring of its colour, a mark when it is not connected. */
+  heldBy?: Record<string, HeldBy>
 }>()
 const emit = defineEmits<{ move: [card: string, by: number] }>()
 
@@ -35,7 +35,7 @@ function describe(card: (typeof track.value)[number]) {
 }
 
 const seatOf = (id: string) =>
-  id.startsWith('adventurer:') ? props.seatColors?.[id.slice('adventurer:'.length)] : undefined
+  id.startsWith('adventurer:') ? props.heldBy?.[id.slice('adventurer:'.length)] : undefined
 
 const selected = ref<string | null>(null)
 function toggle(card: string) {
@@ -67,7 +67,7 @@ watch(
         v-for="card in track"
         :key="card.id"
         :class="[card.side, card.state, { held: seatOf(card.id) }]"
-        :style="seatOf(card.id) ? { '--seat': seatOf(card.id) } : undefined"
+        :style="seatOf(card.id) ? { '--seat': seatOf(card.id)!.color } : undefined"
         :aria-current="card.state === 'current' ? 'step' : undefined"
         :aria-label="movable ? undefined : describe(card)"
         :title="describe(card)"
@@ -85,6 +85,12 @@ watch(
           <img v-if="card.image" :src="assetUrl(card.image)" alt="" loading="lazy" />
           <span v-else class="blank">{{ card.label }}</span>
           <span class="order" aria-hidden="true">{{ card.order }}</span>
+          <i
+            v-if="seatOf(card.id) && !seatOf(card.id)!.connected"
+            class="pi pi-wifi offline"
+            :title="t('play.phoneOffline', { name: seatOf(card.id)!.name })"
+            :aria-label="t('play.phoneOffline', { name: seatOf(card.id)!.name })"
+          />
         </component>
         <ul v-if="card.figures.length" class="figures" aria-hidden="true">
           <li v-for="figure in card.figures" :key="figure.instance" :class="figure.state">{{ figure.number }}</li>
@@ -119,6 +125,16 @@ watch(
 </template>
 
 <style scoped>
+.offline {
+  position: absolute;
+  top: 0.2rem;
+  right: 0.2rem;
+  padding: 0.15rem;
+  border-radius: 999px;
+  background: #b91c1c;
+  color: #fff;
+  font-size: 0.65rem;
+}
 li.held .card {
   outline: 3px solid var(--seat);
   outline-offset: 1px;

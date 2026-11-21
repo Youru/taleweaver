@@ -22,7 +22,7 @@ public sealed class RoomHub(RoomService rooms) : Hub
         var query = http.Request.Query;
         if (query["game"].ToString() is { Length: > 0 } gameId)
         {
-            if (!Network.IsLocal(http))
+            if (!Network.IsLocal(http) && await rooms.ScreenGameAsync(Network.ScreenToken(http)) != gameId)
             {
                 throw new HubException(RoomService.Errors.GmOnly.Code);
             }

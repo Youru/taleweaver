@@ -129,7 +129,7 @@ public sealed class RoomService(RoomStore store, TimeProvider time)
             return found.Error!;
         }
 
-        var token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(16)).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+        var token = NewToken();
         var joined = await Locked(rooms =>
         {
             var room = found.Value;
@@ -309,7 +309,69 @@ public sealed class RoomService(RoomStore store, TimeProvider time)
         room.Code,
         room.Status,
         room.Seats.Select(s => new SeatView(s.Id, s.DisplayName, s.Color, s.Adventurers, s.Followed, s.LastSeen, IsConnected(s.Id))).ToList(),
-        Network.LanAddresses());
+        Network.LanAddresses(),
+        room.ScreenTokenHash is not null);
+
+    /// <summary>
+    /// A new token for the GM's second screen (room-spec §7): it replaces the previous one, if any. Returned once,
+    /// only its hash is kept.
+    /// </summary>
+    public async Task<Result<string>> CreateScreenAsync(string gameId, CancellationToken cancellationToken)
+    {
+        var token = NewToken();
+        var room = await Locked(rooms =>
+        {
+            if (rooms.GetValueOrDefault(gameId) is not { IsOpen: true } room)
+            {
+                return null;
+            }
+
+            room.ScreenTokenHash = Hash(token);
+            return room;
+        });
+        if (room is null)
+        {
+            return Errors.NoRoom(gameId);
+        }
+
+        await SaveAndNotify(room, cancellationToken);
+        return token;
+    }
+
+    /// <summary>The second screen stops working at once.</summary>
+    public async Task<Result<Room>> RevokeScreenAsync(string gameId, CancellationToken cancellationToken)
+    {
+        var room = await Locked(rooms =>
+        {
+            if (rooms.GetValueOrDefault(gameId) is not { } room)
+            {
+                return null;
+            }
+
+            room.ScreenTokenHash = null;
+            return room;
+        });
+        if (room is null)
+        {
+            return Errors.NoRoom(gameId);
+        }
+
+        await SaveAndNotify(room, cancellationToken);
+        return room;
+    }
+
+    /// <summary>The game whose open room has this second-screen token, or null.</summary>
+    public async Task<string?> ScreenGameAsync(string? token)
+    {
+        if (string.IsNullOrEmpty(token))
+        {
+            return null;
+        }
+
+        var hash = Encoding.ASCII.GetBytes(Hash(token));
+        return await Locked(rooms => rooms.Values.FirstOrDefault(r =>
+            r.IsOpen && r.ScreenTokenHash is { } known && CryptographicOperations.FixedTimeEquals(Encoding.ASCII.GetBytes(known), hash))?.GameId);
+    }
 
     /// <summary>Lets the hub tell the GM a phone came or went.</summary>
     public Task NotifyAsync(Room room) => Changed?.Invoke(room) ?? Task.CompletedTask;
@@ -339,6 +401,8 @@ public sealed class RoomService(RoomStore store, TimeProvider time)
             }
         }
     }
+
+    private static string NewToken() => Convert.ToBase64String(RandomNumberGenerator.GetBytes(16)).TrimEnd('=').Replace('+', '-').Replace('/', '_');
 
     private static string Hash(string token) => "sha256:" + Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
 

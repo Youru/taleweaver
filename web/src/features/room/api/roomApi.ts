@@ -16,6 +16,8 @@ export const roomGmApi = {
     }),
   removeSeat: (gameId: string, seatId: string) =>
     http<RoomView>(`/api/games/${e(gameId)}/room/seats/${e(seatId)}`, { method: 'DELETE' }),
+  createScreen: (gameId: string) => http<{ token: string }>(`/api/games/${e(gameId)}/room/screen`, { method: 'POST' }),
+  revokeScreen: (gameId: string) => http<RoomView>(`/api/games/${e(gameId)}/room/screen`, { method: 'DELETE' }),
   impersonate: (gameId: string, adventurer: string, signal?: AbortSignal) =>
     http<PlayerView>(`/api/games/${e(gameId)}/room/impersonate/${e(adventurer)}`, { signal }),
 }

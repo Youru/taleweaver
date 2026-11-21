@@ -8,7 +8,7 @@ import Message from 'primevue/message'
 import MultiSelect from 'primevue/multiselect'
 import Select from 'primevue/select'
 import Tag from 'primevue/tag'
-import type { AdventurerState } from '@/features/games'
+import type { AdventurerState, HeldBy } from '@/features/games'
 import { roomGmApi } from '../api/roomApi'
 import { useRoomHub } from '../api/roomHub'
 import type { RoomView } from '../api/types'
@@ -98,20 +98,52 @@ watch(
   },
   { immediate: true },
 )
+/**
+ * The GM's second screen (room-spec §7): a QR code carrying a fresh token, on the same address as the phones'.
+ * The token shows once; a new QR code replaces the previous screen.
+ */
+const screenQr = ref<string>()
+async function createScreen() {
+  busy.value = true
+  error.value = undefined
+  try {
+    const { token } = await roomGmApi.createScreen(props.gameId)
+    const base = (url.value ?? '').replace(/\/join\/[^/]*$/, '')
+    screenQr.value = await QRCode.toDataURL(`${base}/screen/${encodeURIComponent(props.gameId)}/${token}`, {
+      margin: 1,
+      width: 480,
+    })
+    await load()
+  } catch (e) {
+    error.value = (e as Error).message
+  } finally {
+    busy.value = false
+  }
+}
+async function revokeScreen() {
+  screenQr.value = undefined
+  await run(() => roomGmApi.revokeScreen(props.gameId))
+}
+
 // Loaded at once (the seat colours show on the track), then again each time the panel opens.
 void load()
 watch(open, (value) => value && void load())
 
-/** Each held adventurer's seat colour, for the GM's initiative track (room-spec §7.3). */
-const emit = defineEmits<{ colors: [colors: Record<string, string>] }>()
+/** Each held adventurer's seat (colour, phone connected), for the GM's initiative track (room-spec §7.3). */
+const emit = defineEmits<{ seats: [seats: Record<string, HeldBy>] }>()
 watch(
   room,
   (value) =>
     emit(
-      'colors',
+      'seats',
       Object.fromEntries(
         value?.status === 'open'
-          ? value.seats.flatMap((seat) => seat.adventurers.map((name) => [name, seatColors[seat.color] ?? seat.color]))
+          ? value.seats.flatMap((seat) =>
+              seat.adventurers.map((name) => [
+                name,
+                { color: seatColors[seat.color] ?? seat.color, name: seat.displayName, connected: seat.connected },
+              ]),
+            )
           : [],
       ),
     ),
@@ -176,6 +208,30 @@ useRoomHub(
               @click="run(() => roomGmApi.close(gameId))"
             />
           </div>
+        </div>
+      </section>
+
+      <section class="screen">
+        <h3>{{ t('room.gm.screen') }}</h3>
+        <p class="muted">{{ t('room.gm.screenIntro') }}</p>
+        <img v-if="screenQr" :src="screenQr" :alt="t('room.gm.screenQr')" class="screen-qr" />
+        <div class="buttons">
+          <Button
+            icon="pi pi-tablet"
+            :label="room.hasScreen ? t('room.gm.screenNew') : t('room.gm.screenCreate')"
+            severity="secondary"
+            :loading="busy"
+            @click="createScreen"
+          />
+          <Button
+            v-if="room.hasScreen"
+            icon="pi pi-ban"
+            :label="t('room.gm.screenRevoke')"
+            severity="danger"
+            text
+            :disabled="busy"
+            @click="revokeScreen"
+          />
         </div>
       </section>
 
@@ -246,6 +302,19 @@ useRoomHub(
 </template>
 
 <style scoped>
+.screen {
+  margin-bottom: 1rem;
+}
+.screen h3 {
+  margin: 0 0 0.25rem;
+}
+.screen-qr {
+  display: block;
+  width: min(14rem, 60vw);
+  margin: 0.5rem 0;
+  background: #fff;
+  border-radius: 0.5rem;
+}
 .closed {
   text-align: center;
 }

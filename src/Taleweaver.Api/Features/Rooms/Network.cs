@@ -80,7 +80,7 @@ public static class Network
     /// </summary>
     public static IApplicationBuilder UseRoomGuard(this IApplicationBuilder app) => app.Use(async (context, next) =>
     {
-        if (IsLocal(context) || await AllowedFromAPhone(context))
+        if (IsLocal(context) || await AllowedFromAPhone(context) || await AllowedFromTheScreen(context))
         {
             await next(context);
             return;
@@ -89,6 +89,32 @@ public static class Network
         var problem = Common.ResultExtensions.ToProblem(RoomService.Errors.GmOnly);
         await problem.ExecuteAsync(context);
     });
+
+    /// <summary>The second screen's token: "Authorization: Screen &lt;token&gt;", or ?screen_token= for the hub.</summary>
+    public static string? ScreenToken(HttpContext context)
+    {
+        var header = context.Request.Headers.Authorization.ToString();
+        return header.StartsWith("Screen ", StringComparison.Ordinal)
+            ? header["Screen ".Length..].Trim()
+            : context.Request.Query["screen_token"].ToString() is { Length: > 0 } query ? query : null;
+    }
+
+    /// <summary>
+    /// The GM's second screen acts as the GM for its own game (and reads the catalogue, the scenarios, the images),
+    /// while the room is open; never for another game nor the list of games.
+    /// </summary>
+    private static async Task<bool> AllowedFromTheScreen(HttpContext context)
+    {
+        if (await context.RequestServices.GetRequiredService<RoomService>().ScreenGameAsync(ScreenToken(context)) is not { } gameId)
+        {
+            return false;
+        }
+
+        var path = context.Request.Path;
+        return path.StartsWithSegments($"/api/games/{gameId}")
+            || path.StartsWithSegments("/hubs/room")
+            || (HttpMethods.IsGet(context.Request.Method) && !path.StartsWithSegments("/api/games"));
+    }
 
     private static async Task<bool> AllowedFromAPhone(HttpContext context)
     {

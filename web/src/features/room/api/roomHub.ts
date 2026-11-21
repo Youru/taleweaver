@@ -1,5 +1,12 @@
 import { HubConnectionBuilder, HubConnectionState, LogLevel, type HubConnection } from '@microsoft/signalr'
 import { onBeforeUnmount, ref } from 'vue'
+import { currentScreenToken } from '@/shared/lib/screen'
+
+/** The GM's second screen joins the GM's group with its token. */
+function withScreen(query: string) {
+  const token = currentScreenToken()
+  return token && query.startsWith('game=') ? `${query}&screen_token=${encodeURIComponent(token)}` : query
+}
 
 export type HubStatus = 'connecting' | 'connected' | 'reconnecting' | 'closed'
 
@@ -17,7 +24,7 @@ export function useRoomHub(
 ) {
   const status = ref<HubStatus>('connecting')
   const connection: HubConnection = new HubConnectionBuilder()
-    .withUrl(`/hubs/room?${query}`)
+    .withUrl(`/hubs/room?${withScreen(query)}`)
     .withAutomaticReconnect({
       nextRetryDelayInMilliseconds: ({ previousRetryCount }) => retryDelays[previousRetryCount] ?? 30000,
     })

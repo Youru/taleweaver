@@ -1,3 +1,5 @@
+import { currentScreenToken } from '@/shared/lib/screen'
+
 /** RFC 9457 problem details, as returned by the API (title = stable error code). */
 export interface ProblemDetails {
   type?: string
@@ -65,12 +67,15 @@ export function saveFile(blob: Blob, fileName: string) {
 
 /** The only place that calls fetch for JSON: JSON in and out, ApiError on any non-2xx answer. */
 export async function http<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  const screen = currentScreenToken()
   const response = await fetch(path, {
     method: options.method ?? 'GET',
     headers: {
       ...(options.body === undefined
         ? { Accept: 'application/json' }
         : { 'Content-Type': 'application/json', Accept: 'application/json' }),
+      // A second screen of the GM's (room-spec §7) proves it with its token
+      ...(screen ? { Authorization: `Screen ${screen}` } : {}),
       ...options.headers,
     },
     body: options.body === undefined ? undefined : JSON.stringify(options.body),

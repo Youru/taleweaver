@@ -11,29 +11,37 @@ import { formatLog, type FormattedLog } from '../lib/formatLog'
  * The journal: every line of the game (log), or the page of the story being read (page: no heading,
  * and new text is brought into view from its start rather than from the end of the list).
  */
-const props = defineProps<{ log: LogEntry[]; page?: boolean }>()
+const props = defineProps<{
+  log: LogEntry[]
+  page?: boolean
+  /** Adventurers whose lines stand out (a player's own, in the room). */
+  highlight?: string[]
+}>()
 
 const { t, te } = useI18n()
 const { language } = storeToRefs(usePreferences())
+type Line = FormattedLog & { mine: boolean }
+
+/** A line about one of the highlighted adventurers: one of its values names them. */
+const concerns = (entry: LogEntry) =>
+  !!props.highlight?.length && Object.values(entry.args ?? {}).some((value) => props.highlight!.includes(value))
 const lines = computed(() =>
-  props.log.map((entry) =>
-    formatLog(
+  props.log.map((entry) => ({
+    ...formatLog(
       entry,
       language.value,
       (key, args) => t(key, args),
       (key) => te(key),
     ),
-  ),
+    mine: concerns(entry),
+  })),
 )
 
 /**
  * What is drawn. The journal (log) is plain lines. The page of the story shows scenes and encounter
  * openings as pages of the book, and gathers the gains that follow each other in one box.
  */
-type Block =
-  | { kind: 'story'; line: FormattedLog }
-  | { kind: 'line'; line: FormattedLog }
-  | { kind: 'gains'; lines: FormattedLog[] }
+type Block = { kind: 'story'; line: Line } | { kind: 'line'; line: Line } | { kind: 'gains'; lines: Line[] }
 const blocks = computed<Block[]>(() => {
   if (!props.page) return lines.value.map((line) => ({ kind: 'line', line }))
   const out: Block[] = []
@@ -110,7 +118,7 @@ onBeforeUnmount(() => observer?.disconnect())
         <!-- What the party won, together -->
         <li v-else-if="block.kind === 'gains'" class="gains">
           <ul>
-            <li v-for="(gain, i) in block.lines" :key="i">
+            <li v-for="(gain, i) in block.lines" :key="i" :class="{ mine: gain.mine }">
               <i class="pi pi-check-circle" aria-hidden="true" />
               <span>
                 <strong>{{ gain.title }}</strong>
@@ -119,7 +127,7 @@ onBeforeUnmount(() => observer?.disconnect())
             </li>
           </ul>
         </li>
-        <li v-else-if="block.kind === 'line'" :class="block.line.tone">
+        <li v-else-if="block.kind === 'line'" :class="[block.line.tone, { mine: block.line.mine }]">
           <strong v-if="block.line.title">{{ block.line.title }}</strong>
           <p v-if="block.line.text">{{ block.line.text }}</p>
         </li>
@@ -150,6 +158,12 @@ li {
 li p {
   margin: 0.2rem 0 0;
   white-space: pre-line;
+}
+/* A line about the reader's own adventurer (the room's phone) */
+li.mine {
+  border-left-color: var(--seat, var(--p-primary-color));
+  background: color-mix(in srgb, var(--seat, var(--p-primary-color)) 14%, transparent);
+  font-weight: 600;
 }
 /* Texts read aloud: in the journal, plain lines; on the page of the story, the book's paper */
 .narrative {
