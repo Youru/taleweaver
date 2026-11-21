@@ -8,7 +8,7 @@ import ProgressSpinner from 'primevue/progressspinner'
 import { useAiAdvice } from '@/features/ai'
 import { useCombatants } from '@/features/catalog'
 import { DuelDialog } from '@/features/duel'
-import { EncounterBar, useGame, useGameCommand, type EncounterCommand } from '@/features/games'
+import { arrivedCombatants, EncounterBar, useGame, useGameCommand, type EncounterCommand } from '@/features/games'
 import { useScenario } from '@/features/scenarios'
 import { ApiError } from '@/shared/api/http'
 import { pick } from '@/shared/lib/localized'
@@ -25,6 +25,7 @@ const { language } = storeToRefs(usePreferences())
 const game = useGame(() => props.id, { refreshEvery: 2000 })
 const state = computed(() => game.data.value?.state)
 const encounter = computed(() => state.value?.encounter)
+const arrived = computed(() => arrivedCombatants(state.value?.log))
 const scenario = useScenario(() => game.data.value?.scenario)
 const node = computed(() => scenario.data.value?.nodes.find((n) => n.id === encounter.value?.node))
 const cards = useCombatants(() => encounter.value?.combatants.map((c) => c.card) ?? [])
@@ -94,6 +95,7 @@ function run(value: EncounterCommand) {
         :cards="cards"
         :locked="locked"
         :hint="ai.hint.value"
+        :arrived="arrived"
         for-players
         @command="run"
         @duel="openDuel"

@@ -20,6 +20,8 @@ const props = defineProps<{
   shown?: Set<string>
   /** The board's figures, for each row's portrait. */
   pieces?: BoardPieces
+  /** Combatants that just appeared (totem, event): listed even before the GM places them. */
+  arrived?: Set<string>
 }>()
 const emit = defineEmits<{ select: [instance: string] }>()
 
@@ -29,12 +31,15 @@ const { language } = storeToRefs(usePreferences())
 const acting = computed(() => props.encounter.activation?.figures[0])
 /**
  * Only the combatants already on the table: one still to place, or under the fog, would tell what is
- * coming. The acting figure is always listed.
+ * coming. The acting figure and those that just appeared (to place) are always listed.
  */
 const alive = computed(() =>
   props.encounter.combatants.filter(
     (c) =>
-      !c.defeated && (c.instance === acting.value || (!!c.position && (!props.shown || props.shown.has(c.instance)))),
+      !c.defeated &&
+      (c.instance === acting.value ||
+        (!c.position && !!props.arrived?.has(c.instance)) ||
+        (!!c.position && (!props.shown || props.shown.has(c.instance)))),
   ),
 )
 const defeated = computed(() => props.encounter.combatants.filter((c) => c.defeated))

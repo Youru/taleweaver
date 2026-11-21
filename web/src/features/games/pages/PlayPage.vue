@@ -28,6 +28,7 @@ import EncounterGoals from '../components/encounter/EncounterGoals.vue'
 import TurnCard from '../components/encounter/TurnCard.vue'
 import GameJournal from '../components/GameJournal.vue'
 import PromptPanel from '../components/PromptPanel.vue'
+import { arrivedCombatants } from '../lib/arrivals'
 import { encounterOver as isEncounterOver, storyPage } from '../lib/storyPage'
 
 /**
@@ -42,6 +43,8 @@ const { language } = storeToRefs(usePreferences())
 const game = useGame(() => props.id)
 const state = computed(() => game.data.value?.state)
 const encounter = computed(() => state.value?.encounter)
+/** Combatants that appeared during this encounter: shown to place, never kept secret. */
+const arrived = computed(() => arrivedCombatants(state.value?.log))
 // Between encounters: the page being read (the whole journal is in its own tab)
 const storyTab = ref('page')
 const page = computed(() => storyPage(state.value?.log ?? []))
@@ -215,6 +218,7 @@ function moveFigure(figure: string, to: Cell) {
             :cards="cards"
             :locked="reportsLocked"
             :hint="ai.hint.value"
+            :arrived="arrived"
             selection-outside
             @command="encounterCommand"
             @duel="openDuel"
@@ -258,6 +262,7 @@ function moveFigure(figure: string, to: Cell) {
                     :encounter="encounter"
                     :cards="cards"
                     :shown="shownFigures"
+                    :arrived="arrived"
                     :pieces="pieces.data.value"
                     :selected="selected?.kind === 'figure' ? selected.id : undefined"
                     @select="selected = { kind: 'figure', id: $event }"

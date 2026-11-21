@@ -33,6 +33,8 @@ const props = defineProps<{
   forPlayers?: boolean
   /** The page shows the selected piece's actions elsewhere (beside the table): none over the board. */
   selectionOutside?: boolean
+  /** Combatants that just appeared (totem, event): the players know, so they are always offered to place. */
+  arrived?: Set<string>
 }>()
 const emit = defineEmits<{ command: [command: EncounterCommand]; duel: [figure: string] }>()
 
@@ -71,12 +73,15 @@ watch(layout, (now) => {
 })
 
 /**
- * Figures to place shown under the board: the adventurers and the acting combatant; the other
- * combatants only when the GM asks (never on the players' table), so as not to tell what is coming.
+ * Figures to place shown under the board: the adventurers, the acting combatant and those that just
+ * appeared; the encounter's other combatants only when the GM asks (never on the players' table), so
+ * as not to tell what is coming.
  */
 const showHidden = ref(false)
 const hiddenUnplaced = computed(() =>
-  layout.value.unplacedFigures.filter((f) => f.kind === 'combatant' && f.id !== props.encounter.activation?.figures[0]),
+  layout.value.unplacedFigures.filter(
+    (f) => f.kind === 'combatant' && f.id !== props.encounter.activation?.figures[0] && !props.arrived?.has(f.id),
+  ),
 )
 const toPlace = computed(() =>
   layout.value.unplacedFigures.filter(
