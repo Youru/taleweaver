@@ -9,7 +9,7 @@ import { assetUrl } from '@/shared/api/assets'
 import { pick } from '@/shared/lib/localized'
 import { usePreferences } from '@/shared/lib/preferences'
 import type { HubStatus } from '../api/roomHub'
-import type { PlayerView } from '../api/types'
+import type { PlayerCommand, PlayerView } from '../api/types'
 import { nextAdventurer, seatColors, turnOf } from '../lib/room'
 import EquipmentTab from './EquipmentTab.vue'
 import HeroTab from './HeroTab.vue'
@@ -19,7 +19,14 @@ import TurnTab from './TurnTab.vue'
  * The phone (room-spec §5): portrait, one column, the adventurer switcher and the live status on top, the tabs
  * at the bottom where the thumb is. A swipe on the content changes adventurer.
  */
-const props = defineProps<{ view: PlayerView; followed: string | undefined; status?: HubStatus }>()
+const props = defineProps<{
+  view: PlayerView
+  followed: string | undefined
+  status?: HubStatus
+  /** Ask for something (a seat), or do it (the GM playing an adventurer). Without it, read only. */
+  act?: (command: PlayerCommand) => Promise<void>
+  cancel?: (request: string) => Promise<void>
+}>()
 const emit = defineEmits<{ follow: [name: string] }>()
 const { t } = useI18n()
 const { language } = storeToRefs(usePreferences())
@@ -57,6 +64,24 @@ watch([() => current.value?.name, healthLeft], ([name, left], [before, previous]
   clearTimeout(hitTimer)
   hitTimer = setTimeout(() => (hit.value = null), 900)
 })
+
+// The GM's answer to a request (room-spec §6.2): a short line that fades, longer when refused.
+const others = computed(() => props.view.party.filter((p) => !p.mine).map((p) => p.name))
+const answer = ref<{ ok: boolean; text: string } | null>(null)
+let answerTimer: ReturnType<typeof setTimeout> | undefined
+watch(
+  () => props.view.requests.map((r) => `${r.id}:${r.status}`).join(),
+  (now, before) => {
+    if (!before) return
+    const was = new Map(before.split(',').map((pair) => pair.split(':') as [string, string]))
+    const changed = props.view.requests.find((r) => was.get(r.id) === 'pending' && r.status !== 'pending')
+    if (!changed || changed.status === 'cancelled') return
+    const ok = changed.status === 'accepted' || changed.status === 'applied'
+    answer.value = { ok, text: t(ok ? 'room.request.acceptedNotice' : 'room.request.refusedNotice') }
+    clearTimeout(answerTimer)
+    answerTimer = setTimeout(() => (answer.value = null), ok ? 2500 : 5000)
+  },
+)
 
 // "Your turn!" (room-spec §5.2): full screen and a vibration when one of the seat's adventurers starts playing.
 const turn = computed(() => (props.view.encounter ? turnOf(props.view.encounter, names.value) : {}))
@@ -134,6 +159,9 @@ function touchEnd(event: TouchEvent) {
         {{ t('room.player.round', { round: view.encounter.round }) }}
       </span>
     </div>
+    <Message v-if="answer" :severity="answer.ok ? 'success' : 'error'" class="banner" :closable="false">{{
+      answer.text
+    }}</Message>
     <Message v-if="status === 'reconnecting'" severity="warn" class="banner">{{
       t('room.player.reconnecting')
     }}</Message>
@@ -157,6 +185,8 @@ function touchEnd(event: TouchEvent) {
           :key="`hero-${current.name}`"
           :adventurer="current"
           :card="cardOf(current.name)"
+          :requests="view.requests"
+          :act="act"
         />
         <EquipmentTab
           v-else
@@ -164,6 +194,10 @@ function touchEnd(event: TouchEvent) {
           :adventurer="current"
           :gold="view.gold"
           :stash="view.stash"
+          :others="others"
+          :requests="view.requests"
+          :act="act"
+          :cancel="cancel"
         />
       </Transition>
     </main>

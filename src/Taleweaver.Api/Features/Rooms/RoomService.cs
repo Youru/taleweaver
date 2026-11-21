@@ -9,7 +9,7 @@ namespace Taleweaver.Api.Features.Rooms;
 /// The rooms, in memory and on disk (one file per game), behind one lock: opening, closing, joining, giving the
 /// adventurers to the seats. Which seats are connected comes from the hub, never from the file.
 /// </summary>
-public sealed class RoomService(RoomStore store, TimeProvider time)
+public sealed partial class RoomService(RoomStore store, TimeProvider time)
 {
     public const int MaxSeats = 8;
 
@@ -310,7 +310,12 @@ public sealed class RoomService(RoomStore store, TimeProvider time)
         room.Status,
         room.Seats.Select(s => new SeatView(s.Id, s.DisplayName, s.Color, s.Adventurers, s.Followed, s.LastSeen, IsConnected(s.Id))).ToList(),
         Network.LanAddresses(),
-        room.ScreenTokenHash is not null);
+        room.ScreenTokenHash is not null,
+        room.Autonomy,
+        // Every pending request, then the last answered ones, newest first
+        room.Requests.Where(r => r.Status == RequestStatus.Pending)
+            .Concat(room.Requests.Where(r => r.Status != RequestStatus.Pending).TakeLast(15).Reverse())
+            .ToList());
 
     /// <summary>
     /// A new token for the GM's second screen (room-spec §7): it replaces the previous one, if any. Returned once,

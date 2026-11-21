@@ -11,6 +11,31 @@ export interface RoomView {
   lanAddresses: string[]
   /** A second screen of the GM's has a token (room-spec §7). */
   hasScreen: boolean
+  autonomy: Autonomy
+  /** Every pending request, then the last answered ones, newest first. */
+  requests: PlayerRequest[]
+}
+
+/** What players may do without the GM (room-spec §6.3). */
+export type Autonomy = 'validateAll' | 'freeInventoryOutsideEncounter'
+
+/** What a phone may ask (room-spec §6.2): items of its adventurers or of the stash, disciplines. */
+export type PlayerCommand =
+  | { type: 'moveItem'; item: string; owner: string; slot?: 'equipped' | 'pack' }
+  | { type: 'flipItem'; item: string; flipped: boolean }
+  | { type: 'useItem'; item: string; discard: boolean }
+  | { type: 'learnDiscipline'; adventurer: string; discipline: string }
+
+export interface PlayerRequest {
+  id: string
+  seatId: string
+  /** The player's name. */
+  by: string
+  command: PlayerCommand
+  status: 'pending' | 'accepted' | 'applied' | 'refused' | 'cancelled' | 'failed'
+  /** Why it was refused or failed: an error code or the GM's words. */
+  reason?: string | null
+  at: string
 }
 
 export interface SeatView {
@@ -49,6 +74,9 @@ export interface PlayerView {
   encounter?: PlayerEncounter | null
   /** The public lines of the log (room-spec §8), with their place in the GM's log. */
   log: { index: number; entry: LogEntry }[]
+  /** The seat's own requests, the pending ones and the last answers. */
+  requests: PlayerRequest[]
+  autonomy: Autonomy
 }
 
 /** The encounter as the table sees it: never the AI, the hidden rules nor the end conditions. */

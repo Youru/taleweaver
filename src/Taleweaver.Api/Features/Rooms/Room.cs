@@ -21,6 +21,12 @@ public sealed class Room
     /// </summary>
     public string? ScreenTokenHash { get; set; }
 
+    /// <summary>What players may do without the GM (room-spec §6.3).</summary>
+    public string Autonomy { get; set; } = RoomAutonomy.ValidateAll;
+
+    /// <summary>The players' requests, pending first in the GM's queue, then the last answered ones.</summary>
+    public List<PlayerRequest> Requests { get; set; } = [];
+
     public bool IsOpen => Status == RoomStatus.Open;
 }
 
@@ -51,7 +57,15 @@ public sealed class Seat
 }
 
 /// <summary>The room as the GM sees it: seats with their connection, the addresses phones can reach.</summary>
-public sealed record RoomView(string GameId, string Code, string Status, IReadOnlyList<SeatView> Seats, IReadOnlyList<string> LanAddresses, bool HasScreen);
+public sealed record RoomView(
+    string GameId,
+    string Code,
+    string Status,
+    IReadOnlyList<SeatView> Seats,
+    IReadOnlyList<string> LanAddresses,
+    bool HasScreen,
+    string Autonomy,
+    IReadOnlyList<PlayerRequest> Requests);
 
 public sealed record SeatView(string Id, string DisplayName, string Color, IReadOnlyList<string> Adventurers, string? Followed, DateTimeOffset LastSeen, bool Connected);
 

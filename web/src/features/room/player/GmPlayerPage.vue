@@ -3,9 +3,11 @@ import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Message from 'primevue/message'
 import ProgressSpinner from 'primevue/progressspinner'
+import { useGameCommand } from '@/features/games'
 import { roomGmApi } from '../api/roomApi'
 import { useRoomHub } from '../api/roomHub'
-import type { PlayerView } from '../api/types'
+import type { PlayerCommand, PlayerView } from '../api/types'
+import { asGameCommand } from '../lib/room'
 import PlayerLayout from './PlayerLayout.vue'
 
 /**
@@ -25,6 +27,13 @@ async function load() {
   }
 }
 
+// The GM's actions apply at once, as from the game page (room-spec §7.4)
+const command = useGameCommand(() => props.gameId)
+async function act(action: PlayerCommand) {
+  await command.mutateAsync(asGameCommand(action))
+  await load()
+}
+
 const { status } = useRoomHub(
   `game=${encodeURIComponent(props.gameId)}`,
   { GameChanged: () => void load() },
@@ -35,7 +44,7 @@ onMounted(load)
 
 <template>
   <Message v-if="error" severity="error">{{ error }}</Message>
-  <PlayerLayout v-else-if="view" :view="view" :followed="adventurer" :status="status" />
+  <PlayerLayout v-else-if="view" :view="view" :followed="adventurer" :status="status" :act="act" />
   <div v-else class="center"><ProgressSpinner :aria-label="t('common.loading')" /></div>
 </template>
 

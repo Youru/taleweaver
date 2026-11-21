@@ -49,7 +49,7 @@ public class RoomEndpointsTests(HomebrewFactory factory) : IClassFixture<Homebre
 
         using var document = JsonDocument.Parse(json);
         document.RootElement.EnumerateObject().Select(p => p.Name).Should().BeSubsetOf(
-            ["version", "gameId", "scenarioTitle", "roomCode", "seat", "impersonated", "adventurers", "party", "gold", "stash", "unassigned", "encounter", "log"]);
+            ["version", "gameId", "scenarioTitle", "roomCode", "seat", "impersonated", "adventurers", "party", "gold", "stash", "unassigned", "encounter", "log", "requests", "autonomy"]);
         json.Should().NotContain("\"prompt\"").And.NotContain("hiddenText").And.NotContain("\"variables\"").And.NotContain("aiSteps");
         document.RootElement.GetProperty("log").EnumerateArray().Select(l => l.GetProperty("entry").GetProperty("code").GetString())
             .Should().NotBeEmpty().And.OnlyContain(code => PlayerViewProjector.PublicLogCodes.Contains(code!));
@@ -127,6 +127,61 @@ public class RoomEndpointsTests(HomebrewFactory factory) : IClassFixture<Homebre
         var room = await Read<RoomView>(await _gm.DeleteAsync($"/api/games/{game.Id}/room/screen", Token));
         room.HasScreen.Should().BeFalse();
         (await tablet.GetAsync($"/api/games/{game.Id}", Token)).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task APlayersRequest_WaitsForTheGm_ThenGoesIntoTheGameUnderTheirName()
+    {
+        var game = await StartGame();
+        var (phone, code, _) = await JoinedPhone(game, ["Rook"]);
+        var item = await GiveRookAPlank(game);
+
+        var asked = await Read<PlayerView>(await phone.PostAsJsonAsync($"/api/rooms/{code}/me/requests", new PlayerCommand(PlayerCommand.MoveItem, item, "Rook", "equipped"), JsonDefaults.Options, Token));
+        var request = asked.Requests.Single();
+        request.Status.Should().Be(RequestStatus.Pending);
+        (await Read<GameView>(await _gm.GetAsync($"/api/games/{game.Id}", Token))).State.Campaign.Party.Single(a => a.Name == "Rook").Pack.Should().ContainSingle("not applied before the GM says so");
+
+        var room = await Read<RoomView>(await _gm.PostAsync($"/api/games/{game.Id}/room/requests/{request.Id}/accept", null, Token));
+
+        room.Requests.Single().Status.Should().Be(RequestStatus.Accepted);
+        var after = await Read<GameView>(await _gm.GetAsync($"/api/games/{game.Id}", Token));
+        after.State.Campaign.Party.Single(a => a.Name == "Rook").Equipped.Select(i => i.Id).Should().Contain(item);
+        after.State.Log.Last(l => l.Code == "itemMoved").Args!["by"].Should().Be("Léa");
+        (await _gm.PostAsync($"/api/games/{game.Id}/room/requests/{request.Id}/accept", null, Token)).StatusCode.Should().Be(HttpStatusCode.Conflict);
+    }
+
+    [Fact]
+    public async Task APlayer_MayNotAskForAnotherSeatsItem_NorForAnythingOutOfTheList()
+    {
+        var game = await StartGame();
+        var (phone, code, _) = await JoinedPhone(game, ["Nightingale"]);
+        var rooksItem = await GiveRookAPlank(game);
+
+        (await phone.PostAsJsonAsync($"/api/rooms/{code}/me/requests", new PlayerCommand(PlayerCommand.MoveItem, rooksItem, "Nightingale"), JsonDefaults.Options, Token))
+            .StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        (await phone.PostAsJsonAsync($"/api/rooms/{code}/me/requests", new PlayerCommand("nextTurn"), JsonDefaults.Options, Token))
+            .StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task WithAFreeInventory_MovingOnesOwnItem_AppliesAtOnce()
+    {
+        var game = await StartGame();
+        var (phone, code, _) = await JoinedPhone(game, ["Rook"]);
+        var item = await GiveRookAPlank(game);
+        await Read<RoomView>(await _gm.PutAsJsonAsync($"/api/games/{game.Id}/room/settings", new RoomEndpoints.SettingsRequest(RoomAutonomy.FreeInventory), JsonDefaults.Options, Token));
+
+        var view = await Read<PlayerView>(await phone.PostAsJsonAsync($"/api/rooms/{code}/me/requests", new PlayerCommand(PlayerCommand.MoveItem, item, "stash"), JsonDefaults.Options, Token));
+
+        view.Encounter.Should().BeNull("the test game starts with its scene");
+        view.Requests.Single().Status.Should().Be(RequestStatus.Applied);
+        view.Stash.Select(i => i.Id).Should().Contain(item);
+    }
+
+    private async Task<string> GiveRookAPlank(GameView game)
+    {
+        var after = await Read<GameView>(await _gm.PostAsJsonAsync($"/api/games/{game.Id}/items", new { item = "hb:item/plank", owner = "Rook", slot = "pack" }, JsonDefaults.Options, Token));
+        return after.State.Campaign.Party.Single(a => a.Name == "Rook").Pack.Last().Id;
     }
 
     private async Task<(HttpClient Phone, string Code, string Seat)> JoinedPhone(GameView game, IReadOnlyList<string> adventurers)

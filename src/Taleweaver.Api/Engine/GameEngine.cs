@@ -84,6 +84,16 @@ public static class GameEngine
 
         session.Run();
         session.UpdateAdventurerStats();
+        if (command.By is { } by)
+        {
+            // The lines this command wrote say who asked for it (a player's request, room-spec §9)
+            var log = session.State.Log;
+            for (var i = state.Log.Count; i < log.Count; i++)
+            {
+                log[i] = log[i] with { Args = new Dictionary<string, string>(log[i].Args ?? new Dictionary<string, string>()) { ["by"] = by } };
+            }
+        }
+
         return session.State;
     }
 

@@ -144,6 +144,8 @@ export function formatLog(
   let title = hasMessage(key) ? translate(key, args) : translate('log.unknown', { code: entry.code })
   // STATUS Effects resolve at the start of the figure's turn (Poison, Condemn, Haste)
   if (args.statusEffects) title += ` · ${translate('log.statusEffects', { effects: args.statusEffects })}`
+  // A player's request accepted by the GM (room-spec §9): who asked for it
+  if (args.by) title += ` · ${translate('log.by', { name: args.by })}`
   const line: FormattedLog = { title, text: pick(entry.text, language), tone: toneOf(entry.code) }
   const heading =
     entry.code === 'scene'

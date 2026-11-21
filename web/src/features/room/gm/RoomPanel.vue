@@ -8,7 +8,13 @@ import Message from 'primevue/message'
 import MultiSelect from 'primevue/multiselect'
 import Select from 'primevue/select'
 import Tag from 'primevue/tag'
-import type { AdventurerState, HeldBy } from '@/features/games'
+import { useDisciplines, useItems } from '@/features/catalog'
+import type { AdventurerState, HeldBy, OwnedItem } from '@/features/games'
+import { pick } from '@/shared/lib/localized'
+import { usePreferences } from '@/shared/lib/preferences'
+import { storeToRefs } from 'pinia'
+import RequestList from '../components/RequestList.vue'
+import type { Autonomy } from '../api/types'
 import { roomGmApi } from '../api/roomApi'
 import { useRoomHub } from '../api/roomHub'
 import type { RoomView } from '../api/types'
@@ -18,7 +24,13 @@ import { joinUrls, seatColors } from '../lib/room'
  * The GM's room panel (room-spec §4.1, §4.3, §7): open/close, code and QR code, the seats and the adventurers each
  * one holds, and every adventurer of the party with its holder and "Open as a player".
  */
-const props = defineProps<{ gameId: string; party: AdventurerState[]; activeGroup?: string[] | null }>()
+const props = defineProps<{
+  gameId: string
+  party: AdventurerState[]
+  activeGroup?: string[] | null
+  /** The stash and the items to hand out: the requests name their cards. */
+  stash?: OwnedItem[]
+}>()
 const open = defineModel<boolean>('open', { required: true })
 const { t } = useI18n()
 
@@ -130,7 +142,32 @@ void load()
 watch(open, (value) => value && void load())
 
 /** Each held adventurer's seat (colour, phone connected), for the GM's initiative track (room-spec §7.3). */
-const emit = defineEmits<{ seats: [seats: Record<string, HeldBy>] }>()
+const emit = defineEmits<{ seats: [seats: Record<string, HeldBy>]; pending: [count: number] }>()
+
+// The players' requests (room-spec §6.2): the queue, and how much they may do alone (§6.3)
+const { language } = storeToRefs(usePreferences())
+const items = useItems()
+const disciplines = useDisciplines()
+const owned = computed(() => [
+  ...props.party.flatMap((a) => [...(a.equipped ?? []), ...(a.pack ?? [])]),
+  ...(props.stash ?? []),
+])
+const itemName = (id: string) => {
+  const card = owned.value.find((i) => i.id === id)?.item
+  return pick(items.data.value?.find((i) => i.id === card)?.name, language.value) || id
+}
+const disciplineName = (id: string) =>
+  pick(disciplines.data.value?.find((d) => d.id === id)?.name, language.value) || id
+const pendingCount = computed(() => room.value?.requests.filter((r) => r.status === 'pending').length ?? 0)
+watch(pendingCount, (count) => emit('pending', count), { immediate: true })
+const autonomies: { value: Autonomy; label: string }[] = [
+  { value: 'validateAll', label: t('room.gm.autonomy.validateAll') },
+  { value: 'freeInventoryOutsideEncounter', label: t('room.gm.autonomy.freeInventoryOutsideEncounter') },
+]
+function refuse(id: string) {
+  const reason = window.prompt(t('room.request.refuseReason')) ?? undefined
+  void run(() => roomGmApi.refuse(props.gameId, id, reason || undefined))
+}
 watch(
   room,
   (value) =>
@@ -209,6 +246,35 @@ useRoomHub(
             />
           </div>
         </div>
+      </section>
+
+      <section class="requests-queue">
+        <h3>
+          {{ t('room.request.queue') }}
+          <Tag v-if="pendingCount" severity="warn" :value="String(pendingCount)" />
+        </h3>
+        <label class="autonomy">
+          <span>{{ t('room.gm.autonomy.label') }}</span>
+          <Select
+            :model-value="room.autonomy"
+            :options="autonomies"
+            option-label="label"
+            option-value="value"
+            :disabled="busy"
+            @update:model-value="(value: Autonomy) => run(() => roomGmApi.settings(gameId, value))"
+          />
+        </label>
+        <p v-if="room.requests.length === 0" class="muted">{{ t('room.request.none') }}</p>
+        <RequestList
+          v-else
+          gm
+          :requests="room.requests"
+          :busy="busy"
+          :item-name="itemName"
+          :discipline-name="disciplineName"
+          @accept="(id) => run(() => roomGmApi.accept(gameId, id))"
+          @refuse="refuse"
+        />
       </section>
 
       <section class="screen">
@@ -302,6 +368,22 @@ useRoomHub(
 </template>
 
 <style scoped>
+.requests-queue {
+  margin-bottom: 1rem;
+}
+.requests-queue h3 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 0.5rem;
+}
+.autonomy {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
 .screen {
   margin-bottom: 1rem;
 }

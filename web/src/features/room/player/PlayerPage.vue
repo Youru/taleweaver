@@ -8,7 +8,7 @@ import ProgressSpinner from 'primevue/progressspinner'
 import { ApiError } from '@/shared/api/http'
 import { roomPlayerApi } from '../api/roomApi'
 import { useRoomHub } from '../api/roomHub'
-import type { PlayerView } from '../api/types'
+import type { PlayerCommand, PlayerView } from '../api/types'
 import { forgetSeat, storedSeat } from '../lib/seatStorage'
 import PlayerLayout from './PlayerLayout.vue'
 
@@ -41,6 +41,14 @@ async function load() {
       void router.replace({ name: 'join', params: { code: props.code } })
     } else error.value = (e as Error).message
   }
+}
+
+/** A request (room-spec §6.2): the answer is the new view, the GM's decision comes by the hub. */
+async function act(command: PlayerCommand) {
+  if (seat) receive(await roomPlayerApi.request(props.code, seat.token, command))
+}
+async function cancel(request: string) {
+  if (seat) receive(await roomPlayerApi.cancel(props.code, seat.token, request))
 }
 
 async function follow(name: string) {
@@ -78,7 +86,15 @@ onMounted(() => {
     <RouterLink :to="{ name: 'join' }"><Button :label="t('room.join.another')" text /></RouterLink>
   </div>
   <Message v-else-if="error" severity="error">{{ error }}</Message>
-  <PlayerLayout v-else-if="view" :view="view" :followed="followed" :status="status" @follow="follow" />
+  <PlayerLayout
+    v-else-if="view"
+    :view="view"
+    :followed="followed"
+    :status="status"
+    :act="act"
+    :cancel="cancel"
+    @follow="follow"
+  />
   <div v-else class="center"><ProgressSpinner :aria-label="t('common.loading')" /></div>
 </template>
 

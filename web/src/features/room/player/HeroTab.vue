@@ -2,16 +2,28 @@
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
+import Button from 'primevue/button'
+import Dialog from 'primevue/dialog'
+import Message from 'primevue/message'
 import Tag from 'primevue/tag'
 import { useDisciplines, type CatalogAdventurer } from '@/features/catalog'
-import type { AdventurerState } from '@/features/games'
+import { disciplineBlock, disciplineCost, type AdventurerState } from '@/features/games'
+import type { PlayerCommand, PlayerRequest } from '../api/types'
 import { assetUrl } from '@/shared/api/assets'
 import { pick } from '@/shared/lib/localized'
 import { usePreferences } from '@/shared/lib/preferences'
 import { xpLeft } from '../lib/room'
 
-/** The Adventurer Card in large, its stats, the XP left and the disciplines learnt (tap to read the card). */
-const props = defineProps<{ adventurer: AdventurerState; card: CatalogAdventurer | undefined }>()
+/**
+ * The Adventurer Card in large, its stats, the XP left and the disciplines learnt (tap to read the card). With
+ * `act`, the player may ask to learn a discipline (room-spec §6.2).
+ */
+const props = defineProps<{
+  adventurer: AdventurerState
+  card: CatalogAdventurer | undefined
+  requests?: PlayerRequest[]
+  act?: (command: PlayerCommand) => Promise<void>
+}>()
 const { t } = useI18n()
 const { language } = storeToRefs(usePreferences())
 const disciplines = useDisciplines()
@@ -23,6 +35,41 @@ const learnt = computed(() =>
   })),
 )
 const open = ref<string>()
+
+// Learning: the cards the adventurer may take now (lower levels of the tree known), with their cost
+const choosing = ref(false)
+const busy = ref(false)
+const failure = ref<string>()
+const left = computed(() => xpLeft(props.adventurer))
+const learnable = computed(() => {
+  const catalog = disciplines.data.value ?? []
+  return catalog
+    .filter((c) => !c.story && disciplineBlock(c, props.adventurer, catalog) === null)
+    .map((c) => ({ card: c, cost: disciplineCost(c, props.adventurer, catalog) }))
+    .filter((d) => d.cost !== null && d.cost <= left.value)
+    .sort((a, b) => (a.card.level ?? 0) - (b.card.level ?? 0) || a.card.tree.localeCompare(b.card.tree))
+})
+const asked = computed(
+  () =>
+    new Set(
+      (props.requests ?? [])
+        .filter((r) => r.status === 'pending' && r.command.type === 'learnDiscipline')
+        .map((r) => (r.command.type === 'learnDiscipline' ? r.command.discipline : '')),
+    ),
+)
+async function learn(discipline: string) {
+  if (!props.act) return
+  busy.value = true
+  failure.value = undefined
+  try {
+    await props.act({ type: 'learnDiscipline', adventurer: props.adventurer.name, discipline })
+    choosing.value = false
+  } catch (e) {
+    failure.value = (e as Error).message
+  } finally {
+    busy.value = false
+  }
+}
 const skills = ['presence', 'lore', 'agility', 'perception', 'strength']
 </script>
 
@@ -78,11 +125,64 @@ const skills = ['presence', 'lore', 'agility', 'perception', 'strength']
           <img v-if="open === d.id && d.card?.image" :src="assetUrl(d.card.image)" :alt="pick(d.card.name, language)" />
         </li>
       </ul>
+      <Button
+        v-if="act && learnable.length"
+        icon="pi pi-plus"
+        :label="t('room.request.learn.open')"
+        severity="secondary"
+        class="learn"
+        @click="choosing = true"
+      />
     </section>
+    <Dialog v-model:visible="choosing" modal dismissable-mask :header="t('room.request.learn.title', { xp: left })">
+      <Message v-if="failure" severity="error" :closable="false">{{ failure }}</Message>
+      <ul class="learnable">
+        <li v-for="d in learnable" :key="d.card.id">
+          <img v-if="d.card.image" :src="assetUrl(d.card.image)" :alt="pick(d.card.name, language)" loading="lazy" />
+          <div>
+            <strong>{{ pick(d.card.name, language) }}</strong>
+            <small>{{ t('room.request.learn.cost', { xp: d.cost, level: d.card.level ?? '?' }) }}</small>
+            <Button
+              :label="asked.has(d.card.id) ? t('room.request.waiting') : t('room.request.learn.ask')"
+              size="small"
+              :disabled="busy || asked.has(d.card.id)"
+              @click="learn(d.card.id)"
+            />
+          </div>
+        </li>
+      </ul>
+    </Dialog>
   </div>
 </template>
 
 <style scoped>
+.learn {
+  margin-top: 0.5rem;
+  min-height: 3rem;
+}
+.learnable {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.learnable li {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+.learnable img {
+  width: 6rem;
+  border-radius: 0.4rem;
+}
+.learnable div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  align-items: flex-start;
+}
 .hero {
   display: flex;
   flex-direction: column;

@@ -1,3 +1,6 @@
+import type { GameCommand } from '@/features/games'
+import type { PlayerCommand } from '../api/types'
+
 /** The 6 seat colours (same list as the API), with their CSS colour. */
 export const seatColors: Record<string, string> = {
   teal: '#14b8a6',
@@ -65,5 +68,54 @@ export function turnOf(
   return {
     ...(playing ? { playing } : {}),
     ...(coming && current ? { next: coming, after: current } : {}),
+  }
+}
+
+/**
+ * How a request reads (room-spec §6.2): the i18n key under room.request and its arguments. `itemName` names an
+ * item the party holds by its id ("item-3" → "Cave Sickle").
+ */
+export function describeRequest(
+  command: PlayerCommand,
+  itemName: (id: string) => string,
+  disciplineName: (id: string) => string = (id) => id,
+): { key: string; args: Record<string, string> } {
+  switch (command.type) {
+    case 'moveItem':
+      return {
+        key:
+          command.owner === 'stash'
+            ? 'room.request.toStash'
+            : command.slot === 'pack'
+              ? 'room.request.toPack'
+              : 'room.request.equip',
+        args: { item: itemName(command.item), owner: command.owner },
+      }
+    case 'flipItem':
+      return { key: 'room.request.flip', args: { item: itemName(command.item) } }
+    case 'useItem':
+      return { key: 'room.request.use', args: { item: itemName(command.item) } }
+    case 'learnDiscipline':
+      return {
+        key: 'room.request.learnDiscipline',
+        args: { discipline: disciplineName(command.discipline), adventurer: command.adventurer },
+      }
+  }
+}
+
+/** The GM playing an adventurer as a player (room-spec §7.4): the same action, applied at once. */
+export function asGameCommand(command: PlayerCommand): GameCommand {
+  switch (command.type) {
+    case 'moveItem':
+      return { kind: 'items', command: { type: 'move', id: command.item, owner: command.owner, slot: command.slot } }
+    case 'flipItem':
+      return { kind: 'items', command: { type: 'flip', id: command.item, flipped: command.flipped } }
+    case 'useItem':
+      return { kind: 'items', command: { type: 'use', id: command.item, discard: command.discard } }
+    case 'learnDiscipline':
+      return {
+        kind: 'party',
+        command: { type: 'learn', adventurer: command.adventurer, discipline: command.discipline, xp: 0 },
+      }
   }
 }

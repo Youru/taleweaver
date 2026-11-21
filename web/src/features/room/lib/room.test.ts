@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { joinUrls, nextAdventurer, normalizeCode, turnOf, xpLeft } from './room'
+import { asGameCommand, describeRequest, joinUrls, nextAdventurer, normalizeCode, turnOf, xpLeft } from './room'
 import { forgetSeat, storeSeat, storedSeat } from './seatStorage'
 
 describe('room', () => {
@@ -56,5 +56,29 @@ describe('turnOf', () => {
   it('says nothing between rounds nor to another seat', () => {
     expect(turnOf({ ...encounter, round: 0 }, ['Rook'])).toEqual({})
     expect(turnOf(encounter, ['Iris'])).toEqual({})
+  })
+})
+
+describe('describeRequest', () => {
+  const names = (id: string) => (id === 'item-3' ? 'Cave Sickle' : id)
+
+  it('tells equipping, packing and handing to the stash apart', () => {
+    expect(describeRequest({ type: 'moveItem', item: 'item-3', owner: 'Rook', slot: 'equipped' }, names)).toEqual({
+      key: 'room.request.equip',
+      args: { item: 'Cave Sickle', owner: 'Rook' },
+    })
+    expect(describeRequest({ type: 'moveItem', item: 'item-3', owner: 'Iris', slot: 'pack' }, names).key).toBe(
+      'room.request.toPack',
+    )
+    expect(describeRequest({ type: 'moveItem', item: 'item-3', owner: 'stash' }, names).key).toBe(
+      'room.request.toStash',
+    )
+  })
+
+  it('becomes the same command when the GM plays the adventurer', () => {
+    expect(asGameCommand({ type: 'useItem', item: 'item-3', discard: true })).toEqual({
+      kind: 'items',
+      command: { type: 'use', id: 'item-3', discard: true },
+    })
   })
 })

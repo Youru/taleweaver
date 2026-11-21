@@ -1,5 +1,5 @@
 import { http } from '@/shared/api/http'
-import type { JoinResponse, PlayerView, RoomSummary, RoomView } from './types'
+import type { Autonomy, JoinResponse, PlayerCommand, PlayerView, RoomSummary, RoomView } from './types'
 
 const e = encodeURIComponent
 const seat = (token: string) => ({ Authorization: `Seat ${token}` })
@@ -16,6 +16,12 @@ export const roomGmApi = {
     }),
   removeSeat: (gameId: string, seatId: string) =>
     http<RoomView>(`/api/games/${e(gameId)}/room/seats/${e(seatId)}`, { method: 'DELETE' }),
+  accept: (gameId: string, request: string) =>
+    http<RoomView>(`/api/games/${e(gameId)}/room/requests/${e(request)}/accept`, { method: 'POST' }),
+  refuse: (gameId: string, request: string, reason?: string) =>
+    http<RoomView>(`/api/games/${e(gameId)}/room/requests/${e(request)}/refuse`, { method: 'POST', body: { reason } }),
+  settings: (gameId: string, autonomy: Autonomy) =>
+    http<RoomView>(`/api/games/${e(gameId)}/room/settings`, { method: 'PUT', body: { autonomy } }),
   createScreen: (gameId: string) => http<{ token: string }>(`/api/games/${e(gameId)}/room/screen`, { method: 'POST' }),
   revokeScreen: (gameId: string) => http<RoomView>(`/api/games/${e(gameId)}/room/screen`, { method: 'DELETE' }),
   impersonate: (gameId: string, adventurer: string, signal?: AbortSignal) =>
@@ -28,6 +34,10 @@ export const roomPlayerApi = {
   join: (code: string, displayName: string, color: string) =>
     http<JoinResponse>(`/api/rooms/${e(code)}/seats`, { method: 'POST', body: { displayName, color } }),
   me: (code: string, token: string) => http<PlayerView>(`/api/rooms/${e(code)}/me`, { headers: seat(token) }),
+  request: (code: string, token: string, command: PlayerCommand) =>
+    http<PlayerView>(`/api/rooms/${e(code)}/me/requests`, { method: 'POST', body: command, headers: seat(token) }),
+  cancel: (code: string, token: string, request: string) =>
+    http<PlayerView>(`/api/rooms/${e(code)}/me/requests/${e(request)}`, { method: 'DELETE', headers: seat(token) }),
   update: (code: string, token: string, update: { displayName?: string; color?: string; followed?: string }) =>
     http<PlayerView>(`/api/rooms/${e(code)}/me`, { method: 'PUT', body: update, headers: seat(token) }),
 }

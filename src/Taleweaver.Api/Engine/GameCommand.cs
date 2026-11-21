@@ -48,6 +48,12 @@ public sealed record GameCommand
     /// <summary>AddItem: the item still to be drawn (Item Loot…) that this card is.</summary>
     public string? Replaces { get; init; }
 
+    /// <summary>
+    /// Who asked for it, when a player's request from the room was accepted (room-spec §9): the journal names
+    /// them. Null for the GM's own commands.
+    /// </summary>
+    public string? By { get; init; }
+
     /// <summary>SetActiveGroup: the adventurers chosen.</summary>
     public IReadOnlyList<string>? Adventurers { get; init; }
 

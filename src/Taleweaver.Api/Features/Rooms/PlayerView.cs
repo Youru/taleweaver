@@ -20,7 +20,9 @@ public sealed record PlayerView(
     IReadOnlyList<OwnedItem> Stash,
     IReadOnlyList<OwnedItem> Unassigned,
     PlayerEncounter? Encounter,
-    IReadOnlyList<PlayerLogEntry> Log);
+    IReadOnlyList<PlayerLogEntry> Log,
+    IReadOnlyList<PlayerRequest> Requests,
+    string Autonomy);
 
 /// <summary>The seat as its phone knows it.</summary>
 public sealed record PlayerSeat(string Id, string DisplayName, string Color, string? Followed);
@@ -98,7 +100,10 @@ public static class PlayerViewProjector
             campaign.Stash,
             campaign.Unassigned,
             encounter,
-            PublicLog(state.Log));
+            PublicLog(state.Log),
+            // The seat's own requests: the pending ones and the last answers
+            room is null || seat is null ? [] : room.Requests.Where(r => r.SeatId == seat.Id).TakeLast(8).ToList(),
+            room?.Autonomy ?? RoomAutonomy.ValidateAll);
     }
 
     /// <summary>

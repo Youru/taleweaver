@@ -142,6 +142,8 @@ const inventoryOpen = ref(false)
 const roomOpen = ref(false)
 /** The phone holding each adventurer (the room's), shown on the initiative track. */
 const heldBy = ref<Record<string, HeldBy>>({})
+/** Requests of the players waiting for the GM (room-spec §6.2): a badge on the Room button. */
+const pendingRequests = ref(0)
 const toHandOut = computed(() => state.value?.campaign.unassigned?.length ?? 0)
 
 function itemCommand(value: ItemCommand) {
@@ -222,7 +224,15 @@ function moveFigure(figure: string, to: Cell) {
             />
           </template>
         </Button>
-        <Button icon="pi pi-mobile" :label="t('room.gm.button')" severity="secondary" text @click="roomOpen = true" />
+        <Button
+          icon="pi pi-mobile"
+          :label="t('room.gm.button')"
+          :badge="pendingRequests ? String(pendingRequests) : undefined"
+          badge-severity="warn"
+          severity="secondary"
+          text
+          @click="roomOpen = true"
+        />
         <RouterLink v-if="encounter" :to="{ name: 'table', params: { id } }" target="_blank">
           <Button icon="pi pi-external-link" :label="t('table.openTable')" severity="secondary" text />
         </RouterLink>
@@ -241,7 +251,9 @@ function moveFigure(figure: string, to: Cell) {
         :game-id="id"
         :party="state.campaign.party"
         :active-group="state.campaign.activeGroup"
+        :stash="[...state.campaign.stash, ...state.campaign.unassigned]"
         @seats="(seats) => (heldBy = seats)"
+        @pending="(count) => (pendingRequests = count)"
       />
       <InventoryDialog
         v-model:open="inventoryOpen"

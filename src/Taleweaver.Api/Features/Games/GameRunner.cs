@@ -104,6 +104,25 @@ public sealed class GameRunner(IGameStore games, IContentStore content, CatalogP
         return await SaveAsync(game with { Commands = [.. game.Commands, command], State = state.Value }, cancellationToken);
     }
 
+    /// <summary>Would the command apply now? Nothing is saved (a player's request is checked when it is made).</summary>
+    public async Task<Result> CheckAsync(string id, GameCommand command, CancellationToken cancellationToken)
+    {
+        var loaded = await LoadAsync(id, cancellationToken);
+        if (!loaded.IsSuccess)
+        {
+            return loaded.Error!;
+        }
+
+        var context = await ContextAsync(loaded.Value.Scenario, loaded.Value.Seed, cancellationToken);
+        if (!context.IsSuccess)
+        {
+            return context.Error!;
+        }
+
+        var state = GameEngine.Apply(loaded.Value.State, command, context.Value);
+        return state.IsSuccess ? Result.Success() : state.Error!;
+    }
+
     /// <summary>Undo = replay the history without its last command.</summary>
     public async Task<Result<Game>> UndoAsync(string id, CancellationToken cancellationToken)
     {
