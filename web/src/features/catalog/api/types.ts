@@ -124,3 +124,21 @@ export interface CatalogDiscipline {
   cost?: number | null
   image?: string | null
 }
+
+/** An Adventurer Card (packs/<pack>/adventurers.json). */
+export interface CatalogAdventurer {
+  id: string
+  name: LocalizedText
+  fullName?: LocalizedText | null
+  health: number
+  defense: number
+  movement: number
+  stamina: { recovery: number; max: number }
+  /** presence, lore, agility, perception, strength. */
+  skills: Record<string, number>
+  conviction: string[]
+  casting: string[]
+  ability?: { name: LocalizedText } | null
+  figure?: string | null
+  image?: string | null
+}

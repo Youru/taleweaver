@@ -17,7 +17,13 @@ public sealed record GameView(string Id, string Scenario, IReadOnlyList<string> 
 /// The I/O around the pure engine, shared by the Games and Encounters features: load the game and its
 /// scenario, apply the command, save. The engine itself never touches the stores.
 /// </summary>
-public sealed class GameRunner(IGameStore games, IContentStore content, CatalogProvider catalogs, TimeProvider time)
+/// <summary>Told after every saved change of a game (the room pushes the new views to the phones).</summary>
+public interface IGameObserver
+{
+    Task GameChangedAsync(Game game, CancellationToken cancellationToken);
+}
+
+public sealed class GameRunner(IGameStore games, IContentStore content, CatalogProvider catalogs, TimeProvider time, IEnumerable<IGameObserver> observers)
 {
     public static class Errors
     {
@@ -136,6 +142,11 @@ public sealed class GameRunner(IGameStore games, IContentStore content, CatalogP
     {
         var saved = game with { EngineVersion = GameEngine.Version, UpdatedAt = touch ? time.GetUtcNow() : game.UpdatedAt };
         await games.SaveAsync(saved, cancellationToken);
+        foreach (var observer in observers)
+        {
+            await observer.GameChangedAsync(saved, cancellationToken);
+        }
+
         return saved;
     }
 

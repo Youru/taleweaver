@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 import ConfirmDialog from 'primevue/confirmdialog'
@@ -8,6 +9,7 @@ import { usePreferences } from '@/shared/lib/preferences'
 
 const { t, locale } = useI18n()
 const { language } = storeToRefs(usePreferences())
+const route = useRoute()
 watch(
   language,
   (value) => {
@@ -23,7 +25,7 @@ const languages = [
 </script>
 
 <template>
-  <header class="top">
+  <header v-if="!route.meta.bare" class="top">
     <RouterLink to="/" class="brand">{{ t('app.title') }}</RouterLink>
     <nav class="nav">
       <RouterLink :to="{ name: 'workshop' }">{{ t('app.workshop') }}</RouterLink>

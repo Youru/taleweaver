@@ -25,6 +25,7 @@ cd taleweaver/web && npm install && npm run dev
 ```
 
 - Lancer aussi l'API (section précédente). Le serveur Vite (http://localhost:5173) redirige `/api` vers http://localhost:5145.
+- **Room des joueurs** (bouton « Room » de la page de partie) : Vite écoute sur toutes les interfaces pour que les téléphones du même Wi-Fi rejoignent la partie par le QR code (`/join/<code>`). La première fois, le **pare-feu Windows** demande d'autoriser Node.js sur le réseau privé : accepter. `TALEWEAVER_WEB_HOST=localhost` garde l'appli sur ce poste. L'API reste sur `localhost` et refuse aux autres appareils tout ce qui n'est pas la room (403 `Rooms.GmOnly`). Code dans `src/features/room/` (téléphone : onglets Héros et Équipement en lecture seule, mis à jour en direct par SignalR) ; spec : [docs/design/room-spec.md](../docs/design/room-spec.md).
 - Dans l'app de bureau Claude, `.claude/launch.json` déclare `taleweaver-api` et `taleweaver-web`.
 - Pages :
   - accueil : scénarios et parties sauvegardées ;

@@ -1,4 +1,5 @@
 export type {
+  CatalogAdventurer,
   CatalogDiscipline,
   CatalogItem,
   CatalogUpgrade,
@@ -8,4 +9,12 @@ export type {
   InitiativeCard,
   SymbolAbilityCard,
 } from './api/types'
-export { useCombatants, useDisciplines, useEffects, useInitiativeCards, useItems, useItemUpgrades } from './api/queries'
+export {
+  useAdventurers,
+  useCombatants,
+  useDisciplines,
+  useEffects,
+  useInitiativeCards,
+  useItems,
+  useItemUpgrades,
+} from './api/queries'

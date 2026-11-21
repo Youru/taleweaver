@@ -27,6 +27,8 @@ export interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE'
   body?: unknown
   signal?: AbortSignal
+  /** Extra headers (the seat token of a phone). */
+  headers?: Record<string, string>
 }
 
 async function failure(response: Response): Promise<ApiError> {
@@ -65,10 +67,12 @@ export function saveFile(blob: Blob, fileName: string) {
 export async function http<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const response = await fetch(path, {
     method: options.method ?? 'GET',
-    headers:
-      options.body === undefined
+    headers: {
+      ...(options.body === undefined
         ? { Accept: 'application/json' }
-        : { 'Content-Type': 'application/json', Accept: 'application/json' },
+        : { 'Content-Type': 'application/json', Accept: 'application/json' }),
+      ...options.headers,
+    },
     body: options.body === undefined ? undefined : JSON.stringify(options.body),
     signal: options.signal,
   })

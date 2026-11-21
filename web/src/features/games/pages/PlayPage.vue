@@ -15,6 +15,7 @@ import Tag from 'primevue/tag'
 import { useAiAdvice } from '@/features/ai'
 import { useCombatants, useItems } from '@/features/catalog'
 import { DuelDialog } from '@/features/duel'
+import { RoomPanel } from '@/features/room'
 import { InventoryDialog } from '@/features/inventory'
 import { useScenario } from '@/features/scenarios'
 import { boardLayout, TableSelection, TableView, useBoardPieces, type Selection } from '@/features/table'
@@ -52,7 +53,9 @@ const arrived = computed(() => arrivedCombatants(state.value?.log))
 const storyTab = ref('page')
 const page = computed(() => storyPage(state.value?.log ?? []))
 /** Adventurers not on the board yet: the encounter has no starting zone (or it is too small) */
-const unplaced = computed(() => encounter.value?.adventurers.filter((a) => !a.position && !a.defeated).map((a) => a.name) ?? [])
+const unplaced = computed(
+  () => encounter.value?.adventurers.filter((a) => !a.position && !a.defeated).map((a) => a.name) ?? [],
+)
 /** An end condition was reached: what follows (grade, reward, choice) is the story again, not the table. */
 const encounterOver = computed(() => !!encounter.value && isEncounterOver(state.value?.log ?? []))
 // During a Bounty played from a Story Round, its own scenario holds the nodes read
@@ -135,6 +138,7 @@ function endingLabel(ending: string | undefined) {
 
 /** The party's items, in their own window. */
 const inventoryOpen = ref(false)
+const roomOpen = ref(false)
 const toHandOut = computed(() => state.value?.campaign.unassigned?.length ?? 0)
 
 function itemCommand(value: ItemCommand) {
@@ -215,6 +219,7 @@ function moveFigure(figure: string, to: Cell) {
             />
           </template>
         </Button>
+        <Button icon="pi pi-mobile" :label="t('room.gm.button')" severity="secondary" text @click="roomOpen = true" />
         <RouterLink v-if="encounter" :to="{ name: 'table', params: { id } }" target="_blank">
           <Button icon="pi pi-external-link" :label="t('table.openTable')" severity="secondary" text />
         </RouterLink>
@@ -228,6 +233,12 @@ function moveFigure(figure: string, to: Cell) {
         />
       </header>
       <Message v-if="commandError" severity="error" closable @close="command.reset()">{{ commandError }}</Message>
+      <RoomPanel
+        v-model:open="roomOpen"
+        :game-id="id"
+        :party="state.campaign.party"
+        :active-group="state.campaign.activeGroup"
+      />
       <InventoryDialog
         v-model:open="inventoryOpen"
         :campaign="state.campaign"

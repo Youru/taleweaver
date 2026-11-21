@@ -8,6 +8,7 @@ using Taleweaver.Api.Features.Items;
 using Taleweaver.Api.Features.Packs;
 using Taleweaver.Api.Features.Party;
 using Taleweaver.Api.Features.Print;
+using Taleweaver.Api.Features.Rooms;
 using Taleweaver.Api.Features.Scenarios;
 using Taleweaver.Api.Storage;
 
@@ -25,17 +26,22 @@ builder.Services.AddSingleton<IContentStore, JsonContentStore>();
 builder.Services.AddSingleton<IGameStore, JsonGameStore>();
 builder.Services.AddSingleton<CatalogProvider>();
 
-builder.Services.AddPacksFeature().AddScenariosFeature().AddGamesFeature().AddAssetsFeature().AddPrintFeature();
+builder.Services.AddPacksFeature().AddScenariosFeature().AddGamesFeature().AddAssetsFeature().AddPrintFeature().AddRoomsFeature();
 
 var app = builder.Build();
 
 app.UseExceptionHandler();
+app.UseRoomGuard();
+app.UseWebSockets();
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
 }
 
-app.MapPacksEndpoints().MapScenariosEndpoints().MapGamesEndpoints().MapEncountersEndpoints().MapItemsEndpoints().MapPartyEndpoints().MapPrintEndpoints();
+app.MapPacksEndpoints().MapScenariosEndpoints().MapGamesEndpoints().MapEncountersEndpoints().MapItemsEndpoints().MapPartyEndpoints().MapPrintEndpoints().MapRoomEndpoints();
+
+// Built now so that it listens to the rooms from the start.
+app.Services.GetRequiredService<RoomNotifier>();
 GetAsset.Map(app);
 
 app.Run();

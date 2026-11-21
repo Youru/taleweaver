@@ -1,0 +1,12 @@
+{
+  "name": "Taleweaver",
+  "short_name": "Taleweaver",
+  "description": "Ta fiche d'aventurier à la table de Middara",
+  "start_url": "/join",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#1a1a1a",
+  "theme_color": "#7a1616",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}

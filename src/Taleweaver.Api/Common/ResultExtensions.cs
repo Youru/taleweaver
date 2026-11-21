@@ -14,6 +14,9 @@ public static class ResultExtensions
                 ErrorType.Validation => StatusCodes.Status400BadRequest,
                 ErrorType.NotFound => StatusCodes.Status404NotFound,
                 ErrorType.Conflict => StatusCodes.Status409Conflict,
+                ErrorType.Unauthorized => StatusCodes.Status401Unauthorized,
+                ErrorType.Forbidden => StatusCodes.Status403Forbidden,
+                ErrorType.Gone => StatusCodes.Status410Gone,
                 _ => StatusCodes.Status500InternalServerError,
             },
             extensions: new Dictionary<string, object?> { ["code"] = error.Code });
