@@ -25,8 +25,22 @@ public static class Network
     /// <summary>A request from this machine (an in-process test server has no address: local too).</summary>
     public static bool IsLocal(HttpContext context) => ClientAddress(context) is not { } address || IPAddress.IsLoopback(address);
 
-    /// <summary>The private IPv4 addresses of the active interfaces: where the phones of the same Wi-Fi can reach us.</summary>
+    /// <summary>Forces the address of the QR code (IP or host name) when the detection gets it wrong (VPN, unknown adapter).</summary>
+    public const string HostVariable = "TALEWEAVER_ROOM_HOST";
+
+    /// <summary>
+    /// Where the phones of the same Wi-Fi can reach us: the forced address first, if any, then the private IPv4
+    /// addresses of the active interfaces.
+    /// </summary>
     public static IReadOnlyList<string> LanAddresses()
+    {
+        var detected = DetectedAddresses();
+        return Environment.GetEnvironmentVariable(HostVariable)?.Trim() is { Length: > 0 } forced
+            ? [forced, .. detected.Where(a => a != forced)]
+            : detected;
+    }
+
+    private static IReadOnlyList<string> DetectedAddresses()
     {
         try
         {

@@ -44,6 +44,19 @@ app.MapPacksEndpoints().MapScenariosEndpoints().MapGamesEndpoints().MapEncounter
 app.Services.GetRequiredService<RoomNotifier>();
 GetAsset.Map(app);
 
+// Where the phones will join: the GM sees at once whether the detected address is the right one.
+app.Lifetime.ApplicationStarted.Register(() =>
+{
+    var addresses = Network.LanAddresses();
+    var port = Environment.GetEnvironmentVariable("TALEWEAVER_WEB_PORT") ?? "5173";
+    app.Logger.LogInformation(
+        addresses.Count > 0
+            ? "Room: phones join at {Urls} (first one in the QR code; set {Variable} to force another address)"
+            : "Room: no Wi-Fi address found, phones cannot join ({Urls}); set {Variable} to give one",
+        string.Join(", ", addresses.Select(a => $"http://{a}:{port}/join")),
+        Network.HostVariable);
+});
+
 app.Run();
 
 public partial class Program;
