@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Badge from 'primevue/badge'
+import Button from 'primevue/button'
 import Dialog from 'primevue/dialog'
 import Message from 'primevue/message'
 import ProgressSpinner from 'primevue/progressspinner'
@@ -31,6 +32,8 @@ const props = defineProps<{
   busy: boolean
   /** The last command was refused: why. */
   error?: string | null
+  /** In a Story Round: the ids of the cards for sale in its Store (the search shows them first). */
+  store?: string[] | null
 }>()
 const emit = defineEmits<{ command: [command: ItemCommand] }>()
 
@@ -38,6 +41,15 @@ const { t } = useI18n()
 const { language } = storeToRefs(usePreferences())
 const catalog = useItems()
 const byId = computed(() => new Map<string, CatalogItem>((catalog.data.value ?? []).map((i) => [i.id, i])))
+
+/** The Store's cards, or the whole catalogue (the GM may switch, to hand out a card the story gives). */
+const storeOnly = ref(true)
+const searchable = computed(() => {
+  const all = catalog.data.value ?? []
+  if (!props.store || !storeOnly.value) return all
+  const forSale = new Set(props.store)
+  return all.filter((i) => forSale.has(i.id))
+})
 
 const unassigned = computed(() => props.campaign.unassigned ?? [])
 /** The tabs on the left: items to hand out (only when there are some), each adventurer, the stash. */
@@ -219,9 +231,27 @@ function isSelected(owned: OwnedItem, place: Place) {
           @draw="replacing = selected.owned"
           @close="selectedId = null"
         />
+        <div v-if="store && !(selected && !replacing)" class="store-switch">
+          <Button
+            :label="t('storyRound.storeOnly', { n: store.length })"
+            icon="pi pi-shop"
+            size="small"
+            :severity="storeOnly ? undefined : 'secondary'"
+            :aria-pressed="storeOnly"
+            @click="storeOnly = true"
+          />
+          <Button
+            :label="t('storyRound.wholeCatalogue')"
+            icon="pi pi-book"
+            size="small"
+            :severity="storeOnly ? 'secondary' : undefined"
+            :aria-pressed="!storeOnly"
+            @click="storeOnly = false"
+          />
+        </div>
         <ItemSearch
-          v-else
-          :items="catalog.data.value ?? []"
+          v-if="!(selected && !replacing)"
+          :items="searchable"
           :gold="campaign.gold"
           :owners="owners"
           :owner="addTo"
@@ -236,6 +266,12 @@ function isSelected(owned: OwnedItem, place: Place) {
 </template>
 
 <style scoped>
+.store-switch {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.6rem;
+}
 .bar {
   display: flex;
   align-items: center;

@@ -75,6 +75,39 @@ public sealed class CampaignState
     public List<string> AttemptedScenarios { get; set; } = [];
 
     public Dictionary<string, JsonElement> Variables { get; set; } = [];
+
+    /// <summary>
+    /// The Active Group (rulebook p. 11): the adventurers who play the encounters, changed when the story says so
+    /// (most often in a Story Round). Null: every member of the party who is neither Injured nor Unselectable.
+    /// </summary>
+    public List<string>? ActiveGroup { get; set; }
+
+    /// <summary>The Story Round the party is in (or went on a Side Quest from), null elsewhere.</summary>
+    public StoryRoundState? StoryRound { get; set; }
+
+    /// <summary>The Unique Items drawn for each named Story Round's Store, by node: drawn once, never redrawn (p. 13).</summary>
+    public Dictionary<string, List<string>> StoreUniques { get; set; } = [];
+
+    /// <summary>Side Quests attempted this Adventure: none can be chosen twice (p. 13).</summary>
+    public List<string> SideQuestsAttempted { get; set; } = [];
+
+    /// <summary>Story Rounds the party Ventured Forth from: they cannot return to them.</summary>
+    public List<string> StoryRoundsLeft { get; set; } = [];
+}
+
+public sealed class StoryRoundState
+{
+    public required string Node { get; set; }
+
+    /// <summary>shop (Shop and Train), explore (Side Quests and Venture Forth), or sideQuest (playing one).</summary>
+    public string Phase { get; set; } = StoryRoundPhases.Shop;
+}
+
+public static class StoryRoundPhases
+{
+    public const string Shop = "shop";
+    public const string Explore = "explore";
+    public const string SideQuest = "sideQuest";
 }
 
 public sealed class AdventurerState
@@ -82,6 +115,12 @@ public sealed class AdventurerState
     public required string Name { get; set; }
 
     public int Xp { get; set; }
+
+    /// <summary>Injured (p. 11): may not be in the Active Group until the story heals them.</summary>
+    public bool Injured { get; set; }
+
+    /// <summary>Unselectable (p. 11): away from the story, cannot be chosen nor trade, still gains every member's rewards.</summary>
+    public bool Unselectable { get; set; }
 
     /// <summary>Items equipped (rulebook p. 25: 2 hands of weapons, 1 armor, 1 core, 1 accessory, 3 relics, 3 consumables).</summary>
     public List<OwnedItem> Equipped { get; set; } = [];
@@ -270,7 +309,7 @@ public sealed class Activation
 /// <summary>A question to the GM. The answer is one of <see cref="Options"/>, or a number when <see cref="Kind"/> is "number".</summary>
 public sealed class Prompt
 {
-    /// <summary>continue, choice, skillCheck, aiCondition, number, adventurer, spawnPossible.</summary>
+    /// <summary>continue, choice, skillCheck, aiCondition, number, adventurer, spawnPossible, storyRound.</summary>
     public required string Kind { get; set; }
 
     public LocalizedText? Question { get; set; }

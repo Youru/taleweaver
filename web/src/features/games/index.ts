@@ -6,6 +6,8 @@ export type {
   ItemOwner,
   ItemSlot,
   OwnedItem,
+  PartyCommand,
+  StoryRoundState,
   BoardToken,
   Cell,
   CombatantState,
@@ -17,6 +19,7 @@ export type {
   GameView,
 } from './api/types'
 export { arrivedCombatants } from './lib/arrivals'
+export { storeItems } from './lib/storyRound'
 export { useDeleteGame, useGame, useGameCommand, useGames, type GameCommand } from './api/queries'
 export { default as StartGameDialog } from './components/StartGameDialog.vue'
 export { default as EncounterBar } from './components/encounter/EncounterBar.vue'

@@ -6,6 +6,7 @@ using Taleweaver.Api.Features.Encounters;
 using Taleweaver.Api.Features.Games;
 using Taleweaver.Api.Features.Items;
 using Taleweaver.Api.Features.Packs;
+using Taleweaver.Api.Features.Party;
 using Taleweaver.Api.Features.Print;
 using Taleweaver.Api.Features.Scenarios;
 using Taleweaver.Api.Storage;
@@ -34,7 +35,7 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
-app.MapPacksEndpoints().MapScenariosEndpoints().MapGamesEndpoints().MapEncountersEndpoints().MapItemsEndpoints().MapPrintEndpoints();
+app.MapPacksEndpoints().MapScenariosEndpoints().MapGamesEndpoints().MapEncountersEndpoints().MapItemsEndpoints().MapPartyEndpoints().MapPrintEndpoints();
 GetAsset.Map(app);
 
 app.Run();

@@ -48,6 +48,15 @@ public sealed record GameCommand
     /// <summary>AddItem: the item still to be drawn (Item Loot…) that this card is.</summary>
     public string? Replaces { get; init; }
 
+    /// <summary>SetActiveGroup: the adventurers chosen.</summary>
+    public IReadOnlyList<string>? Adventurers { get; init; }
+
+    public static GameCommand SetActiveGroup(params string[] adventurers) => new() { Type = GameCommands.SetActiveGroup, Adventurers = adventurers };
+
+    /// <summary>Marks an adventurer <paramref name="status"/> ("injured", "unselectable") or no longer.</summary>
+    public static GameCommand SetAdventurerStatus(string adventurer, string status, bool value) =>
+        new() { Type = GameCommands.SetAdventurerStatus, Instance = adventurer, Effect = status, Active = value };
+
     public static GameCommand Answer(string option) => new() { Type = GameCommands.Answer, Option = option };
 
     public static GameCommand AnswerNumber(int value) => new() { Type = GameCommands.Answer, Value = value };
@@ -110,6 +119,11 @@ public static class GameCommands
     public const string DiscardItem = "discardItem";
     public const string FlipItem = "flipItem";
     public const string UseItem = "useItem";
+    public const string SetActiveGroup = "setActiveGroup";
+    public const string SetAdventurerStatus = "setAdventurerStatus";
+
+    /// <summary>Commands on the party's members: allowed out of encounters, whatever the question pending.</summary>
+    public static bool IsPartyCommand(string type) => type is SetActiveGroup or SetAdventurerStatus;
 
     /// <summary>Commands on the party's items: allowed in and out of encounters, whatever the question pending.</summary>
     public static bool IsItemCommand(string type) => type is AddItem or MoveItem or DiscardItem or FlipItem or UseItem;

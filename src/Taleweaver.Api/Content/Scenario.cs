@@ -18,6 +18,9 @@ public sealed record Scenario
 
     public string? Mode { get; init; }
 
+    /// <summary>A Bounty's difficulty, in skulls (rulebook p. 13).</summary>
+    public int? Difficulty { get; init; }
+
     public IReadOnlyList<string> Packs { get; init; } = [];
 
     public ScenarioSource? Source { get; init; }
@@ -108,8 +111,70 @@ public sealed record Node
 
     public IReadOnlyList<Diagram> Diagrams { get; init; } = [];
 
+    /// <summary>Story Round (rulebook p. 13): the Items for sale in the Shop and Train phase.</summary>
+    public Store? Store { get; init; }
+
+    /// <summary>Story Round: the Side Quests of the Explore phase, each attempted once in the Adventure.</summary>
+    public IReadOnlyList<StoryExit> SideQuests { get; init; } = [];
+
+    /// <summary>Story Round: where the party may Venture Forth (one choice, or several).</summary>
+    public IReadOnlyList<StoryExit> VentureForth { get; init; } = [];
+
+    /// <summary>Story Round: the most difficult Bounty (in skulls) that may be attempted here; null when none.</summary>
+    public int? BountyDifficulty { get; init; }
+
     [JsonIgnore]
     public bool IsEncounter => Type == EncounterType;
+
+    public const string StoryRoundType = "storyRound";
+
+    [JsonIgnore]
+    public bool IsStoryRound => Type == StoryRoundType;
+
+    /// <summary>Every node this one may lead to: next, end conditions, Story Round exits.</summary>
+    [JsonIgnore]
+    public IEnumerable<string?> Exits =>
+        EndConditions.Select(e => e.Next).Prepend(Next).Concat(SideQuests.Select(q => q.Node)).Concat(VentureForth.Select(v => v.Node));
+}
+
+/// <summary>
+/// The Store of a Story Round (rulebook p. 13): every non-unique card matching one of <see cref="Items"/>
+/// ("all Mundane Items", "all Accessories"), the upgrades unlocked, and random Unique Items drawn once per
+/// named Story Round.
+/// </summary>
+public sealed record Store
+{
+    public IReadOnlyList<StoreFilter> Items { get; init; } = [];
+
+    public bool? Upgrades { get; init; }
+
+    public StoreUnique? Unique { get; init; }
+}
+
+/// <summary>Cards of these tiers and these types (an empty list matches any).</summary>
+public sealed record StoreFilter
+{
+    public IReadOnlyList<string> Tiers { get; init; } = [];
+
+    public IReadOnlyList<string> Types { get; init; } = [];
+}
+
+public sealed record StoreUnique(string Tier, int Count = 1);
+
+/// <summary>A choice of a Story Round: a Side Quest or a way to Venture Forth.</summary>
+public sealed record StoryExit
+{
+    /// <summary>Side Quests: the id remembered once attempted (the node's when absent).</summary>
+    public string? Id { get; init; }
+
+    public LocalizedText? Label { get; init; }
+
+    public required string Node { get; init; }
+
+    public int? Page { get; init; }
+
+    [JsonIgnore]
+    public string Key => Id ?? Node;
 }
 
 /// <summary>Tiles, tokens and areas of a board (§3.4). Coordinates are in squares.</summary>

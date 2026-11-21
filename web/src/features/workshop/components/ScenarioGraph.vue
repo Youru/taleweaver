@@ -102,6 +102,8 @@ function exitText(exit: Exit, index: number): string {
   const label = pick(exit.label, language.value)
   if (exit.kind === 'next') return t('workshop.exitNext')
   if (exit.kind === 'option') return label || t('workshop.optionN', { n: index + 1 })
+  if (exit.kind === 'sideQuest') return `${t('workshop.sideQuest')}${label ? ` · ${label}` : ''}`
+  if (exit.kind === 'ventureForth') return `${t('workshop.ventureForth')}${label ? ` · ${label}` : ''}`
   return `${exit.kind === 'win' ? t('workshop.win') : t('workshop.lose')}${label ? ` · ${label}` : ''}`
 }
 

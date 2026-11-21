@@ -12,9 +12,10 @@ public static class GameEngine
     /// Raised when the engine computes a different state from the same history (new fields, rule fixes).
     /// A game saved by an older engine is replayed when loaded. 2: positions; 3: moves, adventurers on the board, fog;
     /// 4: every starting zone filled, initiative cards played this round (cards moved on the track);
-    /// 5: the party's items (stash, equipped, pack, items to hand out).
+    /// 5: the party's items (stash, equipped, pack, items to hand out);
+    /// 6: Story Rounds (phases, Store's Unique Items), Active Group, Injured and Unselectable members.
     /// </summary>
-    public const int Version = 5;
+    public const int Version = 6;
 
     public static class Errors
     {
@@ -22,6 +23,7 @@ public static class GameEngine
         public static readonly Error AwaitingAnswer = Error.Conflict("Games.AwaitingAnswer", "Answer the current question first.");
         public static readonly Error NoQuestion = Error.Conflict("Games.NoQuestion", "There is no question to answer.");
         public static readonly Error NotInEncounter = Error.Conflict("Games.NotInEncounter", "No encounter is in progress.");
+        public static readonly Error InEncounter = Error.Conflict("Games.InEncounter", "The party cannot change during an encounter.");
 
         public static Error InvalidAnswer(string? answer) => Error.Validation("Games.InvalidAnswer", $"'{answer}' is not an answer to the current question.");
 

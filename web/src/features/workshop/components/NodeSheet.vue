@@ -247,8 +247,8 @@ const hiddenRules = computed(() => {
   <section class="sheet" :aria-label="t('workshop.sheetOf', { id: node.id })">
     <header>
       <span class="kind" :class="node.type">
-        <i :class="node.type === 'encounter' ? 'pi pi-bolt' : 'pi pi-book'" aria-hidden="true" />
-        {{ node.type === 'encounter' ? t('workshop.encounter') : t('workshop.scene') }}
+        <i :class="node.type === 'encounter' ? 'pi pi-bolt' : node.type === 'storyRound' ? 'pi pi-shop' : 'pi pi-book'" aria-hidden="true" />
+        {{ node.type === 'encounter' ? t('workshop.encounter') : node.type === 'storyRound' ? t('workshop.storyRound') : t('workshop.scene') }}
       </span>
       <code>{{ node.id }}</code>
       <span class="spacer" />

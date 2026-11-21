@@ -2,7 +2,7 @@ import type { LogEntry } from '../api/types'
 import { toneOf } from './formatLog'
 
 /** Where a new page of the story begins: a scene, the end of an encounter, the end of the scenario. */
-const PAGE_STARTS = new Set(['scene', 'encounterEnd', 'scenarioEnd'])
+const PAGE_STARTS = new Set(['scene', 'encounterEnd', 'scenarioEnd', 'storyRound', 'storyRoundReturn'])
 
 /** What the page shows besides its opening: texts read aloud, what was won, what the GM must do. */
 const ON_THE_PAGE = new Set(['narrative', 'reward', 'alert'])

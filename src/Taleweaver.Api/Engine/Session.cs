@@ -33,6 +33,12 @@ internal sealed partial class Session(GameState state, GameContext context)
             return ExecuteItemCommand(command);
         }
 
+        // The party changes between encounters, whatever the question (the Story Round's, most often).
+        if (GameCommands.IsPartyCommand(command.Type))
+        {
+            return State.Encounter is { Ended: false } ? GameEngine.Errors.InEncounter : ExecutePartyCommand(command);
+        }
+
         if (State.Encounter is not { Ended: false })
         {
             return GameEngine.Errors.NotInEncounter;
@@ -100,6 +106,15 @@ internal sealed partial class Session(GameState state, GameContext context)
         // Leaving a node drops what was left of it (e.g. a scene's "next" after a choice that branched).
         State.PendingActions.Clear();
         State.Encounter = null;
+        // A Side Quest comes back to its Story Round, which starts again at Shop and Train (p. 13).
+        if (target == CurrentStoryRound && State.Campaign.StoryRound is { } round
+            && Scenario.Nodes.FirstOrDefault(n => n.Id == round.Node) is { IsStoryRound: true } storyRound)
+        {
+            State.Campaign.CurrentNode = storyRound.Id;
+            EnterStoryRound(storyRound, returning: true);
+            return;
+        }
+
         if (target is null || target.StartsWith('@'))
         {
             State.Status = GameStatus.Finished;
@@ -127,6 +142,12 @@ internal sealed partial class Session(GameState state, GameContext context)
         if (node.IsEncounter)
         {
             EnterEncounter(node);
+            return;
+        }
+
+        if (node.IsStoryRound)
+        {
+            EnterStoryRound(node, returning: State.Campaign.StoryRound?.Node == node.Id);
             return;
         }
 
@@ -178,6 +199,9 @@ internal sealed partial class Session(GameState state, GameContext context)
             case PromptKinds.Number:
                 State.Prompt = prompt;
                 return GameEngine.Errors.InvalidAnswer(null);
+            case PromptKinds.StoryRound:
+                AnswerStoryRound(option!);
+                break;
             case PromptKinds.Adventurer:
                 Log("adventurerDefeated", args: Args(("adventurer", option)));
                 Fire(e => e.Trigger.On == "adventurerDefeated");
@@ -186,6 +210,13 @@ internal sealed partial class Session(GameState state, GameContext context)
 
         return Result.Success();
     }
+
+    private Result ExecutePartyCommand(GameCommand command) => command.Type switch
+    {
+        GameCommands.SetActiveGroup => SetActiveGroup(command.Adventurers),
+        GameCommands.SetAdventurerStatus => SetAdventurerStatus(command.Instance, command.Effect, command.Active ?? true),
+        _ => GameEngine.Errors.UnknownCommand(command.Type),
+    };
 
     private void Push(IEnumerable<ScenarioAction> actions) => State.PendingActions.InsertRange(0, actions);
 
@@ -218,10 +249,14 @@ public static class PromptKinds
     public const string SpawnPossible = "spawnPossible";
     public const string Number = "number";
     public const string Adventurer = "adventurer";
+    public const string StoryRound = "storyRound";
 }
 
 internal static class InternalActions
 {
     /// <summary>Waits for the GM to have read what precedes (scene text, encounter rewards).</summary>
     public const string AwaitContinue = "awaitContinue";
+
+    /// <summary>Asks the phase of the current Story Round (after its page's mechanics).</summary>
+    public const string AskStoryRound = "askStoryRound";
 }

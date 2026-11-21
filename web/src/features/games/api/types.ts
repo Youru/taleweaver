@@ -34,11 +34,26 @@ export interface CampaignState {
   /** Items gained (loot, rewards) not handed out yet. */
   unassigned?: OwnedItem[]
   revealedHiddenCards: string[]
+  /** The Active Group (p. 11); missing: every member neither Injured nor Unselectable. */
+  activeGroup?: string[] | null
+  /** The Story Round the party is in (or went on a Side Quest from). */
+  storyRound?: StoryRoundState | null
+  /** The Unique Items drawn for each Story Round's Store, by node. */
+  storeUniques?: Record<string, string[]>
+  sideQuestsAttempted?: string[]
+  storyRoundsLeft?: string[]
+}
+
+export interface StoryRoundState {
+  node: string
+  phase: 'shop' | 'explore' | 'sideQuest'
 }
 
 export interface AdventurerState {
   name: string
   xp: number
+  injured?: boolean
+  unselectable?: boolean
   equipped?: OwnedItem[]
   pack?: OwnedItem[]
 }
@@ -106,7 +121,7 @@ export interface CombatantState {
 }
 
 export type PromptKind =
-  'continue' | 'choice' | 'skillCheck' | 'aiCondition' | 'spawnPossible' | 'number' | 'adventurer'
+  'continue' | 'choice' | 'skillCheck' | 'aiCondition' | 'spawnPossible' | 'number' | 'adventurer' | 'storyRound'
 
 export interface Prompt {
   kind: PromptKind
@@ -131,6 +146,11 @@ export interface GameSummary {
   status: GameStatus
   currentNode?: string
 }
+
+/** Commands on the party's members, as sent to /api/games/{id}/party… */
+export type PartyCommand =
+  | { type: 'activeGroup'; adventurers: string[] }
+  | { type: 'status'; adventurer: string; status: 'injured' | 'unselectable'; value: boolean }
 
 export type Answer = { option: string; value?: undefined } | { value: number; option?: undefined }
 

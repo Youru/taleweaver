@@ -28,6 +28,26 @@ export interface ScenarioNode {
   specialRules?: SpecialRule[]
   tokens: Record<string, TokenRule>
   endConditions: EndCondition[]
+  page?: number
+  /** Story Round (rulebook p. 13). */
+  store?: Store
+  sideQuests?: StoryExit[]
+  ventureForth?: StoryExit[]
+  bountyDifficulty?: number
+}
+
+/** The Store of a Story Round: non-unique cards of these tiers/types, unlocked upgrades, random Unique Items. */
+export interface Store {
+  items: { tiers: string[]; types: string[] }[]
+  upgrades?: boolean
+  unique?: { tier: string; count: number }
+}
+
+export interface StoryExit {
+  id?: string
+  label?: LocalizedText
+  node: string
+  page?: number
 }
 
 export interface TokenRule {

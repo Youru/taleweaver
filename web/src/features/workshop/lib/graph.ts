@@ -6,7 +6,7 @@ import type { DraftAction, DraftEnd, DraftNode, DraftScenario, Position } from '
  * The scenario as a graph: each node has exits (its "next", the options of a choice, its end
  * conditions), and each exit leads to a node or to an ending ("@victory", "@defeat"…).
  */
-export type ExitKind = 'next' | 'option' | 'win' | 'lose'
+export type ExitKind = 'next' | 'option' | 'win' | 'lose' | 'sideQuest' | 'ventureForth'
 
 export interface Exit {
   /** Stable within the node: "next", "option:0", "end:<id>". */
@@ -36,6 +36,21 @@ export function exitsOf(node: DraftNode): Exit[] {
       label: end.text,
       target: end.next,
     }))
+  if (node.type === 'storyRound')
+    return [
+      ...(node.sideQuests ?? []).map((q, i) => ({
+        key: `sideQuest:${i}`,
+        kind: 'sideQuest' as const,
+        label: q.label,
+        target: q.node || undefined,
+      })),
+      ...(node.ventureForth ?? []).map((v, i) => ({
+        key: `ventureForth:${i}`,
+        kind: 'ventureForth' as const,
+        label: v.label,
+        target: v.node || undefined,
+      })),
+    ]
   const choice = choiceOf(node)
   if (choice)
     return (choice.options ?? []).map((option, i) => ({
@@ -50,6 +65,13 @@ export function exitsOf(node: DraftNode): Exit[] {
 /** The node with one of its exits leading to `target` (undefined: the exit leads nowhere yet). */
 export function setExit(node: DraftNode, key: string, target: string | undefined): DraftNode {
   if (key === 'next') return { ...node, next: target }
+  for (const list of ['sideQuests', 'ventureForth'] as const) {
+    const prefix = list === 'sideQuests' ? 'sideQuest:' : 'ventureForth:'
+    if (key.startsWith(prefix)) {
+      const index = Number(key.slice(prefix.length))
+      return { ...node, [list]: (node[list] ?? []).map((x, i) => (i === index ? { ...x, node: target ?? '' } : x)) }
+    }
+  }
   if (key.startsWith('end:')) {
     const id = key.slice(4)
     return {

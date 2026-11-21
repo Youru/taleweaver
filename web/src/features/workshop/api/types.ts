@@ -48,7 +48,18 @@ export interface DraftNode {
   next?: string
   specialRules?: DraftRule[]
   endConditions?: DraftEnd[]
+  /** Story Round: the Side Quests and the ways to Venture Forth. */
+  sideQuests?: DraftStoryExit[]
+  ventureForth?: DraftStoryExit[]
   [field: string]: unknown
+}
+
+/** Mirrors Taleweaver.Api.Content.StoryExit. */
+export interface DraftStoryExit {
+  id?: string
+  label?: LocalizedText
+  node: string
+  page?: number
 }
 
 export interface DraftAction {

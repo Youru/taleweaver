@@ -22,8 +22,10 @@ const { t } = useI18n()
   <div class="step" :class="[data.type, { selected, faulty: data.issues > 0 }]">
     <Handle type="target" :position="Position.Left" class="in" />
     <header>
-      <i :class="data.type === 'encounter' ? 'pi pi-bolt' : 'pi pi-book'" aria-hidden="true" />
-      <span class="kind">{{ data.type === 'encounter' ? t('workshop.encounter') : t('workshop.scene') }}</span>
+      <i :class="data.type === 'encounter' ? 'pi pi-bolt' : data.type === 'storyRound' ? 'pi pi-shop' : 'pi pi-book'" aria-hidden="true" />
+      <span class="kind">{{
+        data.type === 'encounter' ? t('workshop.encounter') : data.type === 'storyRound' ? t('workshop.storyRound') : t('workshop.scene')
+      }}</span>
       <span v-if="data.start" class="badge start">{{ t('workshop.startBadge') }}</span>
       <span v-if="data.issues" class="badge issues" :title="t('workshop.issues', data.issues)">
         <i class="pi pi-exclamation-triangle" /> {{ data.issues }}

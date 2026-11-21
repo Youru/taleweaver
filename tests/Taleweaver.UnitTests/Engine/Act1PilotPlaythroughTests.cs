@@ -78,6 +78,13 @@ public class Act1PilotPlaythroughTests
         game.State.Campaign.Gold.Should().Be(10 + 280);
         game.State.Campaign.Party.Should().OnlyContain(a => a.Xp == 4);
 
+        // Shop and Train (p. 21): a Story Round with no Side Quest, the Store of Mundane Items and Accessories
+        game.State.Campaign.StoryRound!.Node.Should().Be("making-the-grade-shop");
+        game.Answer("explore");
+        game.State.Prompt!.Options.Select(o => o.Id).Should().Equal("venture:0");
+        game.Answer("venture:0");
+        game.State.Campaign.CurrentNode.Should().Be("path-to-citizenship");
+
         // To the end of the pilot
         while (game.State.Status == GameStatus.InProgress)
         {

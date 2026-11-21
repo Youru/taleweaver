@@ -16,6 +16,12 @@ internal sealed partial class Session
             case "goToNode":
                 GoToNode(action.Node);
                 break;
+            case InternalActions.AskStoryRound:
+                AskStoryRound();
+                break;
+            case "joinParty" or "leaveParty" or "setInjured" or "setUnselectable" or "setActiveGroup":
+                DoPartyAction(action);
+                break;
             case "showText":
                 Log("text", action.Text);
                 break;
@@ -137,7 +143,7 @@ internal sealed partial class Session
                 if (action.Who is { ValueKind: JsonValueKind.String } who && who.GetString() == "askAdventurer")
                 {
                     Ask(PromptKinds.Adventurer, Text("Which Adventurer is Defeated?", "Quel aventurier est vaincu ?"),
-                        State.Campaign.Party.Select(a => new PromptOption(a.Name)));
+                        ActiveParty.Select(a => new PromptOption(a.Name)));
                 }
                 else
                 {
@@ -371,7 +377,7 @@ internal sealed partial class Session
         }
 
         encounter.Combatants.RemoveAll(c => !c.Defeated);
-        encounter.InitiativeTrack = State.Campaign.Party.Select(a => AdventurerCard + a.Name).ToList();
+        encounter.InitiativeTrack = ActiveParty.Select(a => AdventurerCard + a.Name).ToList();
         encounter.CurrentTurn = -1;
         LayDiagram(diagram);
         PlaceAdventurers(diagram.Map, diagram.Setup);

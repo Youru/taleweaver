@@ -156,11 +156,7 @@ internal sealed partial class Session
     /// <summary>A random Unique Item of the encounter's Loot LVL, among those the party does not hold.</summary>
     private void GainUniqueItem(CombatantState figure, string? lootLevel)
     {
-        var left = Catalog.Packs.SelectMany(p => p.Items)
-            .Where(i => i.Unique && i.Tier == lootLevel && !State.Campaign.Items.Contains(i.Id))
-            .Select(i => i.Id)
-            .Distinct()
-            .ToList();
+        var left = UniquesLeft(lootLevel).ToList();
         if (left.Count == 0)
         {
             Log("lootUniqueNone", args: Args(("instance", figure.Instance), ("lootLevel", lootLevel)));

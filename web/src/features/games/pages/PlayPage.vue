@@ -12,7 +12,7 @@ import TabPanel from 'primevue/tabpanel'
 import TabPanels from 'primevue/tabpanels'
 import Tabs from 'primevue/tabs'
 import { useAiAdvice } from '@/features/ai'
-import { useCombatants } from '@/features/catalog'
+import { useCombatants, useItems } from '@/features/catalog'
 import { DuelDialog } from '@/features/duel'
 import { InventoryDialog } from '@/features/inventory'
 import { useScenario } from '@/features/scenarios'
@@ -21,13 +21,15 @@ import { ApiError } from '@/shared/api/http'
 import { pick } from '@/shared/lib/localized'
 import { usePreferences } from '@/shared/lib/preferences'
 import { useGame, useGameCommand } from '../api/queries'
-import type { Answer, Cell, EncounterCommand, ItemCommand } from '../api/types'
+import type { Answer, Cell, EncounterCommand, ItemCommand, PartyCommand } from '../api/types'
 import CombatantList from '../components/encounter/CombatantList.vue'
 import EncounterBar from '../components/encounter/EncounterBar.vue'
 import EncounterGoals from '../components/encounter/EncounterGoals.vue'
 import TurnCard from '../components/encounter/TurnCard.vue'
 import GameJournal from '../components/GameJournal.vue'
 import PromptPanel from '../components/PromptPanel.vue'
+import StoryRoundPanel from '../components/StoryRoundPanel.vue'
+import { storeItems } from '../lib/storyRound'
 import { arrivedCombatants } from '../lib/arrivals'
 import { encounterOver as isEncounterOver, storyPage } from '../lib/storyPage'
 
@@ -136,6 +138,26 @@ function itemCommand(value: ItemCommand) {
   command.mutate({ kind: 'items', command: value })
 }
 
+/** A Story Round between encounters (not while a Side Quest is played): its panel, and its Store in the inventory. */
+const storyRoundNode = computed(() => {
+  const round = state.value?.campaign.storyRound
+  if (!round || round.phase === 'sideQuest' || encounter.value) return undefined
+  return scenario.data.value?.nodes.find((n) => n.id === round.node)
+})
+const catalogItems = useItems()
+const store = computed(() => {
+  const round = storyRoundNode.value
+  const campaign = state.value?.campaign
+  if (!round?.store || !campaign || campaign.storyRound?.phase !== 'shop') return null
+  // A Unique Item bought is gone from the Store (limit 1)
+  const uniques = (campaign.storeUniques?.[round.id] ?? []).filter((id) => !campaign.items.includes(id))
+  return storeItems(round.store, catalogItems.data.value ?? [], uniques).map((i) => i.id)
+})
+
+function partyCommand(value: PartyCommand) {
+  command.mutate({ kind: 'party', command: value })
+}
+
 function moveFigure(figure: string, to: Cell) {
   encounterCommand({ type: 'move', figure, to })
 }
@@ -153,8 +175,14 @@ function moveFigure(figure: string, to: Cell) {
       <header class="top">
         <h1>{{ pick(scenario.data.value?.title, language) || game.data.value.scenario }}</h1>
         <span>{{ t('play.gold', { gold: state.campaign.gold }) }}</span>
-        <span v-for="adventurer in state.campaign.party" :key="adventurer.name">
+        <span
+          v-for="adventurer in state.campaign.party"
+          :key="adventurer.name"
+          :class="{ benched: adventurer.injured || adventurer.unselectable }"
+        >
           {{ adventurer.name }} · {{ t('play.xp', { xp: adventurer.xp }) }}
+          <template v-if="adventurer.injured"> · {{ t('storyRound.injured') }}</template>
+          <template v-if="adventurer.unselectable"> · {{ t('storyRound.unselectable') }}</template>
         </span>
         <Button
           class="inventory-button"
@@ -195,6 +223,7 @@ function moveFigure(figure: string, to: Cell) {
         :node="node"
         :busy="command.isPending.value"
         :error="commandError"
+        :store="store"
         @command="itemCommand"
       />
 
@@ -328,6 +357,15 @@ function moveFigure(figure: string, to: Cell) {
             </TabPanel>
           </TabPanels>
         </Tabs>
+        <StoryRoundPanel
+          v-if="storyRoundNode"
+          class="story-panel"
+          :campaign="state.campaign"
+          :node="storyRoundNode"
+          :busy="command.isPending.value"
+          @party="partyCommand"
+          @shop="inventoryOpen = true"
+        />
         <PromptPanel
           v-if="state.prompt"
           :key="state.log.length"
@@ -361,6 +399,9 @@ function moveFigure(figure: string, to: Cell) {
   flex-wrap: wrap;
   align-items: center;
   gap: 0.4rem 1rem;
+}
+.benched {
+  color: var(--p-text-muted-color);
 }
 .top h1 {
   margin: 0;
@@ -429,6 +470,16 @@ function moveFigure(figure: string, to: Cell) {
   min-height: 0;
   width: min(52rem, 100%);
   margin: 0 auto;
+}
+/* The Story Round's panel scrolls on its own: the page of the story keeps room to be read */
+.story .tabs {
+  min-height: 12rem;
+}
+.story-panel {
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: 50%;
+  overflow-y: auto;
 }
 .story .tabs :deep(.p-tabpanels) {
   overflow: hidden;

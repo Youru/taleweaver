@@ -25,6 +25,18 @@ export interface StoryHeading {
 
 const tones: Record<string, LogTone> = {
   scene: 'narrative',
+  storyRound: 'narrative',
+  storyRoundReturn: 'narrative',
+  sideQuest: 'narrative',
+  ventureForth: 'narrative',
+  storeUnique: 'reward',
+  storeUniqueNone: 'muted',
+  storyRoundExplore: 'info',
+  joinParty: 'reward',
+  leaveParty: 'alert',
+  chooseActiveGroup: 'alert',
+  activeGroup: 'info',
+  adventurerStatus: 'info',
   encounter: 'narrative',
   hiddenText: 'narrative',
   hiddenRule: 'narrative',
@@ -119,7 +131,12 @@ export function formatLog(
   // STATUS Effects resolve at the start of the figure's turn (Poison, Condemn, Haste)
   if (args.statusEffects) title += ` · ${translate('log.statusEffects', { effects: args.statusEffects })}`
   const line: FormattedLog = { title, text: pick(entry.text, language), tone: toneOf(entry.code) }
-  const heading = entry.code === 'scene' ? args.title : entry.code === 'encounter' ? args.name : undefined
+  const heading =
+    entry.code === 'scene'
+      ? args.title
+      : entry.code === 'encounter' || entry.code === 'storyRound' || entry.code === 'storyRoundReturn'
+        ? args.name ?? args.node
+        : undefined
   const lootLevelName = (level: string) =>
     hasMessage(`workshop.loot.${level}`) ? translate(`workshop.loot.${level}`, {}) : level
   // The end of an encounter opens the page that follows it: how it ended, then the reward

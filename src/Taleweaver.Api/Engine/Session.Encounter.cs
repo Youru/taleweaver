@@ -31,7 +31,7 @@ internal sealed partial class Session
         {
             Node = node.Id,
             ActiveEndConditions = node.EndConditions.Where(e => e.Active != false).Select(e => e.Id).ToList(),
-            InitiativeTrack = State.Campaign.Party.Select(a => AdventurerCard + a.Name).ToList(),
+            InitiativeTrack = ActiveParty.Select(a => AdventurerCard + a.Name).ToList(),
         };
         Log("encounter", node.Intro, Args(("node", node.Id), ("name", node.Name?.GetValueOrDefault("en")), ("lootLevel", node.LootLevel), ("locationType", node.LocationType)));
         foreach (var card in node.Setup?.RevealHiddenCards ?? [])

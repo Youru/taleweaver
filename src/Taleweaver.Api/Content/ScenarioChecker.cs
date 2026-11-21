@@ -37,6 +37,7 @@ public static partial class ScenarioChecker
         "askChoice", "askSkillCheck", "readHiddenRule", "placeToken", "removeToken", "activateToken", "spawn",
         "appendAiStep", "revealArea", "placeDiagram", "addEndCondition", "endEncounter", "addUrgency",
         "restoreCombatant", "replaceInitiativeCard", "defeatAdventurer", "navigate", "addVar", "branch", "askNumber",
+        "joinParty", "leaveParty", "setInjured", "setUnselectable", "setActiveGroup",
     };
 
     /// <summary>The triggers the engine fires.</summary>
@@ -157,7 +158,7 @@ public static partial class ScenarioChecker
                         .Concat(node.Events.SelectMany(e => e.Actions)))
                     .Where(a => a.Do == "goToNode")
                     .Select(a => a.Node);
-                var targets = node.EndConditions.Select(e => e.Next).Prepend(node.Next).Concat(jumps);
+                var targets = node.Exits.Concat(jumps);
                 foreach (var target in targets.OfType<string>().Where(t => t.Length > 0 && !t.StartsWith('@') && !ids.Contains(t)))
                 {
                     Error("UnknownNext", node.Id, $"unknown next node '{target}'");
@@ -166,6 +167,11 @@ public static partial class ScenarioChecker
                 if (node.IsEncounter)
                 {
                     CheckEncounter(node);
+                }
+
+                if (node.IsStoryRound && node.VentureForth.Count == 0)
+                {
+                    Error("StoryRoundWithoutExit", node.Id, "a Story Round needs a 'ventureForth' choice: the game cannot go on");
                 }
             }
         }

@@ -1,5 +1,5 @@
 import { http } from '@/shared/api/http'
-import type { Answer, EncounterCommand, GameSummary, GameView, ItemCommand } from './types'
+import type { Answer, EncounterCommand, GameSummary, GameView, ItemCommand, PartyCommand } from './types'
 
 const games = '/api/games'
 const e = encodeURIComponent
@@ -42,6 +42,12 @@ export const gamesApi = {
           body: { card: command.card, by: command.by },
         })
     }
+  },
+  party: (id: string, command: PartyCommand) => {
+    const base = `${games}/${e(id)}/party`
+    return command.type === 'activeGroup'
+      ? http<GameView>(`${base}/active-group`, { method: 'PUT', body: { adventurers: command.adventurers } })
+      : http<GameView>(`${base}/${e(command.adventurer)}/${command.status}`, { method: 'PUT', body: { value: command.value } })
   },
   items: (id: string, command: ItemCommand) => {
     const base = `${games}/${e(id)}/items`

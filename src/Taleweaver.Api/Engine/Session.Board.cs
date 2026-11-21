@@ -24,7 +24,7 @@ internal sealed partial class Session
         var squares = starts.SelectMany(z => RowByRow(z.Rect)).ToList();
         // A NAVIGATE moves them: their Effects stay.
         var before = Encounter.Adventurers.ToDictionary(a => a.Name);
-        Encounter.Adventurers = State.Campaign.Party
+        Encounter.Adventurers = ActiveParty
             .Select((adventurer, i) => new AdventurerFigure
             {
                 Name = adventurer.Name,
