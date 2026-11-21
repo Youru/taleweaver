@@ -95,6 +95,21 @@ export function describeRequest(
       return { key: 'room.request.flip', args: { item: itemName(command.item) } }
     case 'useItem':
       return { key: 'room.request.use', args: { item: itemName(command.item) } }
+    case 'buyItem':
+      return {
+        key: command.owner === 'stash' ? 'room.request.buyForStash' : 'room.request.buy',
+        args: { item: itemName(command.item), owner: command.owner, price: String(command.price ?? '?') },
+      }
+    case 'damage':
+      return {
+        key: command.amount >= 0 ? 'room.request.damage' : 'room.request.heal',
+        args: { adventurer: command.adventurer, amount: String(Math.abs(command.amount)) },
+      }
+    case 'effect':
+      return {
+        key: command.active ? 'room.request.effectOn' : 'room.request.effectOff',
+        args: { adventurer: command.adventurer, effect: command.effect },
+      }
     case 'learnDiscipline':
       return {
         key: 'room.request.learnDiscipline',
@@ -112,6 +127,32 @@ export function asGameCommand(command: PlayerCommand): GameCommand {
       return { kind: 'items', command: { type: 'flip', id: command.item, flipped: command.flipped } }
     case 'useItem':
       return { kind: 'items', command: { type: 'use', id: command.item, discard: command.discard } }
+    case 'buyItem':
+      return {
+        kind: 'items',
+        command: {
+          type: 'add',
+          item: command.item,
+          owner: command.owner,
+          slot: command.owner === 'stash' ? undefined : (command.slot ?? 'pack'),
+          price: command.price,
+        },
+      }
+    case 'damage':
+      return {
+        kind: 'encounter',
+        command: { type: 'damage', instance: `adventurer:${command.adventurer}`, amount: command.amount },
+      }
+    case 'effect':
+      return {
+        kind: 'encounter',
+        command: {
+          type: 'effect',
+          instance: `adventurer:${command.adventurer}`,
+          effect: command.effect,
+          active: command.active,
+        },
+      }
     case 'learnDiscipline':
       return {
         kind: 'party',

@@ -1,3 +1,4 @@
+using Taleweaver.Api.Content;
 using Taleweaver.Api.Engine;
 using Taleweaver.Api.Features.Rooms;
 
@@ -56,5 +57,34 @@ public class PlayerViewProjectorTests
         encounter.Combatants.Single().Should().BeEquivalentTo(new { Instance = "fragor-1", Damage = 3, Effects = new[] { "poison" } });
         encounter.Activation!.Figures.Should().Equal("fragor-1");
         encounter.AdventurerEffects["Rook"].Should().Equal("darkness");
+    }
+
+    [Fact]
+    public void TheStore_ShowsItsCardsAtTheirPrice_OnlyDuringTheShopPhase()
+    {
+        Item Card(string id, string tier, int? cost, bool unique = false) =>
+            new() { Id = id, Name = new Dictionary<string, string> { ["en"] = id }, Type = "weapon", Tier = tier, Cost = cost, Unique = unique };
+        var catalog = new Catalog([new Pack
+        {
+            Manifest = new PackManifest { Id = "hb", Name = new Dictionary<string, string> { ["en"] = "hb" } },
+            Items = [Card("hb:item/sword", "mundane", 40), Card("hb:item/axe", "rare", 90), Card("hb:item/odd", "mundane", null), Card("hb:item/crown", "rare", 200, unique: true)],
+        }]);
+        var scenario = new Scenario
+        {
+            Id = "hb:scenario/test",
+            Title = new Dictionary<string, string> { ["en"] = "Test" },
+            Start = "town",
+            Nodes = [new Node { Id = "town", Type = "storyRound", Store = new Store { Items = [new StoreFilter { Tiers = ["mundane"] }] } }],
+        };
+        var state = new GameState
+        {
+            Scenario = scenario.Id,
+            Campaign = new CampaignState { StoryRound = new StoryRoundState { Node = "town" }, StoreUniques = new() { ["town"] = ["hb:item/crown"] } },
+        };
+
+        PlayerShop.Of(state, scenario, catalog).Should().Equal(new ShopItem("hb:item/crown", 200), new ShopItem("hb:item/sword", 40));
+
+        state.Campaign.StoryRound.Phase = StoryRoundPhases.Explore;
+        PlayerShop.Of(state, scenario, catalog).Should().BeNull();
     }
 }

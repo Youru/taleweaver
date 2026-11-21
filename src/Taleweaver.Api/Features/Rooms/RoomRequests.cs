@@ -65,12 +65,25 @@ public sealed record PlayerCommand(
     bool? Flipped = null,
     bool? Discard = null,
     string? Adventurer = null,
-    string? Discipline = null)
+    string? Discipline = null,
+    int? Amount = null,
+    string? Effect = null,
+    bool? Active = null,
+    int? Price = null)
 {
     public const string MoveItem = "moveItem";
     public const string FlipItem = "flipItem";
     public const string UseItem = "useItem";
     public const string LearnDiscipline = "learnDiscipline";
+
+    /// <summary>A card of the Store (<c>Item</c> = catalogue id), for <c>Owner</c>; its price is the Store's, set by the server.</summary>
+    public const string BuyItem = "buyItem";
+
+    /// <summary>Damage taken (<c>Amount</c>, negative: healed) by one of the seat's adventurers.</summary>
+    public const string Damage = "damage";
+
+    /// <summary>An Effect gained or lost (<c>Active</c>) by one of the seat's adventurers, in an encounter.</summary>
+    public const string SetEffect = "effect";
 
     /// <summary>The engine command it becomes, naming who asked for it.</summary>
     public GameCommand ToGameCommand(string by) => (Type switch
@@ -78,6 +91,9 @@ public sealed record PlayerCommand(
         MoveItem => GameCommand.MoveItem(Item!, Owner!, Slot),
         FlipItem => GameCommand.FlipItem(Item!, Flipped ?? false),
         UseItem => GameCommand.UseItem(Item!, Discard ?? true),
+        BuyItem => GameCommand.AddItem(Item!, Owner!, Owner == "stash" ? null : Slot ?? "pack", Price ?? 0),
+        Damage => GameCommand.Damage("adventurer:" + Adventurer, Amount ?? 0),
+        SetEffect => GameCommand.SetEffect("adventurer:" + Adventurer, Effect!, Active ?? true),
         _ => GameCommand.LearnDiscipline(Adventurer!, Discipline!, 0),
     }) with { By = by };
 }
@@ -93,6 +109,8 @@ public static class PlayerCommands
         public static readonly Error RequestNotPending = Error.Conflict("Rooms.RequestNotPending", "This request was already dealt with.");
 
         public static Error RequestNotFound(string id) => Error.NotFound("Rooms.RequestNotFound", $"No request '{id}'.");
+
+        public static Error NotInStore(string item) => Error.Validation("Rooms.NotInStore", $"'{item}' is not for sale here now.");
 
         public static readonly Error InvalidAutonomy = Error.Validation("Rooms.InvalidAutonomy", $"Autonomy is \"{RoomAutonomy.ValidateAll}\" or \"{RoomAutonomy.FreeInventory}\".");
     }
@@ -118,6 +136,20 @@ public static class PlayerCommands
                 }
 
                 return null;
+            case PlayerCommand.BuyItem:
+                if (string.IsNullOrEmpty(command.Owner) || (command.Owner != "stash" && !mine.Contains(command.Owner)))
+                {
+                    return RoomService.Errors.AdventurerNotAccessible(command.Owner ?? "");
+                }
+
+                return null;
+            case PlayerCommand.Damage or PlayerCommand.SetEffect:
+                if (string.IsNullOrEmpty(command.Adventurer) || !mine.Contains(command.Adventurer))
+                {
+                    return RoomService.Errors.AdventurerNotAccessible(command.Adventurer ?? "");
+                }
+
+                return command.Type == PlayerCommand.SetEffect && string.IsNullOrWhiteSpace(command.Effect) ? Errors.NotAllowed(command.Type) : null;
             case PlayerCommand.LearnDiscipline:
                 if (string.IsNullOrEmpty(command.Adventurer) || !mine.Contains(command.Adventurer))
                 {

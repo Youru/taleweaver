@@ -25,6 +25,9 @@ export type PlayerCommand =
   | { type: 'flipItem'; item: string; flipped: boolean }
   | { type: 'useItem'; item: string; discard: boolean }
   | { type: 'learnDiscipline'; adventurer: string; discipline: string }
+  | { type: 'buyItem'; item: string; owner: string; slot?: 'equipped' | 'pack'; price?: number }
+  | { type: 'damage'; adventurer: string; amount: number }
+  | { type: 'effect'; adventurer: string; effect: string; active: boolean }
 
 export interface PlayerRequest {
   id: string
@@ -77,6 +80,8 @@ export interface PlayerView {
   /** The seat's own requests, the pending ones and the last answers. */
   requests: PlayerRequest[]
   autonomy: Autonomy
+  /** The Store open now (Shop phase of a Story Round): catalogue ids at their price. */
+  shop?: { item: string; price: number }[] | null
 }
 
 /** The encounter as the table sees it: never the AI, the hidden rules nor the end conditions. */

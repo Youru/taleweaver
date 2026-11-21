@@ -3,7 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 import Message from 'primevue/message'
-import { useAdventurers } from '@/features/catalog'
+import { useAdventurers, useItems } from '@/features/catalog'
 import { GameJournal } from '@/features/games'
 import { assetUrl } from '@/shared/api/assets'
 import { pick } from '@/shared/lib/localized'
@@ -13,6 +13,7 @@ import type { PlayerCommand, PlayerView } from '../api/types'
 import { nextAdventurer, seatColors, turnOf } from '../lib/room'
 import EquipmentTab from './EquipmentTab.vue'
 import HeroTab from './HeroTab.vue'
+import ShopTab from './ShopTab.vue'
 import TurnTab from './TurnTab.vue'
 
 /**
@@ -32,12 +33,15 @@ const { t } = useI18n()
 const { language } = storeToRefs(usePreferences())
 const cards = useAdventurers()
 
-type Tab = 'hero' | 'equipment' | 'turn' | 'journal'
+type Tab = 'hero' | 'equipment' | 'turn' | 'shop' | 'journal'
 const chosen = ref<Tab>('hero')
 const fighting = computed(() => !!props.view.encounter && !props.view.encounter.ended)
 /** The Tour tab exists only during an encounter: outside one, the hero's sheet shows instead. */
 const tab = computed<Tab>({
-  get: () => (chosen.value === 'turn' && !fighting.value ? 'hero' : chosen.value),
+  get: () =>
+    (chosen.value === 'turn' && !fighting.value) || (chosen.value === 'shop' && !props.view.shop)
+      ? 'hero'
+      : chosen.value,
   set: (value) => (chosen.value = value),
 })
 const journal = computed(() => props.view.log.map((line) => line.entry))
@@ -81,6 +85,24 @@ watch(
     clearTimeout(answerTimer)
     answerTimer = setTimeout(() => (answer.value = null), ok ? 2500 : 5000)
   },
+)
+
+// A card that arrives in the seat's hands (loot, a purchase, a gift): it turns over on the screen (room-spec §5.2).
+const catalogItems = useItems()
+const ownedIds = computed(() =>
+  props.view.adventurers.flatMap((a) =>
+    [...(a.equipped ?? []), ...(a.pack ?? [])].map((i) => ({ id: i.id, item: i.item, owner: a.name })),
+  ),
+)
+const received = ref<{ item?: string | null; owner: string } | null>(null)
+watch(ownedIds, (now, before) => {
+  if (!before) return
+  const known = new Set(before.map((i) => i.id))
+  const fresh = now.find((i) => !known.has(i.id))
+  if (fresh) received.value = { item: fresh.item, owner: fresh.owner }
+})
+const receivedCard = computed(() =>
+  received.value?.item ? catalogItems.data.value?.find((i) => i.id === received.value?.item) : undefined,
 )
 
 // "Your turn!" (room-spec §5.2): full screen and a vibration when one of the seat's adventurers starts playing.
@@ -176,7 +198,16 @@ function touchEnd(event: TouchEvent) {
         </ul>
       </div>
       <Transition v-else name="flip" mode="out-in">
-        <TurnTab v-if="tab === 'turn'" key="turn" :view="view" :followed="current.name" />
+        <TurnTab v-if="tab === 'turn'" key="turn" :view="view" :followed="current.name" :act="act" />
+        <ShopTab
+          v-else-if="tab === 'shop' && view.shop"
+          key="shop"
+          :shop="view.shop"
+          :gold="view.gold"
+          :adventurer="current.name"
+          :requests="view.requests"
+          :act="act"
+        />
         <div v-else-if="tab === 'journal'" key="journal" class="journal">
           <GameJournal :log="journal" page :highlight="names" />
         </div>
@@ -222,12 +253,24 @@ function touchEnd(event: TouchEvent) {
         <i class="pi pi-bolt" aria-hidden="true" />
         <span>{{ t('room.player.turnTab') }}</span>
       </button>
+      <button v-if="view.shop" type="button" role="tab" :aria-selected="tab === 'shop'" @click="tab = 'shop'">
+        <i class="pi pi-shopping-bag" aria-hidden="true" />
+        <span>{{ t('room.shop.tab') }}</span>
+      </button>
       <button type="button" role="tab" :aria-selected="tab === 'journal'" @click="tab = 'journal'">
         <i class="pi pi-book" aria-hidden="true" />
         <span>{{ t('room.player.journalTab') }}</span>
       </button>
     </nav>
 
+    <Transition name="call">
+      <button v-if="received && !calling" type="button" class="received" @click="received = null">
+        <span>{{ t('room.player.newItem', { name: received.owner }) }}</span>
+        <img v-if="receivedCard?.image" :src="assetUrl(receivedCard.image)" alt="" class="turning" />
+        <strong>{{ pick(receivedCard?.name, language) || t('room.player.cardToDraw') }}</strong>
+        <small>{{ t('room.player.tapToClose') }}</small>
+      </button>
+    </Transition>
     <Transition name="call">
       <button v-if="calling" type="button" class="your-turn" @click="calling = null">
         <img v-if="cardOf(calling)?.image" :src="assetUrl(cardOf(calling)?.image)" alt="" aria-hidden="true" />
@@ -271,6 +314,44 @@ function touchEnd(event: TouchEvent) {
 .tabs button.alert {
   color: var(--seat);
 }
+.received {
+  position: fixed;
+  inset: 0;
+  z-index: 9;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 1.5rem;
+  border: 0;
+  background: rgb(10 10 10 / 82%);
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+  text-align: center;
+}
+.received img {
+  width: min(70vw, 18rem);
+  border-radius: 0.6rem;
+  box-shadow: 0 0 2.5rem color-mix(in srgb, var(--seat) 70%, transparent);
+}
+.received strong {
+  font-size: 1.4rem;
+}
+.turning {
+  animation: turn-over 0.7s ease-out;
+}
+@keyframes turn-over {
+  from {
+    transform: perspective(800px) rotateY(180deg) scale(0.7);
+    opacity: 0;
+  }
+  to {
+    transform: perspective(800px) rotateY(0) scale(1);
+    opacity: 1;
+  }
+}
 .your-turn {
   position: fixed;
   inset: 0;
@@ -308,6 +389,9 @@ function touchEnd(event: TouchEvent) {
   transform: scale(1.05);
 }
 @media (prefers-reduced-motion: reduce) {
+  .turning {
+    animation: none;
+  }
   .strip.hurt {
     animation: none;
   }

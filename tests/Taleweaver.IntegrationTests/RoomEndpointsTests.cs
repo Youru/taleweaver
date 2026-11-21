@@ -49,7 +49,7 @@ public class RoomEndpointsTests(HomebrewFactory factory) : IClassFixture<Homebre
 
         using var document = JsonDocument.Parse(json);
         document.RootElement.EnumerateObject().Select(p => p.Name).Should().BeSubsetOf(
-            ["version", "gameId", "scenarioTitle", "roomCode", "seat", "impersonated", "adventurers", "party", "gold", "stash", "unassigned", "encounter", "log", "requests", "autonomy"]);
+            ["version", "gameId", "scenarioTitle", "roomCode", "seat", "impersonated", "adventurers", "party", "gold", "stash", "unassigned", "encounter", "log", "requests", "autonomy", "shop"]);
         json.Should().NotContain("\"prompt\"").And.NotContain("hiddenText").And.NotContain("\"variables\"").And.NotContain("aiSteps");
         document.RootElement.GetProperty("log").EnumerateArray().Select(l => l.GetProperty("entry").GetProperty("code").GetString())
             .Should().NotBeEmpty().And.OnlyContain(code => PlayerViewProjector.PublicLogCodes.Contains(code!));
@@ -176,6 +176,23 @@ public class RoomEndpointsTests(HomebrewFactory factory) : IClassFixture<Homebre
         view.Encounter.Should().BeNull("the test game starts with its scene");
         view.Requests.Single().Status.Should().Be(RequestStatus.Applied);
         view.Stash.Select(i => i.Id).Should().Contain(item);
+    }
+
+    [Fact]
+    public async Task APlayer_DeclaresTheDamageTheirAdventurerTook_TheGmAccepts()
+    {
+        var game = await StartGame();
+        var (phone, code, _) = await JoinedPhone(game, ["Rook"]);
+
+        var asked = await Read<PlayerView>(await phone.PostAsJsonAsync($"/api/rooms/{code}/me/requests", new PlayerCommand(PlayerCommand.Damage, Adventurer: "Rook", Amount: 3), JsonDefaults.Options, Token));
+        await Read<RoomView>(await _gm.PostAsync($"/api/games/{game.Id}/room/requests/{asked.Requests.Single().Id}/accept", null, Token));
+
+        var view = await Read<PlayerView>(await phone.GetAsync($"/api/rooms/{code}/me", Token));
+        view.Adventurers.Single().Damage.Should().Be(3);
+        (await phone.PostAsJsonAsync($"/api/rooms/{code}/me/requests", new PlayerCommand(PlayerCommand.Damage, Adventurer: "Nightingale", Amount: 3), JsonDefaults.Options, Token))
+            .StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        (await phone.PostAsJsonAsync($"/api/rooms/{code}/me/requests", new PlayerCommand(PlayerCommand.BuyItem, Item: "hb:item/sword", Owner: "Rook"), JsonDefaults.Options, Token))
+            .StatusCode.Should().Be(HttpStatusCode.BadRequest, "no Store is open");
     }
 
     private async Task<string> GiveRookAPlank(GameView game)

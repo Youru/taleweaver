@@ -1,20 +1,28 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
+import Button from 'primevue/button'
+import Message from 'primevue/message'
+import Select from 'primevue/select'
 import { useEffects, useInitiativeCards } from '@/features/catalog'
 import { InitiativeTrack, initiativeTrack, type EncounterState } from '@/features/games'
 import { assetUrl } from '@/shared/api/assets'
 import { pick } from '@/shared/lib/localized'
 import { usePreferences } from '@/shared/lib/preferences'
-import type { PlayerView } from '../api/types'
+import type { PlayerCommand, PlayerView } from '../api/types'
 import { turnOf } from '../lib/room'
 
 /**
  * The encounter as the table sees it (room-spec §5.1, Tour): whose turn it is, the initiative track, the effects
  * on the adventurer followed, the opponents on the board and the party's health.
  */
-const props = defineProps<{ view: PlayerView; followed: string }>()
+const props = defineProps<{
+  view: PlayerView
+  followed: string
+  /** Report to the GM the damage taken or an effect (room-spec §6.2): a request, never applied alone. */
+  act?: (command: PlayerCommand) => Promise<void>
+}>()
 const { t } = useI18n()
 const { language } = storeToRefs(usePreferences())
 const effects = useEffects()
@@ -30,6 +38,28 @@ const labelOf = (card: string | undefined) =>
 
 const effectOf = (id: string) => effects.data.value?.find((e) => e.id === id)
 const myEffects = computed(() => encounter.value.adventurerEffects[props.followed] ?? [])
+
+// What the player tells the GM: an amount of damage or healing, an effect gained or lost
+const amount = ref(1)
+const newEffect = ref<string>()
+const reported = ref<string>()
+const failure = ref<string>()
+const effectChoices = computed(() =>
+  (effects.data.value ?? [])
+    .filter((e) => !myEffects.value.includes(e.id))
+    .map((e) => ({ value: e.id, label: pick(e.name, language.value) || e.id })),
+)
+async function report(command: PlayerCommand) {
+  if (!props.act) return
+  failure.value = undefined
+  try {
+    await props.act(command)
+    reported.value = t('room.player.reported')
+    newEffect.value = undefined
+  } catch (e) {
+    failure.value = (e as Error).message
+  }
+}
 
 const opponents = computed(() => encounter.value.combatants.filter((c) => !c.defeated))
 </script>
@@ -60,9 +90,61 @@ const opponents = computed(() => encounter.value.combatants.filter((c) => !c.def
         <details>
           <summary :class="effectOf(id)?.polarity">{{ pick(effectOf(id)?.name, language) || id }}</summary>
           <p>{{ pick(effectOf(id)?.text, language) }}</p>
+          <Button
+            v-if="act"
+            icon="pi pi-times"
+            :label="t('room.player.effectGone')"
+            size="small"
+            severity="secondary"
+            text
+            @click="report({ type: 'effect', adventurer: followed, effect: id, active: false })"
+          />
         </details>
       </li>
     </ul>
+
+    <template v-if="act">
+      <h2>{{ t('room.player.report') }}</h2>
+      <div class="report">
+        <div class="amount" role="group" :aria-label="t('room.player.amount')">
+          <Button icon="pi pi-minus" text rounded :disabled="amount <= 1" @click="amount--" />
+          <strong>{{ amount }}</strong>
+          <Button icon="pi pi-plus" text rounded :disabled="amount >= 20" @click="amount++" />
+        </div>
+        <Button
+          icon="pi pi-heart"
+          :label="t('room.player.tookDamage')"
+          severity="danger"
+          @click="report({ type: 'damage', adventurer: followed, amount })"
+        />
+        <Button
+          icon="pi pi-plus-circle"
+          :label="t('room.player.healed')"
+          severity="success"
+          outlined
+          @click="report({ type: 'damage', adventurer: followed, amount: -amount })"
+        />
+      </div>
+      <div class="report">
+        <Select
+          v-model="newEffect"
+          :options="effectChoices"
+          option-label="label"
+          option-value="value"
+          :placeholder="t('room.player.chooseEffect')"
+          class="effect-select"
+        />
+        <Button
+          icon="pi pi-plus"
+          :label="t('room.player.gotEffect')"
+          :disabled="!newEffect"
+          severity="secondary"
+          @click="newEffect && report({ type: 'effect', adventurer: followed, effect: newEffect, active: true })"
+        />
+      </div>
+      <Message v-if="failure" severity="error" :closable="false">{{ failure }}</Message>
+      <Message v-else-if="reported" severity="info" :closable="false" :life="2500">{{ reported }}</Message>
+    </template>
 
     <h2>{{ t('room.player.opponents') }}</h2>
     <p v-if="opponents.length === 0" class="muted">{{ t('room.player.noOpponent') }}</p>
@@ -106,6 +188,25 @@ const opponents = computed(() => encounter.value.combatants.filter((c) => !c.def
 </template>
 
 <style scoped>
+.report {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+.report :deep(.p-button) {
+  min-height: 3rem;
+}
+.amount {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 1.2rem;
+}
+.effect-select {
+  flex: 1;
+  min-width: 10rem;
+}
 .turn {
   display: flex;
   flex-direction: column;

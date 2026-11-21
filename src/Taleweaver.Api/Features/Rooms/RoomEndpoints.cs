@@ -219,6 +219,18 @@ public static class RoomEndpoints
                     return refused.ToProblem();
                 }
 
+                // A purchase: only a card of the Store open now, at its price (never the phone's)
+                if (command.Type == PlayerCommand.BuyItem)
+                {
+                    var shop = (await notifier.ViewAsync(game.Value, room, me, me.Adventurers, ct)).Shop;
+                    if (shop?.FirstOrDefault(i => i.Item == command.Item) is not { } sold)
+                    {
+                        return PlayerCommands.Errors.NotInStore(command.Item ?? "").ToProblem();
+                    }
+
+                    command = command with { Price = sold.Price };
+                }
+
                 var engine = command.ToGameCommand(me.DisplayName);
                 if (PlayerCommands.IsFree(command, room.Autonomy, me.Adventurers, game.Value.State))
                 {

@@ -22,7 +22,8 @@ public sealed record PlayerView(
     PlayerEncounter? Encounter,
     IReadOnlyList<PlayerLogEntry> Log,
     IReadOnlyList<PlayerRequest> Requests,
-    string Autonomy);
+    string Autonomy,
+    IReadOnlyList<ShopItem>? Shop);
 
 /// <summary>The seat as its phone knows it.</summary>
 public sealed record PlayerSeat(string Id, string DisplayName, string Color, string? Followed);
@@ -79,7 +80,8 @@ public static class PlayerViewProjector
         IReadOnlyCollection<string> adventurers,
         Room? room = null,
         Seat? seat = null,
-        Catalog? catalog = null)
+        Catalog? catalog = null,
+        Scenario? scenario = null)
     {
         var campaign = state.Campaign;
         var active = campaign.ActiveGroup?.ToHashSet()
@@ -103,7 +105,8 @@ public static class PlayerViewProjector
             PublicLog(state.Log),
             // The seat's own requests: the pending ones and the last answers
             room is null || seat is null ? [] : room.Requests.Where(r => r.SeatId == seat.Id).TakeLast(8).ToList(),
-            room?.Autonomy ?? RoomAutonomy.ValidateAll);
+            room?.Autonomy ?? RoomAutonomy.ValidateAll,
+            PlayerShop.Of(state, scenario, catalog));
     }
 
     /// <summary>

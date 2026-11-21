@@ -51,7 +51,7 @@ public sealed class RoomNotifier : IGameObserver
     {
         var scenario = await _content.GetScenarioAsync(game.Scenario, cancellationToken);
         var catalog = await _catalog.GetAsync(cancellationToken);
-        return PlayerViewProjector.Project(game.Id, game.UpdatedAt.ToUnixTimeMilliseconds(), game.State, scenario?.Title, adventurers, room, seat, catalog);
+        return PlayerViewProjector.Project(game.Id, game.UpdatedAt.ToUnixTimeMilliseconds(), game.State, scenario?.Title, adventurers, room, seat, catalog, scenario);
     }
 
     private async Task RoomChangedAsync(Room room)
