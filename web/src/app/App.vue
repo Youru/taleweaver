@@ -42,29 +42,41 @@ const languages = [
 </template>
 
 <style scoped>
+/* The top bar as an encounter banner of the books */
 .top {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.75rem 1rem;
+  padding: 0.6rem 1.25rem;
+  margin-bottom: 0.75rem;
+  background: var(--mid-crimson) var(--mid-banner) left center / cover;
+  border-bottom: 2px solid #3a0d0d;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.35);
 }
 .nav {
   flex: 1;
   margin-left: 1.5rem;
 }
 .nav a {
-  color: var(--p-text-muted-color);
+  color: rgb(243 233 216 / 0.75);
   text-decoration: none;
+  font-family: var(--mid-title-font);
+  font-variant: small-caps;
   font-weight: 600;
+  letter-spacing: 0.06em;
 }
-.nav a.router-link-active {
-  color: var(--p-primary-color);
+.nav a.router-link-active,
+.nav a:hover {
+  color: var(--mid-cream);
 }
 .brand {
-  font-family: Georgia, serif;
-  font-size: 1.5rem;
+  font-family: var(--mid-title-font);
+  font-variant: small-caps;
+  font-size: 1.6rem;
   font-weight: 700;
-  color: var(--p-primary-color);
+  letter-spacing: 0.04em;
+  color: var(--mid-cream);
   text-decoration: none;
+  text-shadow: 0 1px 2px rgb(0 0 0 / 0.5);
 }
 </style>

@@ -1,7 +1,42 @@
+/* Middara look: the rulebook's parchment behind every page, crimson banners, book serif for titles.
+   The images are the user's own copy of the game's art, served by the local API (/api/assets). */
+:root {
+  --mid-parchment: url('/api/assets/rulebook/art/backgrounds/021-1567x1219-c3-fae87e06.jpg');
+  --mid-banner: url('/api/assets/templates/encounter/top/red-header.png');
+  --mid-crimson: #6d1a1a;
+  --mid-ink: #2a2017;
+  --mid-cream: #f3e9d8;
+  --mid-title-font: 'Cinzel', 'Trajan Pro', 'Palatino Linotype', 'Book Antiqua', Georgia, serif;
+  --mid-book-font: 'Palatino Linotype', 'Book Antiqua', Georgia, serif;
+}
+
 html,
 body {
   margin: 0;
+  min-height: 100%;
   font-family: system-ui, sans-serif;
-  background: var(--p-content-background);
   color: var(--p-text-color);
+}
+
+body {
+  background: #e6d6b4 var(--mid-parchment) center / cover fixed;
+}
+
+/* A soft vignette, as on the printed pages */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  background: radial-gradient(ellipse at center, transparent 55%, rgb(60 35 15 / 0.28) 100%);
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--mid-title-font);
+  font-variant: small-caps;
+  color: var(--mid-crimson);
+  letter-spacing: 0.02em;
 }
