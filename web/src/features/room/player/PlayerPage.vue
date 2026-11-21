@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import Button from 'primevue/button'
 import Message from 'primevue/message'
 import ProgressSpinner from 'primevue/progressspinner'
+import { assetUrl } from '@/shared/api/assets'
 import { ApiError } from '@/shared/api/http'
 import { roomPlayerApi } from '../api/roomApi'
 import { useRoomHub } from '../api/roomHub'
@@ -21,6 +22,8 @@ const seat = storedSeat(props.code)
 const view = ref<PlayerView>()
 const followed = ref<string>()
 const closed = ref(false)
+/** A picture the GM shows the table (room-spec §7.5), until the player closes it. */
+const shown = ref<{ image: string; caption?: string | null } | null>(null)
 const error = ref<string>()
 
 function receive(next: PlayerView) {
@@ -67,6 +70,7 @@ const hub = seat
       {
         PlayerViewChanged: (next: PlayerView) => receive(next),
         RoomClosed: () => (closed.value = true),
+        Shown: (picture: { image: string; caption?: string | null }) => (shown.value = picture),
       },
       () => void load(),
     )
@@ -96,9 +100,37 @@ onMounted(() => {
     @follow="follow"
   />
   <div v-else class="center"><ProgressSpinner :aria-label="t('common.loading')" /></div>
+  <button v-if="shown" type="button" class="shown" @click="shown = null">
+    <span>{{ t('room.player.shownByGm') }}</span>
+    <img :src="assetUrl(shown.image)" :alt="shown.caption ?? ''" />
+    <strong v-if="shown.caption">{{ shown.caption }}</strong>
+    <small>{{ t('room.player.tapToClose') }}</small>
+  </button>
 </template>
 
 <style scoped>
+.shown {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 0;
+  background: rgb(10 10 10 / 90%);
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+  text-align: center;
+}
+.shown img {
+  max-width: 100%;
+  max-height: 75dvh;
+  border-radius: 0.6rem;
+}
 .center {
   min-height: 100dvh;
   display: flex;

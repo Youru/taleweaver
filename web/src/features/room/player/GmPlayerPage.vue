@@ -30,7 +30,8 @@ async function load() {
 // The GM's actions apply at once, as from the game page (room-spec §7.4)
 const command = useGameCommand(() => props.gameId)
 async function act(action: PlayerCommand) {
-  await command.mutateAsync(asGameCommand(action))
+  const game = asGameCommand(action)
+  if (game) await command.mutateAsync(game)
   await load()
 }
 

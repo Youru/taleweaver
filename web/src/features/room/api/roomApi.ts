@@ -22,6 +22,8 @@ export const roomGmApi = {
     http<RoomView>(`/api/games/${e(gameId)}/room/requests/${e(request)}/refuse`, { method: 'POST', body: { reason } }),
   settings: (gameId: string, autonomy: Autonomy) =>
     http<RoomView>(`/api/games/${e(gameId)}/room/settings`, { method: 'PUT', body: { autonomy } }),
+  show: (gameId: string, image: string, caption?: string, seat?: string) =>
+    http<void>(`/api/games/${e(gameId)}/room/show`, { method: 'POST', body: { image, caption, seat } }),
   createScreen: (gameId: string) => http<{ token: string }>(`/api/games/${e(gameId)}/room/screen`, { method: 'POST' }),
   revokeScreen: (gameId: string) => http<RoomView>(`/api/games/${e(gameId)}/room/screen`, { method: 'DELETE' }),
   impersonate: (gameId: string, adventurer: string, signal?: AbortSignal) =>

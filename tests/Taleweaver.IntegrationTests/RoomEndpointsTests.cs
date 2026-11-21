@@ -195,6 +195,22 @@ public class RoomEndpointsTests(HomebrewFactory factory) : IClassFixture<Homebre
             .StatusCode.Should().Be(HttpStatusCode.BadRequest, "no Store is open");
     }
 
+    [Fact]
+    public async Task APlayer_AsksForAFreeAdventurer_AndGetsItOnceTheGmAccepts()
+    {
+        var game = await StartGame();
+        var (phone, code, seat) = await JoinedPhone(game, ["Rook"]);
+
+        var asked = await Read<PlayerView>(await phone.PostAsJsonAsync($"/api/rooms/{code}/me/requests", new PlayerCommand(PlayerCommand.TakeAdventurer, Adventurer: "Nightingale"), JsonDefaults.Options, Token));
+        var room = await Read<RoomView>(await _gm.PostAsync($"/api/games/{game.Id}/room/requests/{asked.Requests.Single().Id}/accept", null, Token));
+
+        room.Seats.Single(s => s.Id == seat).Adventurers.Should().Equal("Rook", "Nightingale");
+        (await _gm.PostAsJsonAsync($"/api/games/{game.Id}/room/show", new RoomEndpoints.ShowRequest("../secret.json"), JsonDefaults.Options, Token))
+            .StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await _gm.PostAsJsonAsync($"/api/games/{game.Id}/room/show", new RoomEndpoints.ShowRequest("assets/act1/items/buckler.jpg", "Regardez"), JsonDefaults.Options, Token))
+            .StatusCode.Should().Be(HttpStatusCode.NoContent);
+    }
+
     private async Task<string> GiveRookAPlank(GameView game)
     {
         var after = await Read<GameView>(await _gm.PostAsJsonAsync($"/api/games/{game.Id}/items", new { item = "hb:item/plank", owner = "Rook", slot = "pack" }, JsonDefaults.Options, Token));

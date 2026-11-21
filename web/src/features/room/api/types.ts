@@ -25,6 +25,7 @@ export type PlayerCommand =
   | { type: 'flipItem'; item: string; flipped: boolean }
   | { type: 'useItem'; item: string; discard: boolean }
   | { type: 'learnDiscipline'; adventurer: string; discipline: string }
+  | { type: 'takeAdventurer'; adventurer: string }
   | { type: 'buyItem'; item: string; owner: string; slot?: 'equipped' | 'pack'; price?: number }
   | { type: 'damage'; adventurer: string; amount: number }
   | { type: 'effect'; adventurer: string; effect: string; active: boolean }

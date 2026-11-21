@@ -95,6 +95,8 @@ export function describeRequest(
       return { key: 'room.request.flip', args: { item: itemName(command.item) } }
     case 'useItem':
       return { key: 'room.request.use', args: { item: itemName(command.item) } }
+    case 'takeAdventurer':
+      return { key: 'room.request.takeAdventurer', args: { adventurer: command.adventurer } }
     case 'buyItem':
       return {
         key: command.owner === 'stash' ? 'room.request.buyForStash' : 'room.request.buy',
@@ -118,9 +120,14 @@ export function describeRequest(
   }
 }
 
-/** The GM playing an adventurer as a player (room-spec §7.4): the same action, applied at once. */
-export function asGameCommand(command: PlayerCommand): GameCommand {
+/**
+ * The GM playing an adventurer as a player (room-spec §7.4): the same action, applied at once. Null for what is
+ * not a game command (asking for an adventurer).
+ */
+export function asGameCommand(command: PlayerCommand): GameCommand | null {
   switch (command.type) {
+    case 'takeAdventurer':
+      return null
     case 'moveItem':
       return { kind: 'items', command: { type: 'move', id: command.item, owner: command.owner, slot: command.slot } }
     case 'flipItem':

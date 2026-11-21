@@ -23,6 +23,9 @@ public static class RoomEndpoints
 
     public sealed record RefuseRequest(string? Reason);
 
+    /// <summary>A picture to show (an asset path, "assets/…"), with a line under it; to one seat or to all.</summary>
+    public sealed record ShowRequest(string Image, string? Caption = null, string? Seat = null);
+
     public sealed record SettingsRequest(string Autonomy);
 
     public sealed record SeatUpdate(string? DisplayName, string? Color, string? Followed);
@@ -89,10 +92,12 @@ public static class RoomEndpoints
                 }
 
                 var (room, accepted) = taken.Value;
-                var applied = await runner.ExecuteAsync(id, accepted.Command.ToGameCommand(accepted.By), ct);
-                if (!applied.IsSuccess)
+                var outcome = accepted.Command.Type == PlayerCommand.TakeAdventurer
+                    ? await GiveAdventurer(room, accepted, runner, rooms, ct)
+                    : await runner.ExecuteAsync(id, accepted.Command.ToGameCommand(accepted.By), ct);
+                if (!outcome.IsSuccess)
                 {
-                    await rooms.FailAsync(room, accepted, applied.Error!.Code, ct);
+                    await rooms.FailAsync(room, accepted, outcome.Error!.Code, ct);
                 }
 
                 return TypedResults.Ok(rooms.ViewOf(room));
@@ -105,6 +110,24 @@ public static class RoomEndpoints
                 return refused.IsSuccess ? TypedResults.Ok(rooms.ViewOf(refused.Value.Room)) : refused.Error!.ToProblem();
             })
             .WithName("RefuseRequest");
+        // "Show the players" (room-spec §7.5): a picture of the game on every phone, or on one seat's
+        group.MapPost("/show", async Task<Results<NoContent, ProblemHttpResult>> (string id, ShowRequest request, RoomService rooms, RoomNotifier notifier) =>
+            {
+                if (await rooms.GetAsync(id) is not { IsOpen: true } room)
+                {
+                    return RoomService.Errors.NoRoom(id).ToProblem();
+                }
+
+                if (!request.Image.StartsWith("assets/", StringComparison.Ordinal) || request.Image.Contains("..", StringComparison.Ordinal))
+                {
+                    return Error.Validation("Rooms.InvalidImage", "Only a picture of the game (assets/…) can be shown.").ToProblem();
+                }
+
+                var seats = room.Seats.Where(s => request.Seat is null || s.Id == request.Seat).ToList();
+                await notifier.ShowAsync(seats, request.Image, request.Caption);
+                return TypedResults.NoContent();
+            })
+            .WithName("ShowToPlayers");
         group.MapPost("/screen", async Task<Results<Ok<ScreenResponse>, ProblemHttpResult>> (string id, RoomService rooms, CancellationToken ct) =>
             {
                 var token = await rooms.CreateScreenAsync(id, ct);
@@ -219,6 +242,19 @@ public static class RoomEndpoints
                     return refused.ToProblem();
                 }
 
+                // An adventurer asked for: free of any seat now; the GM decides (never applied alone)
+                if (command.Type == PlayerCommand.TakeAdventurer)
+                {
+                    if (room.Seats.Any(s => s.Adventurers.Contains(command.Adventurer!)))
+                    {
+                        return PlayerCommands.Errors.AdventurerTaken(command.Adventurer!).ToProblem();
+                    }
+
+                    await rooms.AddRequestAsync(room, me, command, RequestStatus.Pending, ct);
+                    var waiting = await ViewOf(room, me, runner, notifier, ct);
+                    return waiting.IsSuccess ? TypedResults.Ok(waiting.Value) : waiting.Error!.ToProblem();
+                }
+
                 // A purchase: only a card of the Store open now, at its price (never the phone's)
                 if (command.Type == PlayerCommand.BuyItem)
                 {
@@ -276,6 +312,31 @@ public static class RoomEndpoints
                 return view.IsSuccess ? TypedResults.Ok(view.Value) : view.Error!.ToProblem();
             })
             .WithName("CancelRequest");
+    }
+
+    /// <summary>The adventurer asked for joins the seat's, if no other seat took it meanwhile.</summary>
+    private static async Task<Result> GiveAdventurer(Room room, PlayerRequest request, GameRunner runner, RoomService rooms, CancellationToken ct)
+    {
+        var name = request.Command.Adventurer!;
+        if (room.Seats.FirstOrDefault(s => s.Id == request.SeatId) is not { } seat)
+        {
+            return RoomService.Errors.SeatNotFound(request.SeatId);
+        }
+
+        if (room.Seats.Any(s => s != seat && s.Adventurers.Contains(name)))
+        {
+            return PlayerCommands.Errors.AdventurerTaken(name);
+        }
+
+        var game = await runner.LoadAsync(room.GameId, ct);
+        if (!game.IsSuccess)
+        {
+            return game.Error!;
+        }
+
+        var party = game.Value.State.Campaign.Party.Select(a => a.Name).ToList();
+        var assigned = await rooms.AssignAsync(room.GameId, seat.Id, [.. seat.Adventurers, name], party, ct);
+        return assigned.IsSuccess ? Result.Success() : assigned.Error!;
     }
 
     private static string? SeatToken(HttpContext http)

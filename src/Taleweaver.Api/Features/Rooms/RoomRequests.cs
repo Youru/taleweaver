@@ -79,6 +79,9 @@ public sealed record PlayerCommand(
     /// <summary>A card of the Store (<c>Item</c> = catalogue id), for <c>Owner</c>; its price is the Store's, set by the server.</summary>
     public const string BuyItem = "buyItem";
 
+    /// <summary>A free adventurer of the party for this seat (room-spec §4.3): the GM gives it, no engine command.</summary>
+    public const string TakeAdventurer = "takeAdventurer";
+
     /// <summary>Damage taken (<c>Amount</c>, negative: healed) by one of the seat's adventurers.</summary>
     public const string Damage = "damage";
 
@@ -111,6 +114,8 @@ public static class PlayerCommands
         public static Error RequestNotFound(string id) => Error.NotFound("Rooms.RequestNotFound", $"No request '{id}'.");
 
         public static Error NotInStore(string item) => Error.Validation("Rooms.NotInStore", $"'{item}' is not for sale here now.");
+
+        public static Error AdventurerTaken(string adventurer) => Error.Conflict("Rooms.AdventurerTaken", $"'{adventurer}' is held by another seat.");
 
         public static readonly Error InvalidAutonomy = Error.Validation("Rooms.InvalidAutonomy", $"Autonomy is \"{RoomAutonomy.ValidateAll}\" or \"{RoomAutonomy.FreeInventory}\".");
     }
@@ -150,6 +155,13 @@ public static class PlayerCommands
                 }
 
                 return command.Type == PlayerCommand.SetEffect && string.IsNullOrWhiteSpace(command.Effect) ? Errors.NotAllowed(command.Type) : null;
+            case PlayerCommand.TakeAdventurer:
+                if (string.IsNullOrEmpty(command.Adventurer) || campaign.Party.All(a => a.Name != command.Adventurer))
+                {
+                    return RoomService.Errors.NotInParty(command.Adventurer ?? "");
+                }
+
+                return mine.Contains(command.Adventurer) ? Errors.NotAllowed(command.Type) : null;
             case PlayerCommand.LearnDiscipline:
                 if (string.IsNullOrEmpty(command.Adventurer) || !mine.Contains(command.Adventurer))
                 {

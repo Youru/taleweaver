@@ -142,7 +142,8 @@ void load()
 watch(open, (value) => value && void load())
 
 /** Each held adventurer's seat (colour, phone connected), for the GM's initiative track (room-spec §7.3). */
-const emit = defineEmits<{ seats: [seats: Record<string, HeldBy>]; pending: [count: number] }>()
+const emit = defineEmits<{ seats: [seats: Record<string, HeldBy>]; pending: [count: number]; open: [open: boolean] }>()
+watch(isOpen, (value) => emit('open', value), { immediate: true })
 
 // The players' requests (room-spec §6.2): the queue, and how much they may do alone (§6.3)
 const { language } = storeToRefs(usePreferences())

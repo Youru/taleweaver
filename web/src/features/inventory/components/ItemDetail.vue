@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ShowToPlayersButton from '@/shared/components/ShowToPlayersButton.vue'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
@@ -187,6 +188,7 @@ function sell() {
   <section class="detail" :aria-label="name">
     <header>
       <h3>{{ name }}</h3>
+      <ShowToPlayersButton :image="side.image" :caption="name" />
       <Button icon="pi pi-times" text rounded size="small" :aria-label="t('common.close')" @click="emit('close')" />
     </header>
 

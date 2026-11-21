@@ -4,7 +4,12 @@ import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 import Message from 'primevue/message'
 import { useAdventurers, useItems } from '@/features/catalog'
-import { GameJournal } from '@/features/games'
+import { formatLog, GameJournal } from '@/features/games'
+import Button from 'primevue/button'
+import Dialog from 'primevue/dialog'
+import SelectButton from 'primevue/selectbutton'
+import ToggleSwitch from 'primevue/toggleswitch'
+import { usePlayerSettings, useWakeLock } from '../lib/playerSettings'
 import { assetUrl } from '@/shared/api/assets'
 import { pick } from '@/shared/lib/localized'
 import { usePreferences } from '@/shared/lib/preferences'
@@ -29,8 +34,15 @@ const props = defineProps<{
   cancel?: (request: string) => Promise<void>
 }>()
 const emit = defineEmits<{ follow: [name: string] }>()
-const { t } = useI18n()
+const { t, te } = useI18n()
 const { language } = storeToRefs(usePreferences())
+const settings = usePlayerSettings()
+if (!props.view.impersonated) useWakeLock(settings)
+const settingsOpen = ref(false)
+const languages = [
+  { value: 'fr', label: 'Français' },
+  { value: 'en', label: 'English' },
+]
 const cards = useAdventurers()
 
 type Tab = 'hero' | 'equipment' | 'turn' | 'shop' | 'journal'
@@ -105,6 +117,50 @@ const receivedCard = computed(() =>
   received.value?.item ? catalogItems.data.value?.find((i) => i.id === received.value?.item) : undefined,
 )
 
+// A seat without an adventurer may ask for a free one (room-spec §6.2); the GM decides.
+const asking = computed(
+  () =>
+    new Set(
+      props.view.requests.flatMap((r) =>
+        r.status === 'pending' && r.command.type === 'takeAdventurer' ? [r.command.adventurer] : [],
+      ),
+    ),
+)
+const askError = ref<string>()
+async function askFor(name: string) {
+  askError.value = undefined
+  try {
+    await props.act?.({ type: 'takeAdventurer', adventurer: name })
+  } catch (e) {
+    askError.value = (e as Error).message
+  }
+}
+
+// The end of an encounter: what the party won, on one screen (room-spec §5.2)
+const recap = ref<{ title: string; lines: string[] } | null>(null)
+watch(
+  () => props.view.log.at(-1)?.index,
+  (last, before) => {
+    if (before === undefined || last === undefined) return
+    const fresh = props.view.log.filter((l) => l.index > before)
+    const end = fresh.find((l) => l.entry.code === 'encounterEnd')
+    if (!end) return
+    const format = (entry: (typeof fresh)[number]['entry']) =>
+      formatLog(
+        entry,
+        language.value,
+        (key, args) => t(key, args),
+        (key) => te(key),
+      )
+    const lines = fresh
+      .filter((l) => l.index > end.index)
+      .map((l) => format(l.entry))
+      .filter((l) => l.tone === 'reward')
+      .map((l) => [l.title, l.text].filter(Boolean).join(' '))
+    recap.value = { title: format(end.entry).story?.heading ?? format(end.entry).title, lines }
+  },
+)
+
 // "Your turn!" (room-spec §5.2): full screen and a vibration when one of the seat's adventurers starts playing.
 const turn = computed(() => (props.view.encounter ? turnOf(props.view.encounter, names.value) : {}))
 const calling = ref<string | null>(null)
@@ -113,8 +169,8 @@ watch(
   (playing, before) => {
     if (!playing || playing === before) return
     calling.value = playing
-    if (playing !== current.value?.name) emit('follow', playing)
-    if (!props.view.impersonated) navigator.vibrate?.([200, 100, 200])
+    if (settings.autoFollow && playing !== current.value?.name) emit('follow', playing)
+    if (!props.view.impersonated && settings.vibrate) navigator.vibrate?.([200, 100, 200])
   },
 )
 
@@ -156,6 +212,14 @@ function touchEnd(event: TouchEvent) {
         <span class="dot" aria-hidden="true" />
         {{ view.impersonated ? t('room.player.gm') : view.seat?.displayName }}
       </span>
+      <Button
+        icon="pi pi-cog"
+        text
+        rounded
+        :aria-label="t('room.player.settings.title')"
+        :title="t('room.player.settings.title')"
+        @click="settingsOpen = true"
+      />
     </header>
     <div v-if="current" class="strip" :class="hit" :aria-label="t('room.player.status')">
       <span class="health" :title="t('room.player.health')">
@@ -194,8 +258,19 @@ function touchEnd(event: TouchEvent) {
         <p>{{ t('room.player.waiting') }}</p>
         <p class="muted">{{ pick(view.scenarioTitle, language) }}</p>
         <ul class="others">
-          <li v-for="member in view.party" :key="member.name">{{ member.name }}</li>
+          <li v-for="member in view.party" :key="member.name">
+            <span>{{ member.name }}</span>
+            <Button
+              v-if="act && member.active && !member.mine"
+              :label="asking.has(member.name) ? t('room.request.waiting') : t('room.player.askFor')"
+              size="small"
+              :severity="asking.has(member.name) ? 'secondary' : undefined"
+              :disabled="asking.has(member.name)"
+              @click="askFor(member.name)"
+            />
+          </li>
         </ul>
+        <p v-if="askError" class="error">{{ askError }}</p>
       </div>
       <Transition v-else name="flip" mode="out-in">
         <TurnTab v-if="tab === 'turn'" key="turn" :view="view" :followed="current.name" :act="act" />
@@ -264,6 +339,31 @@ function touchEnd(event: TouchEvent) {
     </nav>
 
     <Transition name="call">
+      <button v-if="recap && !calling" type="button" class="received recap" @click="recap = null">
+        <span>{{ t('room.player.recap') }}</span>
+        <strong>{{ recap.title }}</strong>
+        <ul v-if="recap.lines.length">
+          <li v-for="(line, i) in recap.lines" :key="i">{{ line }}</li>
+        </ul>
+        <small>{{ t('room.player.tapToClose') }}</small>
+      </button>
+    </Transition>
+    <Dialog v-model:visible="settingsOpen" modal dismissable-mask :header="t('room.player.settings.title')">
+      <div class="settings">
+        <label><ToggleSwitch v-model="settings.vibrate" /> {{ t('room.player.settings.vibrate') }}</label>
+        <label><ToggleSwitch v-model="settings.autoFollow" /> {{ t('room.player.settings.autoFollow') }}</label>
+        <label><ToggleSwitch v-model="settings.keepAwake" /> {{ t('room.player.settings.keepAwake') }}</label>
+        <SelectButton
+          v-model="language"
+          :options="languages"
+          option-label="label"
+          option-value="value"
+          :allow-empty="false"
+          :aria-label="t('app.language')"
+        />
+      </div>
+    </Dialog>
+    <Transition name="call">
       <button v-if="received && !calling" type="button" class="received" @click="received = null">
         <span>{{ t('room.player.newItem', { name: received.owner }) }}</span>
         <img v-if="receivedCard?.image" :src="assetUrl(receivedCard.image)" alt="" class="turning" />
@@ -313,6 +413,34 @@ function touchEnd(event: TouchEvent) {
 }
 .tabs button.alert {
   color: var(--seat);
+}
+.settings {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.settings label {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 3rem;
+}
+.recap ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.others li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.error {
+  color: #ef4444;
 }
 .received {
   position: fixed;

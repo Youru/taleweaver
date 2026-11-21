@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ShowToPlayersButton from '@/shared/components/ShowToPlayersButton.vue'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
@@ -108,6 +109,7 @@ function share(figure: CombatantState): number {
             <span class="hp-bar" aria-hidden="true"><span :style="{ width: `${share(figure)}%` }" /></span>
           </span>
         </button>
+        <ShowToPlayersButton :image="cards.get(figure.card)?.image" :caption="name(figure)" class="show" />
       </li>
     </ul>
     <p v-if="defeated.length" class="defeated">
@@ -117,6 +119,15 @@ function share(figure: CombatantState): number {
 </template>
 
 <style scoped>
+li {
+  position: relative;
+}
+/* Room open: the card can be shown on the phones (room-spec §7.5), over the row's top corner */
+.show {
+  position: absolute;
+  top: 0.1rem;
+  right: 0.1rem;
+}
 ul {
   list-style: none;
   margin: 0;

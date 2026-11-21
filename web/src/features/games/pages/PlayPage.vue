@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, useTemplateRef, watch } from 'vue'
+import { computed, nextTick, provide, ref, useTemplateRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 import Badge from 'primevue/badge'
@@ -15,7 +15,8 @@ import Tag from 'primevue/tag'
 import { useAiAdvice } from '@/features/ai'
 import { useCombatants, useItems } from '@/features/catalog'
 import { DuelDialog } from '@/features/duel'
-import { RoomPanel } from '@/features/room'
+import { RoomPanel, roomGmApi } from '@/features/room'
+import { showToPlayersKey, type ShowToPlayers } from '@/shared/lib/showToPlayers'
 import { InventoryDialog } from '@/features/inventory'
 import { useScenario } from '@/features/scenarios'
 import { boardLayout, TableSelection, TableView, useBoardPieces, type Selection } from '@/features/table'
@@ -144,6 +145,14 @@ const roomOpen = ref(false)
 const heldBy = ref<Record<string, HeldBy>>({})
 /** Requests of the players waiting for the GM (room-spec §6.2): a badge on the Room button. */
 const pendingRequests = ref(0)
+/** While the room is open, the cards of the page can be shown on the phones (room-spec §7.5). */
+const roomIsOpen = ref(false)
+provide(
+  showToPlayersKey,
+  computed<ShowToPlayers | null>(() =>
+    roomIsOpen.value ? (image, caption) => roomGmApi.show(props.id, image, caption) : null,
+  ),
+)
 const toHandOut = computed(() => state.value?.campaign.unassigned?.length ?? 0)
 
 function itemCommand(value: ItemCommand) {
@@ -254,6 +263,7 @@ function moveFigure(figure: string, to: Cell) {
         :stash="[...state.campaign.stash, ...state.campaign.unassigned]"
         @seats="(seats) => (heldBy = seats)"
         @pending="(count) => (pendingRequests = count)"
+        @open="(open) => (roomIsOpen = open)"
       />
       <InventoryDialog
         v-model:open="inventoryOpen"

@@ -46,6 +46,15 @@ public sealed class RoomNotifier : IGameObserver
         await PushSeatsAsync(room, game, cancellationToken);
     }
 
+    /// <summary>A picture pushed by the GM (room-spec §7.5): shown at once, not kept.</summary>
+    public async Task ShowAsync(IEnumerable<Seat> seats, string image, string? caption)
+    {
+        foreach (var seat in seats)
+        {
+            await _hub.Clients.Group(RoomHub.SeatGroup(seat.Id)).SendAsync("Shown", new { image, caption });
+        }
+    }
+
     /// <summary>The view of a seat, from the game as it is now.</summary>
     public async Task<PlayerView> ViewAsync(Game game, Room? room, Seat? seat, IReadOnlyCollection<string> adventurers, CancellationToken cancellationToken)
     {
