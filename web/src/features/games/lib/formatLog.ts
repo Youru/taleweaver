@@ -34,6 +34,7 @@ const tones: Record<string, LogTone> = {
   upgradeDetached: 'muted',
   disciplineLearnt: 'reward',
   disciplineForgotten: 'muted',
+  respec: 'muted',
   storyRoundReturn: 'narrative',
   sideQuest: 'narrative',
   ventureForth: 'narrative',

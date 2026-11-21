@@ -41,8 +41,39 @@ export function disciplineCost(
   adventurer: AdventurerState,
   catalog: CatalogDiscipline[],
 ): number | null {
+  if (card.story) return 0
   if (card.cost == null) return null
-  const levelOf = (id: string) => catalog.find((d) => d.id === id)?.level
-  const sameLevel = (adventurer.disciplines ?? []).filter((d) => levelOf(d.id) === card.level).length
+  const sameLevel = learnt(adventurer, catalog).filter((d) => !d.story && d.level === card.level).length
   return card.cost + sameLevel
+}
+
+/** The catalogue cards an adventurer has learnt (those the catalogue knows). */
+function learnt(adventurer: AdventurerState, catalog: CatalogDiscipline[]): CatalogDiscipline[] {
+  return (adventurer.disciplines ?? []).flatMap((d) => catalog.filter((c) => c.id === d.id))
+}
+
+/**
+ * Why the adventurer cannot learn this card yet (p. 24, 32): already learnt, or the lowest level of its tree they
+ * still lack (one Discipline of each lower level is needed). Null when they can.
+ */
+export function disciplineBlock(
+  card: CatalogDiscipline,
+  adventurer: AdventurerState,
+  catalog: CatalogDiscipline[],
+): { learnt: true } | { missingLevel: number } | null {
+  if ((adventurer.disciplines ?? []).some((d) => d.id === card.id)) return { learnt: true }
+  if (card.story || !card.level) return null
+  const known = new Set(learnt(adventurer, catalog).filter((d) => !d.story && d.tree === card.tree).map((d) => d.level))
+  for (let level = 1; level < card.level; level++) if (!known.has(level)) return { missingLevel: level }
+  return null
+}
+
+/**
+ * Gold to Re-spec (p. 87): 25, +25 per Loot Level beyond Mundane of the Story Round's Items for sale
+ * (the highest tier of its Store's lines and Unique Items).
+ */
+export function respecPrice(store: Store | undefined): number {
+  const order = ['mundane', 'common', 'uncommon', 'rare']
+  const tiers = [...(store?.items ?? []).flatMap((line) => line.tiers ?? []), store?.unique?.tier]
+  return 25 * (1 + Math.max(0, ...tiers.map((tier) => order.indexOf(tier ?? ''))))
 }

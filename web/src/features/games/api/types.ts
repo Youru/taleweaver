@@ -166,6 +166,7 @@ export type PartyCommand =
   | { type: 'status'; adventurer: string; status: 'injured' | 'unselectable'; value: boolean }
   | { type: 'learn'; adventurer: string; discipline: string; xp: number }
   | { type: 'forget'; adventurer: string; discipline: string }
+  | { type: 'respec'; adventurer: string }
 
 export type Answer = { option: string; value?: undefined } | { value: number; option?: undefined }
 

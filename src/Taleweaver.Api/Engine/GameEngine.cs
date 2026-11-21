@@ -15,8 +15,9 @@ public static class GameEngine
     /// 5: the party's items (stash, equipped, pack, items to hand out);
     /// 6: Story Rounds (phases, Store's Unique Items), Active Group, Injured and Unselectable members;
     /// 7: Bounties played from a Story Round, Consumables discarded after Shop and Train, Item Upgrades, Disciplines.
+    /// 8: Discipline costs from the catalogue (+1 per Discipline of the same level), level prerequisites, Re-specing.
     /// </summary>
-    public const int Version = 7;
+    public const int Version = 8;
 
     public static class Errors
     {

@@ -194,16 +194,57 @@ public class StoryRoundTests
     }
 
     [Fact]
-    public void Disciplines_AreLearntWithTheXpLeft()
+    public void Disciplines_CostTheirCard_PlusOnePerDisciplineOfTheSameLevel()
     {
         var game = Game();
 
-        game.Do(GameCommand.LearnDiscipline("Zeke", "hb:discipline/gore-shot", 2));
+        game.Do(GameCommand.LearnDiscipline("Zeke", "hb:discipline/jab", 0))
+            .Do(GameCommand.LearnDiscipline("Zeke", "hb:discipline/hex", 0))
+            .Do(GameCommand.LearnDiscipline("Zeke", "hb:discipline/oath", 0))
+            .Do(GameCommand.LearnDiscipline("Zeke", "hb:discipline/kick", 0));
 
-        Refused(game, GameCommand.LearnDiscipline("Zeke", "hb:discipline/blood-rage", 2)).Should().Be("Party.NotEnoughXp");
-        game.State.Campaign.Party.Single(a => a.Name == "Zeke").Disciplines.Single().Should().BeEquivalentTo(new { Id = "hb:discipline/gore-shot", Xp = 2 });
-        game.Do(GameCommand.ForgetDiscipline("Zeke", "hb:discipline/gore-shot"));
+        game.State.Campaign.Party.Single(a => a.Name == "Zeke").Disciplines.Select(d => d.Xp).Should().Equal(3, 4, 0, 5);
+        Refused(game, GameCommand.LearnDiscipline("Rook", "hb:discipline/combo", 0)).Should().Be("Party.MissingLevel");
+    }
+
+    [Fact]
+    public void Disciplines_NeedEachLowerLevelOfTheirTree_AndAreLearntOnce()
+    {
+        var game = Game();
+
+        Refused(game, GameCommand.LearnDiscipline("Zeke", "hb:discipline/combo", 0)).Should().Be("Party.MissingLevel");
+        game.Do(GameCommand.LearnDiscipline("Zeke", "hb:discipline/hex", 0));
+        Refused(game, GameCommand.LearnDiscipline("Zeke", "hb:discipline/combo", 0)).Should().Be("Party.MissingLevel", "a level 1 of another tree");
+        Refused(game, GameCommand.LearnDiscipline("Zeke", "hb:discipline/hex", 0)).Should().Be("Party.AlreadyLearnt");
+        game.Do(GameCommand.LearnDiscipline("Zeke", "hb:discipline/jab", 0)).Do(GameCommand.LearnDiscipline("Zeke", "hb:discipline/combo", 0));
+
+        game.State.Campaign.Party.Single(a => a.Name == "Zeke").Disciplines.Select(d => d.Xp).Should().Equal(3, 4, 5);
+    }
+
+    [Fact]
+    public void ADisciplineTheCatalogueDoesNotKnow_CostsTheXpGiven()
+    {
+        var game = Game();
+
+        game.Do(GameCommand.LearnDiscipline("Zeke", "Gore Shot", 10));
+
+        Refused(game, GameCommand.LearnDiscipline("Zeke", "Blood Rage", 3)).Should().Be("Party.NotEnoughXp");
+        game.Do(GameCommand.ForgetDiscipline("Zeke", "Gore Shot"));
         game.State.Campaign.Party.Single(a => a.Name == "Zeke").Disciplines.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Respecing_CostsGoldByTheStoresLootLevel_AndKeepsTheStoryDisciplines()
+    {
+        var game = Game();
+        game.Do(GameCommand.LearnDiscipline("Zeke", "hb:discipline/jab", 0)).Do(GameCommand.LearnDiscipline("Zeke", "hb:discipline/oath", 0));
+
+        game.Do(GameCommand.Respec("Zeke"));
+
+        game.State.Campaign.Gold.Should().Be(50, "25 Gold, +25 for a Common Store");
+        game.State.Campaign.Party.Single(a => a.Name == "Zeke").Disciplines.Select(d => d.Id).Should().Equal("hb:discipline/oath");
+        game.Do(GameCommand.Respec("Zeke")).State.Campaign.Gold.Should().Be(0);
+        Refused(game, GameCommand.Respec("Zeke")).Should().Be("Party.NotEnoughGold");
     }
 
     private static EngineDriver BountyGame()
@@ -275,6 +316,14 @@ public class StoryRoundTests
                 new Item { Id = Uniques[1], Name = En("Ring"), Type = "accessory", Tier = "common", Unique = true, Cost = 70 },
             ],
             ItemUpgrades = [new ItemUpgrade { Id = Spiked, Name = En("Spiked") }],
+            Disciplines =
+            [
+                new Discipline { Id = "hb:discipline/jab", Name = En("Jab"), Tree = "martial", Level = 1, Cost = 3 },
+                new Discipline { Id = "hb:discipline/kick", Name = En("Kick"), Tree = "martial", Level = 1, Cost = 3 },
+                new Discipline { Id = "hb:discipline/hex", Name = En("Hex"), Tree = "cruor", Level = 1, Cost = 3 },
+                new Discipline { Id = "hb:discipline/combo", Name = En("Combo"), Tree = "martial", Level = 2, Cost = 5 },
+                new Discipline { Id = "hb:discipline/oath", Name = En("Oath"), Tree = "story", Story = true },
+            ],
         },
     ]);
 
@@ -294,7 +343,7 @@ public class StoryRoundTests
                 Mechanics =
                 [
                     new ScenarioAction { Do = "gainGold", Amount = 100 },
-                    new ScenarioAction { Do = "gainXp", Amount = 3, Each = true },
+                    new ScenarioAction { Do = "gainXp", Amount = 12, Each = true },
                     new ScenarioAction { Do = "joinParty", Extra = Extra(("adventurer", "Remi")) },
                 ],
                 Store = new Store { Items = [new StoreFilter { Tiers = ["common"] }], Unique = new StoreUnique("common") },

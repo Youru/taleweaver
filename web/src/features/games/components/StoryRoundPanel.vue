@@ -12,8 +12,8 @@ import { useDisciplines, useItems, useItemUpgrades } from '@/features/catalog'
 import type { ScenarioNode } from '@/features/scenarios'
 import { pick } from '@/shared/lib/localized'
 import { usePreferences } from '@/shared/lib/preferences'
-import type { CampaignState, ItemCommand, PartyCommand } from '../api/types'
-import { activeMembers, disciplineCost, xpLeft } from '../lib/storyRound'
+import type { AdventurerState, CampaignState, ItemCommand, PartyCommand } from '../api/types'
+import { activeMembers, disciplineBlock, disciplineCost, respecPrice, xpLeft } from '../lib/storyRound'
 
 /**
  * A Story Round (rulebook p. 13), above its question: the three phases, what the Store sells (the Unique Item
@@ -46,14 +46,25 @@ const toUnlock = ref<string | null>(null)
 // ---- Training: Disciplines learnt with XP (p. 24, 33) ----
 const disciplineName = (id: string) =>
   pick(disciplineCatalog.data.value?.find((d) => d.id === id)?.name, language.value) || id
-const learnable = computed(() =>
-  (disciplineCatalog.data.value ?? [])
-    .filter((d) => !d.story)
-    .map((d) => ({
+/** The cards an adventurer may pick: those they cannot learn yet are shown greyed out, with the reason. */
+function learnable(adventurer: AdventurerState) {
+  const all = disciplineCatalog.data.value ?? []
+  return all.map((d) => {
+    const block = disciplineBlock(d, adventurer, all)
+    const why = !block ? '' : 'learnt' in block ? t('storyRound.alreadyLearnt') : t('storyRound.missingLevel', { level: block.missingLevel })
+    return {
       value: d.id,
-      label: `${pick(d.name, language.value)} · ${t(`storyRound.trees.${d.tree}`, d.tree)} ${d.level ?? ''}`,
-    })),
-)
+      label: `${pick(d.name, language.value)} · ${t(`storyRound.trees.${d.tree}`, d.tree)} ${d.level ?? ''}${why ? ` (${why})` : ''}`,
+      disabled: !!block,
+    }
+  })
+}
+/** Re-specing (p. 87): its price depends on the Store of this Story Round. */
+const respec = computed(() => respecPrice(props.node?.store))
+const forgettable = (a: AdventurerState) =>
+  (a.disciplines ?? []).some((d) => !disciplineCatalog.data.value?.find((c) => c.id === d.id)?.story)
+const knownCost = (name: string) =>
+  disciplineCatalog.data.value?.find((d) => d.id === learning[name]?.discipline)?.cost != null
 /** What the GM is about to teach each adventurer: the card, and its XP (printed cost +1 per card of that level). */
 const learning = reactive<Record<string, { discipline: string | null; xp: number | null }>>({})
 function draft(name: string) {
@@ -188,9 +199,10 @@ function toggleActive(name: string, on: boolean) {
         <div class="row">
           <Select
             :model-value="learning[a.name]?.discipline ?? null"
-            :options="learnable"
+            :options="learnable(a)"
             option-label="label"
             option-value="value"
+            option-disabled="disabled"
             filter
             :placeholder="t('storyRound.disciplinePlaceholder')"
             :aria-label="t('storyRound.disciplineFor', { name: a.name })"
@@ -204,6 +216,7 @@ function toggleActive(name: string, on: boolean) {
             :placeholder="t('storyRound.xpCost')"
             :aria-label="t('storyRound.xpCostFor', { name: a.name })"
             input-class="xp-input"
+            :disabled="knownCost(a.name)"
             @update:model-value="draft(a.name).xp = $event"
           />
           <Button
@@ -212,6 +225,17 @@ function toggleActive(name: string, on: boolean) {
             size="small"
             :disabled="busy || !learning[a.name]?.discipline || learning[a.name]?.xp == null || (learning[a.name]?.xp ?? 0) > xpLeft(a)"
             @click="learn(a.name)"
+          />
+          <Button
+            v-if="forgettable(a)"
+            :label="t('storyRound.respec', { price: respec })"
+            :title="t('storyRound.respecHint', { name: a.name, price: respec })"
+            icon="pi pi-refresh"
+            size="small"
+            severity="secondary"
+            outlined
+            :disabled="busy || campaign.gold < respec"
+            @click="emit('party', { type: 'respec', adventurer: a.name })"
           />
         </div>
       </div>

@@ -57,13 +57,16 @@ public sealed record GameCommand
     public static GameCommand SetAdventurerStatus(string adventurer, string status, bool value) =>
         new() { Type = GameCommands.SetAdventurerStatus, Instance = adventurer, Effect = status, Active = value };
 
-    /// <summary>An adventurer learns a Discipline (catalogue id, or its name) for <paramref name="xp"/> XP.</summary>
+    /// <summary>An adventurer learns a Discipline (catalogue id, or its name) for <paramref name="xp"/> XP (used when the catalogue does not know its cost).</summary>
     public static GameCommand LearnDiscipline(string adventurer, string discipline, int xp) =>
         new() { Type = GameCommands.LearnDiscipline, Instance = adventurer, Item = discipline, Value = xp };
 
     /// <summary>The Discipline is given back (a mistake, or a re-specialisation): its XP is spent no more.</summary>
     public static GameCommand ForgetDiscipline(string adventurer, string discipline) =>
         new() { Type = GameCommands.ForgetDiscipline, Instance = adventurer, Item = discipline };
+
+    /// <summary>The adventurer re-specs (rulebook p. 87): pays Gold, loses every Discipline but the Story ones.</summary>
+    public static GameCommand Respec(string adventurer) => new() { Type = GameCommands.Respec, Instance = adventurer };
 
     /// <summary>An Item Upgrade is unlocked (a Material traded in, the story): for sale from now on.</summary>
     public static GameCommand UnlockUpgrade(string upgrade) => new() { Type = GameCommands.UnlockUpgrade, Item = upgrade };
@@ -140,12 +143,13 @@ public static class GameCommands
     public const string SetAdventurerStatus = "setAdventurerStatus";
     public const string LearnDiscipline = "learnDiscipline";
     public const string ForgetDiscipline = "forgetDiscipline";
+    public const string Respec = "respec";
     public const string UnlockUpgrade = "unlockUpgrade";
     public const string AttachUpgrade = "attachUpgrade";
     public const string DetachUpgrade = "detachUpgrade";
 
     /// <summary>Commands on the party's members: allowed out of encounters, whatever the question pending.</summary>
-    public static bool IsPartyCommand(string type) => type is SetActiveGroup or SetAdventurerStatus or LearnDiscipline or ForgetDiscipline;
+    public static bool IsPartyCommand(string type) => type is SetActiveGroup or SetAdventurerStatus or LearnDiscipline or ForgetDiscipline or Respec;
 
     /// <summary>Commands on the party's items: allowed in and out of encounters, whatever the question pending.</summary>
     public static bool IsItemCommand(string type) =>

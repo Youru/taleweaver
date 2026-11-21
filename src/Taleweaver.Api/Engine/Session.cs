@@ -229,6 +229,7 @@ internal sealed partial class Session(GameState state, GameContext context)
         GameCommands.SetAdventurerStatus => SetAdventurerStatus(command.Instance, command.Effect, command.Active ?? true),
         GameCommands.LearnDiscipline => LearnDiscipline(command.Instance, command.Item, command.Value ?? 0),
         GameCommands.ForgetDiscipline => ForgetDiscipline(command.Instance, command.Item),
+        GameCommands.Respec => Respec(command.Instance),
         _ => GameEngine.Errors.UnknownCommand(command.Type),
     };
 

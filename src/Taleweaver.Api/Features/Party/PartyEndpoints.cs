@@ -31,6 +31,10 @@ public static class PartyEndpoints
                 string id, string adventurer, string discipline, GameRunner runner, CancellationToken cancellationToken) =>
                 (await runner.ExecuteAsync(id, GameCommand.ForgetDiscipline(adventurer, discipline), cancellationToken)).ToResponse())
             .WithName("ForgetDiscipline");
+        group.MapPost("/{adventurer}/respec", async Task<Results<Ok<GameView>, ProblemHttpResult>> (
+                string id, string adventurer, GameRunner runner, CancellationToken cancellationToken) =>
+                (await runner.ExecuteAsync(id, GameCommand.Respec(adventurer), cancellationToken)).ToResponse())
+            .WithName("Respec");
         group.MapPut("/{adventurer}/{status}", async Task<Results<Ok<GameView>, ProblemHttpResult>> (
                 string id, string adventurer, string status, StatusRequest request, GameRunner runner, CancellationToken cancellationToken) =>
                 (await runner.ExecuteAsync(id, GameCommand.SetAdventurerStatus(adventurer, status, request.Value), cancellationToken)).ToResponse())

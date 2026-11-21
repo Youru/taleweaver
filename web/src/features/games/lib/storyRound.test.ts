@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { CatalogItem } from '@/features/catalog'
 import type { CampaignState } from '../api/types'
-import { activeMembers, disciplineCost, storeItems, xpLeft } from './storyRound'
+import { activeMembers, disciplineBlock, disciplineCost, respecPrice, storeItems, xpLeft } from './storyRound'
 
 const item = (id: string, tier: string | null, type: string, extra: Partial<CatalogItem> = {}): CatalogItem => ({
   id,
@@ -66,5 +66,21 @@ describe('xpLeft and disciplineCost', () => {
   it('adds 1 XP per Discipline of the same level, and leaves an unknown cost to the GM', () => {
     expect(disciplineCost(catalog[1]!, zeke, catalog)).toBe(3)
     expect(disciplineCost(catalog[2]!, zeke, catalog)).toBeNull()
+  })
+
+  it('needs each lower level of the tree, and never the same card twice', () => {
+    const rook = { name: 'Rook', xp: 6, disciplines: [{ id: 'blade-works', xp: 2 }] }
+
+    expect(disciplineBlock(catalog[2]!, zeke, catalog)).toBeNull()
+    expect(disciplineBlock(catalog[2]!, rook, catalog)).toEqual({ missingLevel: 1 })
+    expect(disciplineBlock(catalog[0]!, zeke, catalog)).toEqual({ learnt: true })
+  })
+})
+
+describe('respecPrice', () => {
+  it('costs 25 Gold, +25 per Loot Level beyond Mundane of the Store', () => {
+    expect(respecPrice(undefined)).toBe(25)
+    expect(respecPrice({ items: [{ tiers: ['mundane'], types: [] }, { tiers: ['uncommon'], types: [] }] })).toBe(75)
+    expect(respecPrice({ items: [], unique: { tier: 'common', count: 1 } })).toBe(50)
   })
 })

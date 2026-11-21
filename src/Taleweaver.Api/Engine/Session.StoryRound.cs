@@ -33,6 +33,14 @@ internal sealed partial class Session
         public static Error NotEnoughXp(string name, int cost, int left) =>
             Error.Conflict("Party.NotEnoughXp", $"The Discipline costs {cost} XP, {name} has {left} left.");
 
+        public static Error AlreadyLearnt(string name, string discipline) =>
+            Error.Conflict("Party.AlreadyLearnt", $"{name} already knows '{discipline}'.");
+
+        public static Error MissingLevel(string name, string tree, int level) =>
+            Error.Conflict("Party.MissingLevel", $"{name} needs a level {level} {tree} Discipline first.");
+
+        public static Error NotEnoughGold(int price, int gold) => Error.Conflict("Party.NotEnoughGold", $"Re-specing costs {price} Gold, the party has {gold}.");
+
         public static Error UnknownStatus(string? status) => Error.Validation("Party.UnknownStatus", $"'{status}' is neither \"injured\" nor \"unselectable\".");
     }
 
@@ -221,6 +229,11 @@ internal sealed partial class Session
 
     // ---- Disciplines ----
 
+    /// <summary>
+    /// An adventurer learns a Discipline (rulebook p. 24, 32). A card of the catalogue costs the XP printed on it,
+    /// +1 per Discipline of the same level already learnt, and needs one Discipline of each lower level of its tree;
+    /// a Story Discipline is given by the story, for free. A card the catalogue does not know costs <paramref name="xp"/>.
+    /// </summary>
     private Result LearnDiscipline(string? adventurer, string? discipline, int xp)
     {
         if (Member(adventurer) is not { } member)
@@ -233,7 +246,18 @@ internal sealed partial class Session
             return PartyErrors.UnknownDiscipline(discipline);
         }
 
-        var cost = Math.Max(0, xp);
+        var card = Catalog.FindDiscipline(discipline);
+        if (member.Disciplines.Any(d => d.Id == discipline))
+        {
+            return PartyErrors.AlreadyLearnt(member.Name, discipline);
+        }
+
+        if (card is { Story: false, Level: { } level } && MissingLevel(member, card.Tree, level) is { } missing)
+        {
+            return PartyErrors.MissingLevel(member.Name, card.Tree, missing);
+        }
+
+        var cost = DisciplineCost(member, card) ?? Math.Max(0, xp);
         var left = member.Xp - member.Disciplines.Sum(d => d.Xp);
         if (cost > left)
         {
@@ -243,6 +267,54 @@ internal sealed partial class Session
         member.Disciplines.Add(new LearnedDiscipline { Id = discipline, Xp = cost });
         Log("disciplineLearnt", args: Args(("adventurer", member.Name), ("discipline", discipline), ("xp", Number(cost))));
         return Result.Success();
+    }
+
+    /// <summary>The XP a card costs this adventurer: printed cost +1 per Discipline of the same level; null when unknown.</summary>
+    private int? DisciplineCost(AdventurerState member, Discipline? card) => card switch
+    {
+        { Story: true } => 0,
+        { Level: { } level } => (card.Cost ?? 2 * level + 1)
+                                + member.Disciplines.Count(d => Catalog.FindDiscipline(d.Id) is { Story: false } other && other.Level == level),
+        _ => null,
+    };
+
+    /// <summary>The lowest level of the tree the adventurer still lacks below <paramref name="level"/>, or null.</summary>
+    private int? MissingLevel(AdventurerState member, string tree, int level)
+    {
+        var known = member.Disciplines.Select(d => Catalog.FindDiscipline(d.Id))
+            .Where(d => d is { Story: false } && d.Tree == tree).Select(d => d!.Level).ToHashSet();
+        return Enumerable.Range(1, Math.Max(0, level - 1)).Cast<int?>().FirstOrDefault(l => !known.Contains(l));
+    }
+
+    /// <summary>
+    /// Re-specing (rulebook p. 87): while Shopping and Training, an adventurer pays 25 Gold, +25 per Loot Level beyond
+    /// Mundane of the Story Round's Items for sale, to lose every Discipline but the Story ones and get their XP back.
+    /// </summary>
+    private Result Respec(string? adventurer)
+    {
+        if (Member(adventurer) is not { } member)
+        {
+            return PartyErrors.UnknownAdventurer(adventurer);
+        }
+
+        var price = RespecPrice();
+        if (price > State.Campaign.Gold)
+        {
+            return PartyErrors.NotEnoughGold(price, State.Campaign.Gold);
+        }
+
+        var lost = member.Disciplines.RemoveAll(d => Catalog.FindDiscipline(d.Id) is not { Story: true });
+        State.Campaign.Gold -= price;
+        Log("respec", args: Args(("adventurer", member.Name), ("price", Number(price)), ("gold", Number(State.Campaign.Gold)), ("count", Number(lost))));
+        return Result.Success();
+    }
+
+    /// <summary>25 Gold, +25 per Loot Level beyond Mundane of the current Story Round's Store (its highest tier).</summary>
+    private int RespecPrice()
+    {
+        var store = State.Campaign.StoryRound is { } round ? Campaign.Nodes.FirstOrDefault(n => n.Id == round.Node)?.Store : null;
+        var tiers = (store?.Items ?? []).SelectMany(f => f.Tiers).Append(store?.Unique?.Tier);
+        return 25 * (1 + Math.Max(0, tiers.Select(LootLevels.Rank).DefaultIfEmpty(0).Max()));
     }
 
     private Result ForgetDiscipline(string? adventurer, string? discipline)

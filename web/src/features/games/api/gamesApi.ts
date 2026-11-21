@@ -62,6 +62,8 @@ export const gamesApi = {
         return http<GameView>(`${base}/${e(command.adventurer)}/disciplines/${e(command.discipline)}`, {
           method: 'DELETE',
         })
+      case 'respec':
+        return http<GameView>(`${base}/${e(command.adventurer)}/respec`, { method: 'POST' })
     }
   },
   items: (id: string, command: ItemCommand) => {
