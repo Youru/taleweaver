@@ -30,8 +30,12 @@ public static class Network
     {
         try
         {
+            // Virtual adapters (VMware, VirtualBox, Hyper-V, WSL, Docker) are left out: no phone is on them. The
+            // interfaces with a gateway (the Wi-Fi, the box) come first: the QR code uses the first address.
             return NetworkInterface.GetAllNetworkInterfaces()
-                .Where(n => n.OperationalStatus == OperationalStatus.Up && n.NetworkInterfaceType != NetworkInterfaceType.Loopback)
+                .Where(n => n.OperationalStatus == OperationalStatus.Up && n.NetworkInterfaceType != NetworkInterfaceType.Loopback && !IsVirtual(n))
+                .OrderByDescending(n => n.GetIPProperties().GatewayAddresses.Any(g => g.Address.AddressFamily == AddressFamily.InterNetwork && !g.Address.Equals(IPAddress.Any)))
+                .ThenByDescending(n => n.NetworkInterfaceType == NetworkInterfaceType.Wireless80211)
                 .SelectMany(n => n.GetIPProperties().UnicastAddresses)
                 .Select(a => a.Address)
                 .Where(a => a.AddressFamily == AddressFamily.InterNetwork && IsPrivate(a))
@@ -44,6 +48,11 @@ public static class Network
             return [];
         }
     }
+
+    private static readonly string[] VirtualAdapters = ["vmware", "virtualbox", "hyper-v", "vethernet", "wsl", "docker", "loopback", "tap-", "tunnel"];
+
+    private static bool IsVirtual(NetworkInterface network) =>
+        VirtualAdapters.Any(v => network.Name.Contains(v, StringComparison.OrdinalIgnoreCase) || network.Description.Contains(v, StringComparison.OrdinalIgnoreCase));
 
     private static bool IsPrivate(IPAddress address)
     {
