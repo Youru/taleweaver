@@ -67,7 +67,14 @@ const ai = useAiAdvice(
   cards,
   () => state.value?.log ?? [],
   () => state.value?.prompt,
+  () => node.value?.tokens,
 )
+/** "totem:blue" → "Totem bleu". */
+function tokenLabel(key: string) {
+  const [kind = key, color] = key.split(':')
+  const name = kind.charAt(0).toUpperCase() + kind.slice(1)
+  return color ? t('workshop.print.tokenLabel', { name, color: t(`workshop.map.color.${color}`, color) }) : name
+}
 const commandError = computed(() => {
   const error = command.error.value
   return error instanceof ApiError ? error.message : error ? String(error) : null
@@ -188,6 +195,16 @@ function moveFigure(figure: string, to: Cell) {
               @duel="openDuel"
               @move="moveFigure"
             />
+            <Message v-for="token in ai.seen.value" :key="token.key" severity="warn" size="small" class="unplaced seen">
+              <span>{{ t('table.totemSeen', { who: token.by, token: tokenLabel(token.key) }) }}</span>
+              <Button
+                :label="t('table.activateTotem', { token: tokenLabel(token.key) })"
+                icon="pi pi-bolt"
+                size="small"
+                :disabled="reportsLocked"
+                @click="encounterCommand({ type: 'activateToken', token: token.key })"
+              />
+            </Message>
             <Message v-if="unplaced.length" severity="info" size="small" class="unplaced">
               {{ t('table.placeAdventurers', { names: unplaced.join(', ') }) }}
             </Message>
@@ -331,6 +348,12 @@ function moveFigure(figure: string, to: Cell) {
 /* The notice keeps its height: the column would squash it to a line */
 .side :deep(.unplaced) {
   flex: none;
+}
+.seen :deep(.p-message-text) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
 }
 .tabs {
   flex: 1;

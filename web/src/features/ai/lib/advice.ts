@@ -5,6 +5,7 @@ import type { BoardLayout } from '@/features/table'
 import { parseCondition, suggest, type Suggestion } from './conditions'
 import { key, printedElevation, printedTerrain, terrainOf, type Board, type BoardFigure, type Terrain } from './grid'
 import { planTurn, type Advice } from './instructions'
+import { seenTokens, type SeenToken } from './totems'
 
 /** What the table shows of the AI's plan: where the acting figure should go, and whom it targets. */
 export interface TableHint {
@@ -82,6 +83,8 @@ export function useAiAdvice(
   cards: MaybeRefOrGetter<Map<string, Combatant>>,
   log: MaybeRefOrGetter<LogEntry[]>,
   prompt: MaybeRefOrGetter<Prompt | undefined>,
+  /** The scenario's rule of each token (how it activates), by key. */
+  tokenRules?: MaybeRefOrGetter<Record<string, { mode?: string }> | undefined>,
 ) {
   const board = computed(() => {
     const l = toValue(layout)
@@ -159,5 +162,14 @@ export function useAiAdvice(
     return moves.length || targets.length ? { moves, targets } : undefined
   })
 
-  return { condition, advice, hint }
+  /** Totems an adventurer sees: they activate at once (p. 14); the GM confirms. */
+  const seen = computed<SeenToken[]>(() => {
+    const b = board.value
+    const l = toValue(layout)
+    if (!b || !l) return []
+    const rules = toValue(tokenRules)
+    return seenTokens(b, l, (key) => rules?.[key]?.mode)
+  })
+
+  return { condition, advice, hint, seen }
 }

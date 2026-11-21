@@ -579,6 +579,8 @@ export const messages = {
       tapToPlace: 'Touchez une case du plateau pour placer {name}.',
       placeAdventurers:
         'Pas de place prévue sur la carte pour {names} (zone de départ absente ou trop petite) : glissez chaque nom de « À placer », sous la carte, sur une case, ou touchez-le puis touchez la case.',
+      totemSeen: '{who} voit {token} : un Totem s’active dès qu’un aventurier le voit (p. 14).',
+      activateTotem: 'Activer {token}',
       unplacedFigures: 'À placer :',
       showHidden: 'Combattants à placer',
       hideHidden: 'Masquer les combattants à placer',
@@ -1340,6 +1342,8 @@ export const messages = {
       tapToPlace: 'Tap a square of the board to place {name}.',
       placeAdventurers:
         'No spot on the map for {names} (no starting zone, or too small): drag each name of “To place”, under the map, onto a square, or tap it then tap the square.',
+      totemSeen: '{who} sees {token}: a Totem activates as soon as an Adventurer sees it (p. 14).',
+      activateTotem: 'Activate {token}',
       unplacedFigures: 'To place:',
       showHidden: 'Combatants to place',
       hideHidden: 'Hide the combatants to place',
