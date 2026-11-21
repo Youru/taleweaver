@@ -164,6 +164,27 @@ public sealed class AdventurerState
 
     /// <summary>Items stored in the adventurer's Pack (3, more with an Adventurer's Pack): not usable until equipped.</summary>
     public List<OwnedItem> Pack { get; set; } = [];
+
+    /// <summary>
+    /// Damage tokens on the card. They stay from one encounter to the next (rulebook p. 69): only the Prepare Phase
+    /// (down to half the maximum HP) and a Restore (all of them) remove them.
+    /// </summary>
+    public int Damage { get; set; }
+
+    /// <summary>Defeated in the current or last encounter: back in play at the next encounter's Prepare Phase.</summary>
+    public bool Defeated { get; set; }
+
+    /// <summary>Stamina Points held (set to the Recovery value at the Prepare Phase, gained at each Refresh Phase).</summary>
+    public int Stamina { get; set; }
+
+    /// <summary>Maximum HP: the card's (Rook: 14) plus the Health of the cards equipped. Computed, never set by a command.</summary>
+    public int Health { get; set; }
+
+    /// <summary>SP gained each turn (red dots of the Stamina Recovery Bar). Computed from the card.</summary>
+    public int StaminaRecovery { get; set; }
+
+    /// <summary>Most SP the adventurer may hold (all dots of the bar). Computed from the card.</summary>
+    public int StaminaMax { get; set; }
 }
 
 /// <summary>
@@ -299,6 +320,9 @@ public sealed class AdventurerFigure
 
     /// <summary>Effects on the adventurer this encounter (the AI aims at them: "an opponent with Darkness").</summary>
     public List<string> Effects { get; set; } = [];
+
+    /// <summary>Defeated: off the board until the next encounter (not a figure to place).</summary>
+    public bool Defeated { get; set; }
 }
 
 public sealed class BoardToken

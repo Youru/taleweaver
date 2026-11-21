@@ -52,7 +52,7 @@ const arrived = computed(() => arrivedCombatants(state.value?.log))
 const storyTab = ref('page')
 const page = computed(() => storyPage(state.value?.log ?? []))
 /** Adventurers not on the board yet: the encounter has no starting zone (or it is too small) */
-const unplaced = computed(() => encounter.value?.adventurers.filter((a) => !a.position).map((a) => a.name) ?? [])
+const unplaced = computed(() => encounter.value?.adventurers.filter((a) => !a.position && !a.defeated).map((a) => a.name) ?? [])
 /** An end condition was reached: what follows (grade, reward, choice) is the story again, not the table. */
 const encounterOver = computed(() => !!encounter.value && isEncounterOver(state.value?.log ?? []))
 // During a Bounty played from a Story Round, its own scenario holds the nodes read
@@ -186,9 +186,13 @@ function moveFigure(figure: string, to: Cell) {
         <span
           v-for="adventurer in state.campaign.party"
           :key="adventurer.name"
-          :class="{ benched: adventurer.injured || adventurer.unselectable }"
+          :class="{ benched: adventurer.injured || adventurer.unselectable || adventurer.defeated }"
         >
           {{ adventurer.name }} · {{ t('play.xp', { xp: adventurer.xp }) }}
+          <template v-if="adventurer.health">
+            · {{ adventurer.damage ?? 0 }}/{{ adventurer.health }} {{ t('play.health') }}</template
+          >
+          <template v-if="adventurer.defeated"> · {{ t('play.adventurerDefeatedTag') }}</template>
           <template v-if="adventurer.injured"> · {{ t('storyRound.injured') }}</template>
           <template v-if="adventurer.unselectable"> · {{ t('storyRound.unselectable') }}</template>
         </span>
@@ -314,6 +318,7 @@ function moveFigure(figure: string, to: Cell) {
                     :node="node"
                     :cards="cards"
                     :locked="reportsLocked"
+                    :party="state.campaign.party"
                     @command="encounterCommand"
                     @duel="openDuel"
                     @close="selected = null"
@@ -327,6 +332,7 @@ function moveFigure(figure: string, to: Cell) {
                     :encounter="encounter"
                     :node="node"
                     :locked="reportsLocked"
+                    :party="state.campaign.party"
                     @command="encounterCommand"
                   />
                 </TabPanel>

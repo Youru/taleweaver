@@ -41,6 +41,11 @@ export const gamesApi = {
           method: 'POST',
           body: { card: command.card, by: command.by },
         })
+      case 'stamina':
+        return http<GameView>(`${games}/${e(id)}/party/${e(command.adventurer)}/stamina`, {
+          method: 'PUT',
+          body: { value: command.value },
+        })
     }
   },
   party: (id: string, command: PartyCommand) => {

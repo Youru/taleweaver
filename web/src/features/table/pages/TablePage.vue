@@ -96,6 +96,7 @@ function run(value: EncounterCommand) {
         :locked="locked"
         :hint="ai.hint.value"
         :arrived="arrived"
+        :party="state?.campaign.party"
         for-players
         @command="run"
         @duel="openDuel"

@@ -109,6 +109,49 @@ public sealed record Discipline
     public string? Image { get; init; }
 }
 
+/// <summary>
+/// An Adventurer Card (rulebook p. 25): base Health, Defense and Movement, the Stamina Recovery Bar (SP gained
+/// each turn, and the most SP the adventurer may hold), the five Skills and the base dice.
+/// </summary>
+public sealed record Adventurer
+{
+    public required string Id { get; init; }
+
+    /// <summary>The first name, as the party knows the adventurer ("Rook").</summary>
+    public required LocalizedText Name { get; init; }
+
+    public LocalizedText? FullName { get; init; }
+
+    public int Health { get; init; } = 12;
+
+    public int Defense { get; init; } = 7;
+
+    public int Movement { get; init; } = 6;
+
+    public AdventurerStamina Stamina { get; init; } = new(3, 5);
+
+    /// <summary>presence, lore, agility, perception, strength.</summary>
+    public IReadOnlyDictionary<string, int> Skills { get; init; } = new Dictionary<string, int>();
+
+    public IReadOnlyList<string> Conviction { get; init; } = [];
+
+    public IReadOnlyList<string> Casting { get; init; } = [];
+
+    public AdventurerAbility? Ability { get; init; }
+
+    /// <summary>Figure key in the pack ("rook").</summary>
+    public string? Figure { get; init; }
+
+    public string? Image { get; init; }
+
+    public string? ImageBack { get; init; }
+}
+
+/// <summary>The Stamina Recovery Bar: red dots (SP gained each turn), all dots (the most SP held).</summary>
+public sealed record AdventurerStamina(int Recovery, int Max);
+
+public sealed record AdventurerAbility(LocalizedText Name);
+
 /// <summary>A map tile side. Tiles are 6×6 squares.</summary>
 public sealed record Tile
 {

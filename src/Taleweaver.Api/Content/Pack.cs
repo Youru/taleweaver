@@ -44,6 +44,8 @@ public sealed record Pack
 
     public IReadOnlyList<Discipline> Disciplines { get; init; } = [];
 
+    public IReadOnlyList<Adventurer> Adventurers { get; init; } = [];
+
     public IReadOnlyList<Tile> Tiles { get; init; } = [];
 
     public IReadOnlyList<TokenType> Tokens { get; init; } = [];

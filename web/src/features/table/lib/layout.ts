@@ -231,7 +231,7 @@ export function boardLayout(
 
   const unplacedFigures: UnplacedFigure[] = [
     ...(encounter.adventurers ?? [])
-      .filter((a) => !a.position)
+      .filter((a) => !a.position && !a.defeated)
       .map((a) => ({ id: adventurerId(a.name), kind: 'adventurer' as const, name: a.name })),
     ...alive
       .filter((c: CombatantState) => !c.position)

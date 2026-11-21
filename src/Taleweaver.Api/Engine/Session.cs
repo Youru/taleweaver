@@ -44,9 +44,15 @@ internal sealed partial class Session(GameState state, GameContext context)
             return State.Encounter is { Ended: false } ? GameEngine.Errors.InEncounter : ExecutePartyCommand(command);
         }
 
+        // An adventurer's Damage and SP stay from one encounter to the next: the story may hurt or heal them too.
         if (State.Encounter is not { Ended: false })
         {
-            return GameEngine.Errors.NotInEncounter;
+            return command.Type switch
+            {
+                GameCommands.Damage when IsAdventurer(command.Instance) => DamageAdventurer(command.Instance, command.Value ?? 0),
+                GameCommands.SetStamina => SetStamina(command.Instance, command.Value ?? 0),
+                _ => GameEngine.Errors.NotInEncounter,
+            };
         }
 
         // Moving a figure changes nothing in the rules: allowed at any time, without disturbing the question.
@@ -72,13 +78,16 @@ internal sealed partial class Session(GameState state, GameContext context)
         return command.Type switch
         {
             GameCommands.NextTurn => State.Prompt is null ? NextTurn() : GameEngine.Errors.AwaitingAnswer,
+            GameCommands.Damage when reportsAllowed && IsAdventurer(command.Instance) => DamageAdventurer(command.Instance, command.Value ?? 0),
+            GameCommands.Defeat when reportsAllowed && IsAdventurer(command.Instance) => DefeatAdventurerCommand(command.Instance),
+            GameCommands.SetStamina when reportsAllowed => SetStamina(command.Instance, command.Value ?? 0),
             GameCommands.Damage when reportsAllowed => ApplyDamage(command.Instance, command.Value ?? 0),
             GameCommands.SetEffect when reportsAllowed => SetEffect(command.Instance, command.Effect, command.Active ?? true),
             GameCommands.Defeat when reportsAllowed => Defeat(command.Instance),
             GameCommands.ActivateToken when reportsAllowed => ActivateTokenCommand(command.Token),
             GameCommands.ReachEndCondition when reportsAllowed => ReachEndCondition(command.EndCondition),
             GameCommands.RevealArea when reportsAllowed => RevealAreaCommand(command.Area),
-            GameCommands.Damage or GameCommands.SetEffect or GameCommands.Defeat or GameCommands.ActivateToken or GameCommands.ReachEndCondition or GameCommands.RevealArea
+            GameCommands.Damage or GameCommands.SetEffect or GameCommands.Defeat or GameCommands.SetStamina or GameCommands.ActivateToken or GameCommands.ReachEndCondition or GameCommands.RevealArea
                 => GameEngine.Errors.AwaitingAnswer,
             _ => GameEngine.Errors.UnknownCommand(command.Type),
         };
@@ -215,8 +224,7 @@ internal sealed partial class Session(GameState state, GameContext context)
                 AnswerStoryRound(option!);
                 break;
             case PromptKinds.Adventurer:
-                Log("adventurerDefeated", args: Args(("adventurer", option)));
-                Fire(e => e.Trigger.On == "adventurerDefeated");
+                DefeatNamedAdventurer(option);
                 break;
         }
 

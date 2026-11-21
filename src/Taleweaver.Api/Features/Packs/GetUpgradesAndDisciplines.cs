@@ -19,5 +19,9 @@ public static class GetUpgradesAndDisciplines
                 TypedResults.Ok<IReadOnlyList<Discipline>>((await catalogs.GetAsync(cancellationToken)).Packs
                     .SelectMany(p => p.Disciplines).GroupBy(d => d.Id).Select(g => g.Last()).ToList()))
             .WithName("GetDisciplines");
+        group.MapGet("/adventurers", async Task<Ok<IReadOnlyList<Adventurer>>> (CatalogProvider catalogs, CancellationToken cancellationToken) =>
+                TypedResults.Ok<IReadOnlyList<Adventurer>>((await catalogs.GetAsync(cancellationToken)).Packs
+                    .SelectMany(p => p.Adventurers).GroupBy(a => a.Id).Select(g => g.Last()).ToList()))
+            .WithName("GetAdventurers");
     }
 }

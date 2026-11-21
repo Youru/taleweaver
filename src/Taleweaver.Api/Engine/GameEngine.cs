@@ -16,8 +16,9 @@ public static class GameEngine
     /// 6: Story Rounds (phases, Store's Unique Items), Active Group, Injured and Unselectable members;
     /// 7: Bounties played from a Story Round, Consumables discarded after Shop and Train, Item Upgrades, Disciplines.
     /// 8: Discipline costs from the catalogue (+1 per Discipline of the same level), level prerequisites, Re-specing.
+    /// 9: the adventurers' Health (Damage kept between encounters, Defeat, Prepare Phase, Restore) and Stamina Points.
     /// </summary>
-    public const int Version = 8;
+    public const int Version = 9;
 
     public static class Errors
     {
@@ -41,6 +42,8 @@ public static class GameEngine
 
         public static Error UnknownArea(string? area) => Error.NotFound("Encounters.UnknownArea", $"No hidden area '{area}' on the board.");
 
+        public static Error AdventurerDefeated(string name) => Error.Conflict("Encounters.AdventurerDefeated", $"{name} is Defeated: back at the next encounter.");
+
         public static Error UnknownCommand(string type) => Error.Validation("Games.UnknownCommand", $"Unknown command '{type}'.");
     }
 
@@ -58,8 +61,10 @@ public static class GameEngine
             },
         };
         var session = new Session(state, context);
+        session.UpdateAdventurerStats();
         session.GoToNode(scenario.Start);
         session.Run();
+        session.UpdateAdventurerStats();
         return state;
     }
 
@@ -78,6 +83,7 @@ public static class GameEngine
         }
 
         session.Run();
+        session.UpdateAdventurerStats();
         return session.State;
     }
 

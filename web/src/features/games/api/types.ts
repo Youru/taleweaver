@@ -64,6 +64,17 @@ export interface AdventurerState {
   disciplines?: { id: string; xp: number }[]
   equipped?: OwnedItem[]
   pack?: OwnedItem[]
+  /** Damage tokens, kept from one encounter to the next (rulebook p. 69). */
+  damage?: number
+  /** Defeated: back at the next encounter's Prepare Phase, with half their HP. */
+  defeated?: boolean
+  /** SP held. */
+  stamina?: number
+  /** Maximum HP: the card's plus the equipped cards' Health (computed by the engine). */
+  health?: number
+  /** SP gained each turn, and the most SP held (the Stamina Recovery Bar). */
+  staminaRecovery?: number
+  staminaMax?: number
 }
 
 /** One item card the party holds; `item` is missing while the card is still to be drawn by the table. */
@@ -183,6 +194,8 @@ export type EncounterCommand =
   | { type: 'revealArea'; area: string }
   /** An initiative card moved `by` places, negative toward the front. */
   | { type: 'moveInitiative'; card: string; by: number }
+  /** The adventurer now holds `value` SP. */
+  | { type: 'stamina'; adventurer: string; value: number }
 
 export interface Cell {
   x: number
@@ -213,4 +226,6 @@ export interface AdventurerFigure {
   position?: Cell
   /** Effects on the adventurer this encounter (catalogue ids, or home-made). */
   effects?: string[]
+  /** Defeated: off the board until the next encounter. */
+  defeated?: boolean
 }

@@ -33,6 +33,7 @@ internal sealed partial class Session
             ActiveEndConditions = node.EndConditions.Where(e => e.Active != false).Select(e => e.Id).ToList(),
             InitiativeTrack = ActiveParty.Select(a => AdventurerCard + a.Name).ToList(),
         };
+        PrepareAdventurers();
         Log("encounter", node.Intro, Args(("node", node.Id), ("name", node.Name?.GetValueOrDefault("en")), ("lootLevel", node.LootLevel), ("locationType", node.LocationType)));
         foreach (var card in node.Setup?.RevealHiddenCards ?? [])
         {
@@ -161,6 +162,7 @@ internal sealed partial class Session
             var node = EncounterNode;
             var lose = node.EndConditions.FirstOrDefault(e => e.Kind == "lose" && encounter.ActiveEndConditions.Contains(e.Id));
             Log("urgencyDefeat");
+            DefeatEveryAdventurer();
             if (lose is not null)
             {
                 EndEncounter(lose.Id);
@@ -183,6 +185,11 @@ internal sealed partial class Session
         }
 
         var adventurer = card.StartsWith(AdventurerCard, StringComparison.Ordinal) ? card[AdventurerCard.Length..] : null;
+        if (adventurer is not null)
+        {
+            RefreshStamina(adventurer);
+        }
+
         var statusEffects = Encounter.Adventurers.FirstOrDefault(a => a.Name == adventurer)?.Effects.Where(IsStatusEffect).ToList() ?? [];
         Log("turn", args: Args(("card", card), ("adventurer", adventurer),
             ("statusEffects", statusEffects.Count > 0 ? string.Join(", ", statusEffects) : null)));

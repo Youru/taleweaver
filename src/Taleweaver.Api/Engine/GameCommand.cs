@@ -88,6 +88,10 @@ public sealed record GameCommand
     public static GameCommand SetEffect(string instance, string effect, bool active) =>
         new() { Type = GameCommands.SetEffect, Instance = instance, Effect = effect, Active = active };
 
+    /// <summary>The adventurer now holds <paramref name="value"/> SP (spent, or gained by an ability).</summary>
+    public static GameCommand SetStamina(string adventurer, int value) =>
+        new() { Type = GameCommands.SetStamina, Instance = adventurer, Value = value };
+
     public static GameCommand Defeat(string instance) => new() { Type = GameCommands.Defeat, Instance = instance };
 
     public static GameCommand ActivateToken(string token) => new() { Type = GameCommands.ActivateToken, Token = token };
@@ -129,6 +133,7 @@ public static class GameCommands
     public const string Damage = "damage";
     public const string SetEffect = "setEffect";
     public const string Defeat = "defeat";
+    public const string SetStamina = "setStamina";
     public const string ActivateToken = "activateToken";
     public const string ReachEndCondition = "reachEndCondition";
     public const string Move = "move";

@@ -8,7 +8,7 @@ import Skeleton from 'primevue/skeleton'
 import Tag from 'primevue/tag'
 import type { TableHint } from '@/features/ai'
 import type { Combatant } from '@/features/catalog'
-import type { Cell, EncounterCommand, EncounterState } from '@/features/games'
+import type { AdventurerState, Cell, EncounterCommand, EncounterState } from '@/features/games'
 import type { ScenarioNode } from '@/features/scenarios'
 import { pick } from '@/shared/lib/localized'
 import { usePreferences } from '@/shared/lib/preferences'
@@ -35,6 +35,8 @@ const props = defineProps<{
   selectionOutside?: boolean
   /** Combatants that just appeared (totem, event): the players know, so they are always offered to place. */
   arrived?: Set<string>
+  /** The party: an adventurer's Health and SP in the selection. */
+  party?: AdventurerState[]
 }>()
 const emit = defineEmits<{ command: [command: EncounterCommand]; duel: [figure: string] }>()
 
@@ -173,6 +175,7 @@ function tap(cell: Cell) {
         :node="node"
         :cards="cards"
         :locked="locked"
+        :party="party"
         @command="emit('command', $event)"
         @duel="emit('duel', $event)"
         @close="selected = null"

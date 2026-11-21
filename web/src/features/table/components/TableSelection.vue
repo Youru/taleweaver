@@ -9,7 +9,7 @@ import InputNumber from 'primevue/inputnumber'
 import Select, { type SelectChangeEvent } from 'primevue/select'
 import Tag from 'primevue/tag'
 import { useEffects, type Combatant } from '@/features/catalog'
-import type { EncounterCommand, EncounterState } from '@/features/games'
+import type { AdventurerState, EncounterCommand, EncounterState } from '@/features/games'
 import type { ScenarioNode } from '@/features/scenarios'
 import { pick } from '@/shared/lib/localized'
 import { usePreferences } from '@/shared/lib/preferences'
@@ -24,6 +24,8 @@ const props = defineProps<{
   cards: Map<string, Combatant>
   /** Reports are refused right now (a question other than an AI step is pending). */
   locked: boolean
+  /** The party: an adventurer's Health and SP. */
+  party?: AdventurerState[]
 }>()
 const emit = defineEmits<{ command: [command: EncounterCommand]; close: []; duel: [figure: string] }>()
 
@@ -41,6 +43,8 @@ const combatant = computed(() =>
     : undefined,
 )
 const card = computed(() => (combatant.value ? props.cards.get(combatant.value.card) : undefined))
+/** The selected adventurer's sheet: Damage, maximum HP, SP. */
+const member = computed(() => props.party?.find((a) => a.name === adventurer.value))
 const token = computed(() =>
   props.selection.kind === 'token' ? props.encounter.tokens.find((tk) => tk.id === props.selection.id) : undefined,
 )
@@ -59,14 +63,23 @@ const title = computed(() => {
   return ''
 })
 
-/** Health printed on the card, and the share of it already taken (for the bar). */
+/** Health printed on the card (an adventurer's: with their equipment), and the share of it already taken (for the bar). */
 const health = computed(() => {
+  if (member.value) return member.value.health || undefined
   const value = card.value?.stats?.health
   return typeof value === 'number' ? value : undefined
 })
-const taken = computed(() =>
-  combatant.value && health.value ? Math.min(100, (combatant.value.damage / health.value) * 100) : 0,
-)
+const damageTaken = computed(() => combatant.value?.damage ?? member.value?.damage ?? 0)
+const taken = computed(() => (health.value ? Math.min(100, (damageTaken.value / health.value) * 100) : 0))
+/** Who takes the Damage: a combatant, or "adventurer:<name>". */
+const vitalsTarget = computed(() => (combatant.value ? combatant.value.instance : member.value ? props.selection.id : undefined))
+const defeated = computed(() => combatant.value?.defeated ?? member.value?.defeated ?? false)
+
+function stamina(by: number) {
+  if (!member.value) return
+  const value = Math.max(0, Math.min(member.value.staminaMax ?? 5, (member.value.stamina ?? 0) + by))
+  emit('command', { type: 'stamina', adventurer: member.value.name, value })
+}
 
 const amount = ref<number | null>(null)
 const effect = ref<string | null>('')
@@ -79,8 +92,8 @@ watch(
 )
 
 function damage(sign: 1 | -1) {
-  if (combatant.value && amount.value) {
-    emit('command', { type: 'damage', instance: combatant.value.instance, amount: sign * amount.value })
+  if (vitalsTarget.value && amount.value) {
+    emit('command', { type: 'damage', instance: vitalsTarget.value, amount: sign * amount.value })
   }
   amount.value = null
 }
@@ -89,7 +102,7 @@ function damage(sign: 1 | -1) {
 const effectTarget = computed(() =>
   combatant.value && !combatant.value.defeated
     ? combatant.value.instance
-    : adventurer.value
+    : adventurer.value && !member.value?.defeated
       ? props.selection.id
       : undefined,
 )
@@ -150,13 +163,39 @@ function pickEffect(event: SelectChangeEvent) {
         <small v-else-if="adventurer">{{ t('table.adventurer') }}</small>
       </span>
       <Tag v-if="combatant?.aggro" :value="t('play.aggro')" severity="danger" />
+      <Tag v-if="member?.defeated" :value="t('play.adventurerDefeatedTag')" severity="secondary" />
       <Button icon="pi pi-times" text rounded size="small" :aria-label="t('table.close')" @click="emit('close')" />
     </header>
 
-    <template v-if="combatant">
+    <template v-if="vitalsTarget">
       <div class="vitals">
-        <span class="hp-text">{{ combatant.damage }} / {{ health ?? '?' }} {{ t('play.health') }}</span>
+        <span class="hp-text">{{ damageTaken }} / {{ health ?? '?' }} {{ t('play.health') }}</span>
         <span class="hp-bar" aria-hidden="true"><span :style="{ width: `${taken}%` }" /></span>
+      </div>
+
+      <div v-if="member" class="stamina">
+        <span class="sp-text">{{ t('play.stamina', { sp: member.stamina ?? 0, max: member.staminaMax ?? 5 }) }}</span>
+        <span class="sp-dots" aria-hidden="true">
+          <span v-for="i in member.staminaMax ?? 5" :key="i" :class="{ on: i <= (member.stamina ?? 0) }" />
+        </span>
+        <Button
+          icon="pi pi-minus"
+          text
+          rounded
+          size="small"
+          :aria-label="t('play.spendStamina')"
+          :disabled="locked || member.defeated || !member.stamina"
+          @click="stamina(-1)"
+        />
+        <Button
+          icon="pi pi-plus"
+          text
+          rounded
+          size="small"
+          :aria-label="t('play.gainStamina')"
+          :disabled="locked || member.defeated || (member.stamina ?? 0) >= (member.staminaMax ?? 5)"
+          @click="stamina(1)"
+        />
       </div>
 
       <InputGroup class="damage">
@@ -166,7 +205,7 @@ function pickEffect(event: SelectChangeEvent) {
           :max="999"
           size="small"
           :placeholder="t('play.damage')"
-          :aria-label="`${t('play.damage')} ${combatant.instance}`"
+          :aria-label="`${t('play.damage')} ${title}`"
           :disabled="locked"
           @keydown.enter="damage(1)"
         />
@@ -175,7 +214,7 @@ function pickEffect(event: SelectChangeEvent) {
           icon="pi pi-minus-circle"
           size="small"
           severity="warn"
-          :disabled="locked"
+          :disabled="locked || defeated"
           @click="damage(1)"
         />
         <Button
@@ -254,14 +293,14 @@ function pickEffect(event: SelectChangeEvent) {
           @click="emit('duel', selection.id)"
         />
         <Button
-          v-if="combatant"
+          v-if="vitalsTarget && !defeated"
           :label="t('play.defeat')"
           icon="pi pi-times-circle"
           size="small"
           severity="danger"
           outlined
           :disabled="locked"
-          @click="emit('command', { type: 'defeat', instance: combatant.instance })"
+          @click="emit('command', { type: 'defeat', instance: vitalsTarget! })"
         />
       </div>
       <p class="hint"><i class="pi pi-arrows-alt" aria-hidden="true" /> {{ t('table.moveHint') }}</p>
@@ -352,6 +391,29 @@ header {
   border-radius: 1rem;
   background: var(--p-content-border-color);
   overflow: hidden;
+}
+.stamina {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.sp-text {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+.sp-dots {
+  display: inline-flex;
+  gap: 0.2rem;
+  margin-inline-end: auto;
+}
+.sp-dots span {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+  background: var(--p-content-border-color);
+}
+.sp-dots span.on {
+  background: var(--p-red-500);
 }
 .hp-bar span {
   display: block;

@@ -44,6 +44,7 @@ internal sealed partial class Session
                 break;
             case "restore":
                 Log("restoreAdventurers");
+                RestoreAdventurers();
                 ReturnLootCards();
                 break;
             case "revealHiddenCard":
@@ -151,6 +152,10 @@ internal sealed partial class Session
                 {
                     Ask(PromptKinds.Adventurer, Text("Which Adventurer is Defeated?", "Quel aventurier est vaincu ?"),
                         ActiveParty.Select(a => new PromptOption(a.Name)));
+                }
+                else if (action.Who is { ValueKind: JsonValueKind.String } named && MemberOf(named.GetString()) is not null)
+                {
+                    DefeatNamedAdventurer(named.GetString());
                 }
                 else
                 {

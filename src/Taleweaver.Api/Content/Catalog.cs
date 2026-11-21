@@ -46,6 +46,15 @@ public sealed class Catalog
 
     public Discipline? FindDiscipline(string? id) => id is null ? null : Packs.SelectMany(p => p.Disciplines).LastOrDefault(d => d.Id == id);
 
+    /// <summary>The Adventurer Card of a party member, by id or by name ("Rook", "rook"); the last pack's wins.</summary>
+    public Adventurer? FindAdventurer(string? nameOrId) =>
+        nameOrId is null
+            ? null
+            : Packs.SelectMany(p => p.Adventurers).LastOrDefault(a =>
+                a.Id == nameOrId
+                || a.Name.Values.Any(n => string.Equals(n, nameOrId, StringComparison.OrdinalIgnoreCase))
+                || a.Id.EndsWith("/" + nameOrId, StringComparison.OrdinalIgnoreCase));
+
     public Item? FindItem(string? id) => id is null ? null : Packs.SelectMany(p => p.Items).LastOrDefault(i => i.Id == id);
 
     public TokenType? FindToken(string? id) => id is null ? null : Packs.SelectMany(p => p.Tokens).LastOrDefault(t => t.Id == id);
@@ -78,6 +87,7 @@ public sealed class Catalog
             .Concat(pack.Items.Select(i => i.Id))
             .Concat(pack.ItemUpgrades.Select(u => u.Id))
             .Concat(pack.Disciplines.Select(d => d.Id))
+            .Concat(pack.Adventurers.Select(a => a.Id))
             .Concat(pack.Tiles.Select(t => t.Id))
             .Concat(pack.Tokens.Select(t => t.Id))
             .Concat(pack.InitiativeCards.Select(i => i.Id));
