@@ -41,6 +41,11 @@ public sealed class Catalog
 
     public Combatant? FindCombatant(string id) => _combatants.GetValueOrDefault(id);
 
+    /// <summary>The item card of this id (the last pack's, when several define it).</summary>
+    public Item? FindItem(string? id) => id is null ? null : Packs.SelectMany(p => p.Items).LastOrDefault(i => i.Id == id);
+
+    public TokenType? FindToken(string? id) => id is null ? null : Packs.SelectMany(p => p.Tokens).LastOrDefault(t => t.Id == id);
+
     /// <summary>The Intelligent cards of a family (empty when the family is unknown).</summary>
     public IReadOnlyList<Combatant> IntelligentCards(string family) =>
         _families[family].Where(c => c.Kind == "intelligent").ToList();

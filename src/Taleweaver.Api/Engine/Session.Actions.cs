@@ -169,6 +169,14 @@ internal sealed partial class Session
         var description = action.Ref
                           ?? $"{action.Count ?? 1} {string.Join("/", action.Tiers ?? [])} {action.Type}".Trim();
         State.Campaign.Items.Add(description);
+
+        // The cards, to hand out: the item named, or as many cards still to be drawn as the reward says.
+        var known = Catalog.FindItem(action.Ref)?.Id;
+        for (var i = 0; i < Math.Max(1, action.Count ?? 1); i++)
+        {
+            GainOwned(known, "scenario", known is null ? action.Tiers : null, known is null ? action.Type : null);
+        }
+
         Log("gainItem", args: Args(("item", action.Ref), ("count", Number(action.Count)), ("tiers", action.Tiers is null ? null : string.Join("/", action.Tiers)), ("type", action.Type)));
     }
 

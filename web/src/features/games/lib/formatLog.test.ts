@@ -16,6 +16,11 @@ const messages: Record<string, string> = {
   'log.story.encounter': 'Rencontre',
   'log.story.loot': 'Butin {lootLevel}',
   'workshop.loot.mundane': 'Mundane',
+  'log.itemAdded': '{item} donné à {owner}',
+  'log.itemBought': '{item} acheté {price} or pour {owner}',
+  'log.itemUsedToken': '{owner} utilise {item} : jeton {token} en {at}',
+  'log.itemOwner.stash': 'la réserve',
+  'inventory.pack': 'Sac',
 }
 const translate = (key: string, args: Record<string, string>) =>
   (messages[key] ?? key).replace(/\{(\w+)\}/g, (_, name: string) => args[name] ?? '')
@@ -117,5 +122,22 @@ describe('shortId', () => {
     ['loot:red', 'loot:red'],
   ])('%s → %s', (id, expected) => {
     expect(shortId(id)).toBe(expected)
+  })
+
+  it("tells the party's items apart: stash in words, purchase, token placed", () => {
+    const line = (code: string, args: Record<string, string>) => formatLog({ code, args }, 'fr', translate, has).title
+
+    expect(line('itemAdded', { item: 'um1:item/long-sword', owner: 'stash' })).toBe('long-sword donné à la réserve')
+    expect(line('itemAdded', { item: 'um1:item/long-sword', owner: 'Rook', slot: 'pack', price: '40' })).toBe(
+      'long-sword acheté 40 or pour Rook (Sac)',
+    )
+    expect(
+      line('itemUsed', {
+        item: 'um1:item/ubiquitous-plank',
+        owner: 'Rook',
+        token: 'um1:token/combatant/plank',
+        at: '3,4',
+      }),
+    ).toBe('Rook utilise ubiquitous-plank : jeton plank en 3,4')
   })
 })

@@ -36,6 +36,18 @@ public sealed record GameCommand
     /// <summary>MoveInitiative: the card moved on the track (its places in <see cref="Value"/>: negative toward the front).</summary>
     public string? Card { get; init; }
 
+    /// <summary>AddItem: the catalogue id of the card.</summary>
+    public string? Item { get; init; }
+
+    /// <summary>Items: who gets it, an adventurer's name, "stash" or "unassigned".</summary>
+    public string? Owner { get; init; }
+
+    /// <summary>Items given to an adventurer: "equipped" or "pack".</summary>
+    public string? Slot { get; init; }
+
+    /// <summary>AddItem: the item still to be drawn (Item Loot…) that this card is.</summary>
+    public string? Replaces { get; init; }
+
     public static GameCommand Answer(string option) => new() { Type = GameCommands.Answer, Option = option };
 
     public static GameCommand AnswerNumber(int value) => new() { Type = GameCommands.Answer, Value = value };
@@ -59,6 +71,25 @@ public sealed record GameCommand
 
     public static GameCommand RevealArea(string area) => new() { Type = GameCommands.RevealArea, Area = area };
 
+    /// <summary>The GM hands out a card: bought (<paramref name="price"/> Gold), looted, or the card drawn for <paramref name="replaces"/>.</summary>
+    public static GameCommand AddItem(string item, string owner, string? slot = null, int? price = null, string? replaces = null) =>
+        new() { Type = GameCommands.AddItem, Item = item, Owner = owner, Slot = slot, Value = price, Replaces = replaces };
+
+    public static GameCommand MoveItem(string id, string owner, string? slot = null) =>
+        new() { Type = GameCommands.MoveItem, Instance = id, Owner = owner, Slot = slot };
+
+    /// <summary>The card leaves the party: discarded, or sold for <paramref name="gold"/>.</summary>
+    public static GameCommand DiscardItem(string id, int? gold = null) => new() { Type = GameCommands.DiscardItem, Instance = id, Value = gold };
+
+    public static GameCommand FlipItem(string id, bool flipped) => new() { Type = GameCommands.FlipItem, Instance = id, Active = flipped };
+
+    /// <summary>
+    /// An item is used: <paramref name="discard"/> it (a Consumable), and place a token on the board if it says so
+    /// (Ubiquitous Plank: "Place a Plank token on an adjacent space").
+    /// </summary>
+    public static GameCommand UseItem(string id, bool discard, string? token = null, Cell? at = null) =>
+        new() { Type = GameCommands.UseItem, Instance = id, Active = discard, Token = token, To = at };
+
     public static GameCommand ReachEndCondition(string endCondition) => new() { Type = GameCommands.ReachEndCondition, EndCondition = endCondition };
 }
 
@@ -74,4 +105,12 @@ public static class GameCommands
     public const string Move = "move";
     public const string RevealArea = "revealArea";
     public const string MoveInitiative = "moveInitiative";
+    public const string AddItem = "addItem";
+    public const string MoveItem = "moveItem";
+    public const string DiscardItem = "discardItem";
+    public const string FlipItem = "flipItem";
+    public const string UseItem = "useItem";
+
+    /// <summary>Commands on the party's items: allowed in and out of encounters, whatever the question pending.</summary>
+    public static bool IsItemCommand(string type) => type is AddItem or MoveItem or DiscardItem or FlipItem or UseItem;
 }

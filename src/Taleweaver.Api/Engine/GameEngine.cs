@@ -11,9 +11,10 @@ public static class GameEngine
     /// <summary>
     /// Raised when the engine computes a different state from the same history (new fields, rule fixes).
     /// A game saved by an older engine is replayed when loaded. 2: positions; 3: moves, adventurers on the board, fog;
-    /// 4: every starting zone filled, initiative cards played this round (cards moved on the track).
+    /// 4: every starting zone filled, initiative cards played this round (cards moved on the track);
+    /// 5: the party's items (stash, equipped, pack, items to hand out).
     /// </summary>
-    public const int Version = 4;
+    public const int Version = 5;
 
     public static class Errors
     {

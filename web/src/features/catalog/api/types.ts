@@ -63,3 +63,23 @@ export interface InitiativeCard {
   lowres: boolean
   image?: string | null
 }
+
+/** Mirrors Taleweaver.Api.Content.Item: an item card (rulebook ch. 6). */
+export interface CatalogItem {
+  id: string
+  name: LocalizedText
+  /** mundane, common, uncommon, rare, story, wandering, monster, or none (accessories). */
+  tier?: string | null
+  /** weapon, armor, core, accessory, relic, consumable. */
+  type: string
+  unique?: boolean
+  story?: boolean
+  monsterOf?: string | null
+  cost?: number | null
+  rarity?: string | null
+  tags: string[]
+  text?: LocalizedText | null
+  backSide?: { name: LocalizedText; tags: string[]; text: LocalizedText } | null
+  image?: string | null
+  imageBack?: string | null
+}

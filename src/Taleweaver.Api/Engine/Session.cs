@@ -27,6 +27,12 @@ internal sealed partial class Session(GameState state, GameContext context)
             return State.Prompt is null ? GameEngine.Errors.NoQuestion : Answer(command);
         }
 
+        // The party's items change nothing in the flow: allowed in and out of encounters, whatever the question.
+        if (GameCommands.IsItemCommand(command.Type))
+        {
+            return ExecuteItemCommand(command);
+        }
+
         if (State.Encounter is not { Ended: false })
         {
             return GameEngine.Errors.NotInEncounter;

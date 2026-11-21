@@ -1,5 +1,5 @@
 import { http } from '@/shared/api/http'
-import type { Answer, EncounterCommand, GameSummary, GameView } from './types'
+import type { Answer, EncounterCommand, GameSummary, GameView, ItemCommand } from './types'
 
 const games = '/api/games'
 const e = encodeURIComponent
@@ -40,6 +40,36 @@ export const gamesApi = {
         return http<GameView>(`${base}/initiative/moves`, {
           method: 'POST',
           body: { card: command.card, by: command.by },
+        })
+    }
+  },
+  items: (id: string, command: ItemCommand) => {
+    const base = `${games}/${e(id)}/items`
+    switch (command.type) {
+      case 'add':
+        return http<GameView>(base, {
+          method: 'POST',
+          body: {
+            item: command.item,
+            owner: command.owner,
+            slot: command.slot,
+            price: command.price,
+            replaces: command.replaces,
+          },
+        })
+      case 'move':
+        return http<GameView>(`${base}/${e(command.id)}/owner`, {
+          method: 'PUT',
+          body: { owner: command.owner, slot: command.slot },
+        })
+      case 'discard':
+        return http<GameView>(`${base}/${e(command.id)}/discard`, { method: 'POST', body: { gold: command.gold } })
+      case 'flip':
+        return http<GameView>(`${base}/${e(command.id)}/flipped`, { method: 'PUT', body: { flipped: command.flipped } })
+      case 'use':
+        return http<GameView>(`${base}/${e(command.id)}/use`, {
+          method: 'POST',
+          body: { discard: command.discard, token: command.token, at: command.at },
         })
     }
   },

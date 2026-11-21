@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import { computed, toValue, type MaybeRefOrGetter } from 'vue'
 import { gamesApi } from './gamesApi'
-import type { Answer, EncounterCommand, GameView } from './types'
+import type { Answer, EncounterCommand, GameView, ItemCommand } from './types'
 
 export const gameKeys = {
   all: ['games'] as const,
@@ -42,7 +42,10 @@ export function useDeleteGame() {
 }
 
 export type GameCommand =
-  { kind: 'answer'; answer: Answer } | { kind: 'undo' } | { kind: 'encounter'; command: EncounterCommand }
+  | { kind: 'answer'; answer: Answer }
+  | { kind: 'undo' }
+  | { kind: 'encounter'; command: EncounterCommand }
+  | { kind: 'items'; command: ItemCommand }
 
 /** Every game command returns the full new state: it replaces the cached game. */
 export function useGameCommand(id: MaybeRefOrGetter<string>) {
@@ -57,6 +60,8 @@ export function useGameCommand(id: MaybeRefOrGetter<string>) {
           return gamesApi.undo(gameId)
         case 'encounter':
           return gamesApi.encounter(gameId, command.command)
+        case 'items':
+          return gamesApi.items(gameId, command.command)
       }
     },
     onSuccess: (game) => {

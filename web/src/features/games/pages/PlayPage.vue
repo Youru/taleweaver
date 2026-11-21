@@ -2,6 +2,7 @@
 import { computed, nextTick, ref, useTemplateRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
+import Badge from 'primevue/badge'
 import Button from 'primevue/button'
 import Message from 'primevue/message'
 import ProgressSpinner from 'primevue/progressspinner'
@@ -13,13 +14,14 @@ import Tabs from 'primevue/tabs'
 import { useAiAdvice } from '@/features/ai'
 import { useCombatants } from '@/features/catalog'
 import { DuelDialog } from '@/features/duel'
+import { InventoryDialog } from '@/features/inventory'
 import { useScenario } from '@/features/scenarios'
 import { boardLayout, TableSelection, TableView, useBoardPieces, type Selection } from '@/features/table'
 import { ApiError } from '@/shared/api/http'
 import { pick } from '@/shared/lib/localized'
 import { usePreferences } from '@/shared/lib/preferences'
 import { useGame, useGameCommand } from '../api/queries'
-import type { Answer, Cell, EncounterCommand } from '../api/types'
+import type { Answer, Cell, EncounterCommand, ItemCommand } from '../api/types'
 import CombatantList from '../components/encounter/CombatantList.vue'
 import EncounterBar from '../components/encounter/EncounterBar.vue'
 import EncounterGoals from '../components/encounter/EncounterGoals.vue'
@@ -123,6 +125,14 @@ function endingLabel(ending: string | undefined) {
   return ending ?? ''
 }
 
+/** The party's items, in their own window. */
+const inventoryOpen = ref(false)
+const toHandOut = computed(() => state.value?.campaign.unassigned?.length ?? 0)
+
+function itemCommand(value: ItemCommand) {
+  command.mutate({ kind: 'items', command: value })
+}
+
 function moveFigure(figure: string, to: Cell) {
   encounterCommand({ type: 'move', figure, to })
 }
@@ -143,6 +153,25 @@ function moveFigure(figure: string, to: Cell) {
         <span v-for="adventurer in state.campaign.party" :key="adventurer.name">
           {{ adventurer.name }} · {{ t('play.xp', { xp: adventurer.xp }) }}
         </span>
+        <Button
+          class="inventory-button"
+          icon="pi pi-briefcase"
+          :label="t('inventory.open')"
+          severity="secondary"
+          text
+          @click="inventoryOpen = true"
+        >
+          <template #default>
+            <i class="pi pi-briefcase" aria-hidden="true" />
+            <span>{{ t('inventory.open') }}</span>
+            <Badge
+              v-if="toHandOut"
+              :value="toHandOut"
+              severity="warn"
+              :aria-label="t('inventory.toHandOut', { n: toHandOut })"
+            />
+          </template>
+        </Button>
         <RouterLink v-if="encounter" :to="{ name: 'table', params: { id } }" target="_blank">
           <Button icon="pi pi-external-link" :label="t('table.openTable')" severity="secondary" text />
         </RouterLink>
@@ -156,6 +185,15 @@ function moveFigure(figure: string, to: Cell) {
         />
       </header>
       <Message v-if="commandError" severity="error" closable @close="command.reset()">{{ commandError }}</Message>
+      <InventoryDialog
+        v-model:open="inventoryOpen"
+        :campaign="state.campaign"
+        :encounter="encounter && !encounterOver ? encounter : undefined"
+        :node="node"
+        :busy="command.isPending.value"
+        :error="commandError"
+        @command="itemCommand"
+      />
 
       <!-- Encounter: table in the middle, turn and tabs beside it -->
       <template v-if="encounter && !encounterOver">

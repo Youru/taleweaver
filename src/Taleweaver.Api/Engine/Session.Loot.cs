@@ -107,7 +107,8 @@ internal sealed partial class Session
             case ItemCard:
                 // The Adventurer rolls 2 WHITE dice for the Item type (rulebook p. 20): physical dice, the GM draws the card.
                 State.Campaign.Items.Add($"1 {lootLevel} item (Item Loot)");
-                Log("lootItem", args: Args(("instance", figure.Instance), ("lootLevel", lootLevel)));
+                var drawnLater = GainOwned(null, "itemLoot", lootLevel is null ? null : [lootLevel]);
+                Log("lootItem", args: Args(("instance", figure.Instance), ("lootLevel", lootLevel), ("id", drawnLater.Id)));
                 break;
             case MonsterCard:
                 GainMonsterLoot(figure, card);
@@ -147,6 +148,7 @@ internal sealed partial class Session
 
         var item = left[NextRandom(left.Count)];
         State.Campaign.Items.Add(item);
+        GainOwned(item, "monsterLoot");
         Log("lootMonster", args: Args(("instance", figure.Instance), ("item", item)));
         return true;
     }
@@ -167,6 +169,7 @@ internal sealed partial class Session
 
         var item = left[NextRandom(left.Count)];
         State.Campaign.Items.Add(item);
+        GainOwned(item, "uniqueLoot");
         Log("lootUnique", args: Args(("instance", figure.Instance), ("item", item)));
     }
 

@@ -61,6 +61,12 @@ const tones: Record<string, LogTone> = {
   lootUniqueNone: 'muted',
   lootNone: 'muted',
   lootDeckShuffled: 'muted',
+  itemAdded: 'reward',
+  itemSold: 'reward',
+  itemUsed: 'info',
+  itemMoved: 'muted',
+  itemDiscarded: 'muted',
+  itemFlipped: 'muted',
   scenarioEnd: 'reward',
   answer: 'muted',
   figureTurnEnd: 'muted',
@@ -72,7 +78,7 @@ export const toneOf = (code: string): LogTone => tones[code] ?? 'info'
 /** Arguments made readable: content ids shortened, the turn's owner named. */
 function readableArgs(entry: LogEntry): Record<string, string> {
   const args: Record<string, string> = { ...entry.args }
-  for (const key of ['card', 'from', 'to', 'item', 'diagram']) {
+  for (const key of ['card', 'from', 'to', 'item', 'diagram', 'token']) {
     const value = args[key]
     if (value) args[key] = shortId(value)
   }
@@ -92,7 +98,23 @@ export function formatLog(
   // Answers given with a fixed option (yes, no, continue) read in the reader's language.
   const fixed = entry.code === 'answer' && args.answer ? `prompt.${args.answer}` : null
   if (fixed && hasMessage(fixed)) args.answer = translate(fixed, {})
-  const key = `log.${entry.code}`
+  // The party's items: the stash and the items to hand out in words, a purchase and a token placed told apart
+  if (entry.code.startsWith('item')) {
+    const owner = args.owner
+    args.owner =
+      owner === 'stash' || owner === 'unassigned'
+        ? translate(`log.itemOwner.${owner}`, {})
+        : (owner ?? translate('log.itemOwner.nobody', {}))
+    if (args.slot === 'pack') args.owner += ` (${translate('inventory.pack', {})})`
+    if (!args.item) args.item = args.id ?? ''
+  }
+  const code =
+    entry.code === 'itemAdded' && args.price
+      ? 'itemBought'
+      : entry.code === 'itemUsed' && args.token
+        ? 'itemUsedToken'
+        : entry.code
+  const key = `log.${code}`
   let title = hasMessage(key) ? translate(key, args) : translate('log.unknown', { code: entry.code })
   // STATUS Effects resolve at the start of the figure's turn (Poison, Condemn, Haste)
   if (args.statusEffects) title += ` · ${translate('log.statusEffects', { effects: args.statusEffects })}`

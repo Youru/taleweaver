@@ -1,5 +1,11 @@
 export type {
   AdventurerFigure,
+  AdventurerState,
+  CampaignState,
+  ItemCommand,
+  ItemOwner,
+  ItemSlot,
+  OwnedItem,
   BoardToken,
   Cell,
   CombatantState,
@@ -10,6 +16,6 @@ export type {
   GameSummary,
   GameView,
 } from './api/types'
-export { useDeleteGame, useGame, useGameCommand, useGames } from './api/queries'
+export { useDeleteGame, useGame, useGameCommand, useGames, type GameCommand } from './api/queries'
 export { default as StartGameDialog } from './components/StartGameDialog.vue'
 export { default as EncounterBar } from './components/encounter/EncounterBar.vue'

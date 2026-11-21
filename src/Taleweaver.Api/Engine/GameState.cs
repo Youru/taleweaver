@@ -54,8 +54,20 @@ public sealed class CampaignState
 
     public List<AdventurerState> Party { get; set; } = [];
 
-    /// <summary>Items gained, as described by the scenario (the app does not track the cards).</summary>
+    /// <summary>
+    /// Every item gained, in order: catalogue ids, or the scenario's description ("1 rare item"). A history:
+    /// what the party holds now is in <see cref="Stash"/>, <see cref="Unassigned"/> and each adventurer's items.
+    /// </summary>
     public List<string> Items { get; set; } = [];
+
+    /// <summary>The Party Stash (rulebook p. 25): items the party owns without carrying them.</summary>
+    public List<OwnedItem> Stash { get; set; } = [];
+
+    /// <summary>Items gained (loot, rewards) that the GM has not handed to an adventurer or the stash yet.</summary>
+    public List<OwnedItem> Unassigned { get; set; } = [];
+
+    /// <summary>Number of items handed out so far: the next one is "item-&lt;n + 1&gt;".</summary>
+    public int ItemCount { get; set; }
 
     public List<string> RevealedHiddenCards { get; set; } = [];
 
@@ -70,6 +82,37 @@ public sealed class AdventurerState
     public required string Name { get; set; }
 
     public int Xp { get; set; }
+
+    /// <summary>Items equipped (rulebook p. 25: 2 hands of weapons, 1 armor, 1 core, 1 accessory, 3 relics, 3 consumables).</summary>
+    public List<OwnedItem> Equipped { get; set; } = [];
+
+    /// <summary>Items stored in the adventurer's Pack (3, more with an Adventurer's Pack): not usable until equipped.</summary>
+    public List<OwnedItem> Pack { get; set; } = [];
+}
+
+/// <summary>
+/// One item card the party holds. <see cref="Item"/> is null for an item still to be drawn by the table
+/// (Item Loot: the 2 white dice; "1 common consumable"): <see cref="Tiers"/> and <see cref="Type"/> say which.
+/// </summary>
+public sealed class OwnedItem
+{
+    /// <summary>"item-3": unique in the game, so that two copies of a card can be told apart.</summary>
+    public required string Id { get; set; }
+
+    /// <summary>Catalogue id ("um1:item/ubiquitous-plank"), or null while the card is still to be drawn.</summary>
+    public string? Item { get; set; }
+
+    /// <summary>A card still to be drawn: its tiers ("rare").</summary>
+    public List<string>? Tiers { get; set; }
+
+    /// <summary>A card still to be drawn: its type ("consumable"), when given.</summary>
+    public string? Type { get; set; }
+
+    /// <summary>Where it came from: itemLoot, monsterLoot, uniqueLoot, scenario, gm.</summary>
+    public string? Source { get; set; }
+
+    /// <summary>Equipped on its back side (DOUBLE), or Flipped by an ability.</summary>
+    public bool Flipped { get; set; }
 }
 
 public sealed class EncounterState

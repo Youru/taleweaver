@@ -1,0 +1,6 @@
+{
+  "items": [
+    { "id": "hb:item/plank", "name": { "en": "Plank" }, "tier": "mundane", "type": "consumable", "cost": 10, "tags": [], "text": { "en": "X DISCARD\nPlace a Plank token on an adjacent space." }, "image": "assets/hb/pixel.png" },
+    { "id": "hb:item/sword", "name": { "en": "Sword" }, "tier": "common", "type": "weapon", "cost": 40, "tags": ["SWORD"], "image": "assets/hb/pixel.png" }
+  ]
+}

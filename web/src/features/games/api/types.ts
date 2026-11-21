@@ -26,10 +26,48 @@ export interface GameState {
 export interface CampaignState {
   currentNode?: string
   gold: number
-  party: { name: string; xp: number }[]
+  party: AdventurerState[]
+  /** Every item gained, in order (a history): catalogue ids or the scenario's description. */
   items: string[]
+  /** The Party Stash (rulebook p. 25). */
+  stash?: OwnedItem[]
+  /** Items gained (loot, rewards) not handed out yet. */
+  unassigned?: OwnedItem[]
   revealedHiddenCards: string[]
 }
+
+export interface AdventurerState {
+  name: string
+  xp: number
+  equipped?: OwnedItem[]
+  pack?: OwnedItem[]
+}
+
+/** One item card the party holds; `item` is missing while the card is still to be drawn by the table. */
+export interface OwnedItem {
+  /** "item-3", unique in the game. */
+  id: string
+  /** Catalogue id, or missing for a card still to draw (Item Loot…). */
+  item?: string | null
+  /** A card still to draw: its tiers ("rare") and type ("consumable"). */
+  tiers?: string[] | null
+  type?: string | null
+  /** itemLoot, monsterLoot, uniqueLoot, scenario, gm. */
+  source?: string | null
+  flipped: boolean
+}
+
+/** Who holds an item: an adventurer's name, the Party Stash, or the items still to hand out. */
+export type ItemOwner = string
+export type ItemSlot = 'equipped' | 'pack'
+
+/** Commands on the party's items, as sent to /api/games/{id}/items… */
+export type ItemCommand =
+  | { type: 'add'; item: string; owner: ItemOwner; slot?: ItemSlot; price?: number; replaces?: string }
+  | { type: 'move'; id: string; owner: ItemOwner; slot?: ItemSlot }
+  | { type: 'discard'; id: string; gold?: number }
+  | { type: 'flip'; id: string; flipped: boolean }
+  | { type: 'use'; id: string; discard: boolean; token?: string; at?: Cell }
 
 export interface EncounterState {
   node: string
