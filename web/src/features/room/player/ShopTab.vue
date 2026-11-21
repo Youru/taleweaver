@@ -78,7 +78,7 @@ async function buy(owner: string) {
         >
           <img
             v-if="catalog.get(offer.item)?.image"
-            :src="assetUrl(catalog.get(offer.item)?.image)"
+            :src="assetUrl(catalog.get(offer.item)?.image, 320)"
             :alt="pick(catalog.get(offer.item)?.name, language)"
             loading="lazy"
           />
@@ -94,7 +94,7 @@ async function buy(owner: string) {
       class="card-viewer"
       @update:visible="(v: boolean) => !v && (shown = undefined)"
     >
-      <img v-if="card?.image" :src="assetUrl(card.image)" :alt="pick(card.name, language)" />
+      <img v-if="card?.image" :src="assetUrl(card.image, 1280)" :alt="pick(card.name, language)" />
       <div v-if="shown" class="actions">
         <p class="cost">{{ t('room.shop.cost', { price: shown.price, gold }) }}</p>
         <Message v-if="asked.has(shown.item)" severity="warn" :closable="false">{{

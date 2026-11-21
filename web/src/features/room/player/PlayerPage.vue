@@ -102,7 +102,7 @@ onMounted(() => {
   <div v-else class="center"><ProgressSpinner :aria-label="t('common.loading')" /></div>
   <button v-if="shown" type="button" class="shown" @click="shown = null">
     <span>{{ t('room.player.shownByGm') }}</span>
-    <img :src="assetUrl(shown.image)" :alt="shown.caption ?? ''" />
+    <img :src="assetUrl(shown.image, 1280)" :alt="shown.caption ?? ''" />
     <strong v-if="shown.caption">{{ shown.caption }}</strong>
     <small>{{ t('room.player.tapToClose') }}</small>
   </button>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, provide, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 import Message from 'primevue/message'
@@ -10,7 +10,7 @@ import Dialog from 'primevue/dialog'
 import SelectButton from 'primevue/selectbutton'
 import ToggleSwitch from 'primevue/toggleswitch'
 import { usePlayerSettings, useWakeLock } from '../lib/playerSettings'
-import { assetUrl } from '@/shared/api/assets'
+import { assetUrl, thumbnailWidthKey } from '@/shared/api/assets'
 import { pick } from '@/shared/lib/localized'
 import { usePreferences } from '@/shared/lib/preferences'
 import type { HubStatus } from '../api/roomHub'
@@ -36,6 +36,8 @@ const props = defineProps<{
 const emit = defineEmits<{ follow: [name: string] }>()
 const { t, te } = useI18n()
 const { language } = storeToRefs(usePreferences())
+// The cards in grids come small to the phone (room-spec §10.3)
+provide(thumbnailWidthKey, 320)
 const settings = usePlayerSettings()
 if (!props.view.impersonated) useWakeLock(settings)
 const settingsOpen = ref(false)
@@ -201,7 +203,7 @@ function touchEnd(event: TouchEvent) {
         >
           <img
             v-if="cardOf(adventurer.name)?.image"
-            :src="assetUrl(cardOf(adventurer.name)?.image)"
+            :src="assetUrl(cardOf(adventurer.name)?.image, 160)"
             alt=""
             aria-hidden="true"
           />
@@ -366,14 +368,14 @@ function touchEnd(event: TouchEvent) {
     <Transition name="call">
       <button v-if="received && !calling" type="button" class="received" @click="received = null">
         <span>{{ t('room.player.newItem', { name: received.owner }) }}</span>
-        <img v-if="receivedCard?.image" :src="assetUrl(receivedCard.image)" alt="" class="turning" />
+        <img v-if="receivedCard?.image" :src="assetUrl(receivedCard.image, 640)" alt="" class="turning" />
         <strong>{{ pick(receivedCard?.name, language) || t('room.player.cardToDraw') }}</strong>
         <small>{{ t('room.player.tapToClose') }}</small>
       </button>
     </Transition>
     <Transition name="call">
       <button v-if="calling" type="button" class="your-turn" @click="calling = null">
-        <img v-if="cardOf(calling)?.image" :src="assetUrl(cardOf(calling)?.image)" alt="" aria-hidden="true" />
+        <img v-if="cardOf(calling)?.image" :src="assetUrl(cardOf(calling)?.image, 640)" alt="" aria-hidden="true" />
         <strong>{{ t('room.player.yourTurn', { name: calling }) }}</strong>
         <span>{{ t('room.player.tapToClose') }}</span>
       </button>

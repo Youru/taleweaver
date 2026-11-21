@@ -150,7 +150,7 @@ const opponents = computed(() => encounter.value.combatants.filter((c) => !c.def
     <p v-if="opponents.length === 0" class="muted">{{ t('room.player.noOpponent') }}</p>
     <ul v-else class="opponents">
       <li v-for="c in opponents" :key="c.instance">
-        <img v-if="c.image" :src="assetUrl(c.image)" alt="" loading="lazy" />
+        <img v-if="c.image" :src="assetUrl(c.image, 160)" alt="" loading="lazy" />
         <span class="name">
           {{ pick(c.name, language) || c.family }}
           <small v-if="c.number">#{{ c.number }}</small>

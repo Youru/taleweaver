@@ -20,6 +20,8 @@ Vue 3 + TypeScript strict, Vite, PrimeVue 4, TanStack Query, Pinia, vue-i18n (FR
 
 ⚠️ **PrimeVue reste en 4.5.x** (MIT). La version 5 passe sous licence PrimeUI, qui exige une clé, même pour la licence gratuite.
 
+⚠️ **Images redimensionnées (API) : SkiaSharp** (MIT), pas ImageSharp : la v4 exige une clé de licence (tâche MSBuild `SixLabors_ValidateLicense`) et la v3 a des failles connues (avertissements NU1902/NU1903, bloquants ici). Les copies réduites (`/api/assets/…?w=160|320|640|1280`) sont gardées dans `<saves>/cache/images/`.
+
 ```bash
 cd taleweaver/web && npm install && npm run dev
 ```

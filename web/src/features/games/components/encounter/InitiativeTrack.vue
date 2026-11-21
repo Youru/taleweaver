@@ -2,7 +2,7 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useInitiativeCards } from '@/features/catalog'
-import { assetUrl } from '@/shared/api/assets'
+import { assetUrl, useThumbnailWidth } from '@/shared/api/assets'
 import type { EncounterState } from '../../api/types'
 import { initiativeTrack, type HeldBy } from '../../lib/initiativeTrack'
 
@@ -34,6 +34,7 @@ function describe(card: (typeof track.value)[number]) {
   return numbers ? `${text} (${t('play.trackFigures', { numbers })})` : text
 }
 
+const thumbnail = useThumbnailWidth()
 const seatOf = (id: string) =>
   id.startsWith('adventurer:') ? props.heldBy?.[id.slice('adventurer:'.length)] : undefined
 
@@ -82,7 +83,7 @@ watch(
           @click="movable && toggle(card.id)"
           @keydown.esc="selected = null"
         >
-          <img v-if="card.image" :src="assetUrl(card.image)" alt="" loading="lazy" />
+          <img v-if="card.image" :src="assetUrl(card.image, thumbnail)" alt="" loading="lazy" />
           <span v-else class="blank">{{ card.label }}</span>
           <span class="order" aria-hidden="true">{{ card.order }}</span>
           <i

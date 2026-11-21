@@ -75,7 +75,7 @@ const skills = ['presence', 'lore', 'agility', 'perception', 'strength']
 
 <template>
   <div class="hero">
-    <img v-if="card?.image" class="card" :src="assetUrl(card.image)" :alt="adventurer.name" />
+    <img v-if="card?.image" class="card" :src="assetUrl(card.image, 1280)" :alt="adventurer.name" />
     <h2>{{ pick(card?.fullName, language) || adventurer.name }}</h2>
     <div class="tags">
       <Tag v-if="adventurer.defeated" severity="danger" :value="t('play.adventurerDefeatedTag')" />
@@ -122,7 +122,11 @@ const skills = ['presence', 'lore', 'agility', 'perception', 'strength']
             <span>{{ pick(d.card?.name, language) || d.id }}</span>
             <small>{{ t('room.player.xpCost', { xp: d.xp }) }}</small>
           </button>
-          <img v-if="open === d.id && d.card?.image" :src="assetUrl(d.card.image)" :alt="pick(d.card.name, language)" />
+          <img
+            v-if="open === d.id && d.card?.image"
+            :src="assetUrl(d.card.image, 640)"
+            :alt="pick(d.card.name, language)"
+          />
         </li>
       </ul>
       <Button
@@ -138,7 +142,12 @@ const skills = ['presence', 'lore', 'agility', 'perception', 'strength']
       <Message v-if="failure" severity="error" :closable="false">{{ failure }}</Message>
       <ul class="learnable">
         <li v-for="d in learnable" :key="d.card.id">
-          <img v-if="d.card.image" :src="assetUrl(d.card.image)" :alt="pick(d.card.name, language)" loading="lazy" />
+          <img
+            v-if="d.card.image"
+            :src="assetUrl(d.card.image, 320)"
+            :alt="pick(d.card.name, language)"
+            loading="lazy"
+          />
           <div>
             <strong>{{ pick(d.card.name, language) }}</strong>
             <small>{{ t('room.request.learn.cost', { xp: d.cost, level: d.card.level ?? '?' }) }}</small>

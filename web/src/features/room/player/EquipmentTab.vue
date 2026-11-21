@@ -38,7 +38,9 @@ const catalog = computed(() => new Map((items.data.value ?? []).map((i) => [i.id
 const shown = ref<OwnedItem>()
 const back = ref(false)
 const card = computed(() => (shown.value?.item ? catalog.value.get(shown.value.item) : undefined))
-const image = computed(() => assetUrl(back.value ? (card.value?.imageBack ?? card.value?.image) : card.value?.image))
+const image = computed(() =>
+  assetUrl(back.value ? (card.value?.imageBack ?? card.value?.image) : card.value?.image, 1280),
+)
 
 function show(owned: OwnedItem) {
   shown.value = owned

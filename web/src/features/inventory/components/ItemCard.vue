@@ -4,19 +4,21 @@ import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 import type { CatalogItem } from '@/features/catalog'
 import type { OwnedItem } from '@/features/games'
-import { assetUrl } from '@/shared/api/assets'
+import { assetUrl, useThumbnailWidth } from '@/shared/api/assets'
 import { pick } from '@/shared/lib/localized'
 import { usePreferences } from '@/shared/lib/preferences'
 
 /** One card the party holds, as a small picture: the side shown, its name; a card still to draw is a dashed box. */
 const props = defineProps<{ owned: OwnedItem; card: CatalogItem | undefined; selected: boolean }>()
+/** A phone asks for a small copy (room-spec §10.3). */
+const thumbnail = useThumbnailWidth()
 defineEmits<{ select: [] }>()
 
 const { t } = useI18n()
 const { language } = storeToRefs(usePreferences())
 
 const image = computed(() =>
-  assetUrl(props.owned.flipped ? (props.card?.imageBack ?? props.card?.image) : props.card?.image),
+  assetUrl(props.owned.flipped ? (props.card?.imageBack ?? props.card?.image) : props.card?.image, thumbnail),
 )
 const name = computed(() =>
   props.owned.item
