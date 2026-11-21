@@ -4,6 +4,8 @@ import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 import Tag from 'primevue/tag'
 import type { Combatant } from '@/features/catalog'
+import { figureArt, type BoardPieces } from '@/features/table'
+import { assetUrl } from '@/shared/api/assets'
 import { pick } from '@/shared/lib/localized'
 import { usePreferences } from '@/shared/lib/preferences'
 import type { CombatantState, EncounterState } from '../../api/types'
@@ -16,6 +18,8 @@ const props = defineProps<{
   selected: string | undefined
   /** Figures the table shows (not under the fog); when given, the others are left out. */
   shown?: Set<string>
+  /** The board's figures, for each row's portrait. */
+  pieces?: BoardPieces
 }>()
 const emit = defineEmits<{ select: [instance: string] }>()
 
@@ -45,6 +49,13 @@ function name(figure: CombatantState): string {
   return card ? pick(card.name, language.value) : ''
 }
 
+/** The figure's round portrait (else its standee, cropped), as on the board. */
+function art(figure: CombatantState): { url: string; portrait: boolean } | undefined {
+  const found = figureArt(props.pieces, figure.figure, figure.family)
+  const url = found.image ? assetUrl(found.image) : undefined
+  return url ? { url, portrait: found.portrait } : undefined
+}
+
 function share(figure: CombatantState): number {
   const max = health(figure)
   return max ? Math.min(100, (figure.damage / max) * 100) : 0
@@ -63,7 +74,16 @@ function share(figure: CombatantState): number {
           :aria-pressed="figure.instance === selected"
           @click="emit('select', figure.instance)"
         >
-          <span class="number">{{ figure.number || '·' }}</span>
+          <span class="number" :class="{ framed: !!art(figure) }">
+            <img
+              v-if="art(figure)"
+              :src="art(figure)!.url"
+              :class="{ standee: !art(figure)!.portrait }"
+              alt=""
+              draggable="false"
+            />
+            <b>{{ figure.number || '·' }}</b>
+          </span>
           <span class="who">
             <strong>{{ figure.instance }}</strong>
             <small>{{ name(figure) }}</small>
@@ -102,7 +122,7 @@ ul {
 }
 .row {
   display: grid;
-  grid-template-columns: 1.8rem minmax(0, 1fr) auto;
+  grid-template-columns: 2.6rem minmax(0, 1fr) auto;
   grid-template-areas: 'number who hp' 'number tags tags';
   align-items: center;
   gap: 0.1rem 0.5rem;
@@ -138,6 +158,35 @@ ul {
   color: #fff;
   font-weight: 700;
   font-size: 0.85rem;
+}
+/* With a portrait: the disc shows the figure, its number on a small seal */
+.number.framed {
+  position: relative;
+  width: 2.4rem;
+  height: 2.4rem;
+  background: #3a0d0d;
+  border: 2px solid #6d1a1a;
+}
+.number img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.number img.standee {
+  object-position: left top;
+}
+.number.framed b {
+  position: absolute;
+  right: -0.35rem;
+  bottom: -0.3rem;
+  display: grid;
+  place-items: center;
+  min-width: 1.1rem;
+  height: 1.1rem;
+  border-radius: 50%;
+  background: var(--p-red-600);
+  font-size: 0.7rem;
 }
 .who {
   grid-area: who;

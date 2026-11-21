@@ -539,6 +539,7 @@ export const messages = {
       delete: 'Supprimer',
     },
     home: {
+      tagline: 'Compagnon du MJ pour Middara : préparez, racontez, menez le combat.',
       scenarios: 'Scénarios',
       noScenario: 'Aucun scénario.',
       play: 'Jouer',
@@ -1302,6 +1303,7 @@ export const messages = {
     },
     common: { loading: 'Loading…', error: 'Error: {message}', retry: 'Retry', cancel: 'Cancel', delete: 'Delete' },
     home: {
+      tagline: 'A Game Master companion for Middara: prepare, tell the story, run the fights.',
       scenarios: 'Scenarios',
       noScenario: 'No scenario.',
       play: 'Play',

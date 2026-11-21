@@ -45,6 +45,13 @@ function remove(id: string) {
 
 <template>
   <main class="home">
+    <!-- Rulebook art (assets/rulebook/art/scenes): the user's own copy, served by the local API -->
+    <section class="hero">
+      <div class="hero-text">
+        <h1>{{ t('app.title') }}</h1>
+        <p>{{ t('home.tagline') }}</p>
+      </div>
+    </section>
     <section :aria-labelledby="'scenarios-title'">
       <h2 id="scenarios-title">{{ t('home.scenarios') }}</h2>
       <ProgressSpinner v-if="scenarios.isPending.value" :aria-label="t('common.loading')" />
@@ -108,6 +115,31 @@ function remove(id: string) {
 </template>
 
 <style scoped>
+.hero {
+  display: flex;
+  align-items: flex-end;
+  min-height: 14rem;
+  margin: -0.75rem -1rem 0;
+  padding: 1.5rem 2rem;
+  background:
+    linear-gradient(to top, rgb(36 7 7 / 0.85), rgb(36 7 7 / 0) 65%),
+    #3a0d0d url('/api/assets/rulebook/art/scenes/045-1699x979-c3-5e14ec70.jpg') center 40% / cover;
+  border-bottom: 2px solid #3a0d0d;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.35);
+}
+.hero h1 {
+  margin: 0;
+  font-size: 2.6rem;
+  color: var(--mid-cream);
+  text-shadow: 0 2px 6px rgb(0 0 0 / 0.6);
+}
+.hero p {
+  margin: 0.25rem 0 0;
+  color: rgb(243 233 216 / 0.9);
+  font-family: var(--mid-book-font);
+  font-style: italic;
+  font-size: 1.1rem;
+}
 .home {
   padding: 0 1rem 1rem;
   display: grid;

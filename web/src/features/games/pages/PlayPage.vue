@@ -220,6 +220,7 @@ function moveFigure(figure: string, to: Cell) {
                     :encounter="encounter"
                     :cards="cards"
                     :shown="shownFigures"
+                    :pieces="pieces.data.value"
                     :selected="selected?.kind === 'figure' ? selected.id : undefined"
                     @select="selected = { kind: 'figure', id: $event }"
                   />
