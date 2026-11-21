@@ -18,6 +18,13 @@ public class ItemsEndpointsTests(HomebrewFactory factory) : IClassFixture<Homebr
         var items = await _client.GetFromJsonAsync<List<Item>>("/api/catalog/items", JsonDefaults.Options, Token);
 
         items!.Select(i => i.Id).Should().Equal("hb:item/plank", "hb:item/sword");
+        var sword = items!.Single(i => i.Id == "hb:item/sword").Stats!;
+        sword.Dice.Should().Equal("black", "red");
+        sword.Hands.Should().Be(2);
+        sword.Attack.Should().Be("melee");
+        sword.Armor.Should().Be(1);
+        sword.Defense!.Value.GetString().Should().Be("X");
+        items!.Single(i => i.Id == "hb:item/plank").Stats.Should().BeNull();
     }
 
     [Fact]

@@ -53,7 +53,19 @@ export interface Fighter {
   card?: string
   /** Effects on the figure (catalogue ids: "darkness", "barrier"…), as the GM reported them. */
   effects: string[]
+  /** ARMOR PIERCING its equipped cards always give. */
+  pierce?: number
+  /** An adventurer's equipped cards, when the dice, Defense and Armor come from them. */
+  equipment?: string[]
+  /** Equipped cards whose Defense is "X": to add by hand. */
+  variableDefense?: string[]
 }
+
+/** What an adventurer's equipped cards give, by lower-case name (see equipment.ts). */
+export type Equipment = Record<
+  string,
+  AdventurerSheet & { pierce: number; reminders: Reminder[]; items: string[]; variableDefense: string[] }
+>
 
 const numberOrNull = (value: number | string | undefined) => (typeof value === 'number' ? value : null)
 
@@ -64,6 +76,7 @@ export function fighters(
   sheets: Record<string, AdventurerSheet>,
   language: Language,
   pieces?: BoardPieces,
+  equipment: Equipment = {},
 ): Fighter[] {
   const figure = (...names: (string | undefined)[]) =>
     assetUrl(names.map((n) => (n ? pieces?.figures[n]?.image : undefined)).find((i) => !!i))
@@ -96,7 +109,9 @@ export function fighters(
       }
     })
   const adventurers = encounter.adventurers.map((a): Fighter => {
-    const sheet = { ...defaultSheet, ...sheets[a.name] }
+    // The equipped cards when the party's items are tracked; otherwise what the GM entered last.
+    const gear = equipment[a.name.toLowerCase()]
+    const sheet = gear ?? { ...defaultSheet, ...sheets[a.name] }
     return {
       id: `adventurer:${a.name}`,
       name: a.name,
@@ -107,11 +122,14 @@ export function fighters(
       conviction: sheet.conviction,
       casting: sheet.casting,
       abilities: [],
-      reminders: [],
+      reminders: gear?.reminders ?? [],
       damage: 0,
       position: a.position,
       portrait: figure(a.name.toLowerCase()),
       effects: a.effects ?? [],
+      pierce: gear?.pierce,
+      equipment: gear?.items,
+      variableDefense: gear?.variableDefense,
     }
   })
   return [...combatants, ...adventurers]

@@ -1,3 +1,5 @@
 export { default as DuelDialog } from './components/DuelDialog.vue'
 export { useDice } from './api/queries'
 export type { Dice, Die, DieFace } from './api/types'
+export { default as GameIcon } from './components/GameIcon.vue'
+export { dieIcon, statIcon } from './lib/icons'

@@ -14,6 +14,7 @@ import { assetUrl } from '@/shared/api/assets'
 import { pick } from '@/shared/lib/localized'
 import { usePreferences } from '@/shared/lib/preferences'
 import { discardedOnUse, salePrice, suggestedToken, type Place } from '../lib/inventory'
+import ItemStatsLine from './ItemStatsLine.vue'
 
 /**
  * A card the party holds: read it (both sides), hand it to someone else, flip it, use it (a Consumable is
@@ -42,11 +43,13 @@ const side = computed(() =>
         image: props.card.imageBack ?? props.card.image,
         text: props.card.backSide.text,
         tags: props.card.backSide.tags,
+        stats: props.card.backSide.stats,
       }
     : {
         image: props.owned.flipped ? (props.card?.imageBack ?? props.card?.image) : props.card?.image,
         text: props.card?.text,
         tags: props.card?.tags ?? [],
+        stats: props.card?.stats,
       },
 )
 
@@ -174,6 +177,7 @@ function sell() {
             <template v-if="card.tier"> · {{ t(`inventory.tier.${card.tier}`, card.tier) }}</template>
             <template v-if="side.tags.length"> · {{ side.tags.join(' • ') }}</template>
           </p>
+          <ItemStatsLine :stats="side.stats" />
           <p>{{ pick(side.text, language) }}</p>
         </div>
       </div>

@@ -79,7 +79,24 @@ export interface CatalogItem {
   rarity?: string | null
   tags: string[]
   text?: LocalizedText | null
-  backSide?: { name: LocalizedText; tags: string[]; text: LocalizedText } | null
+  /** The icons printed on the front; absent when it prints none. */
+  stats?: ItemStats | null
+  backSide?: { name: LocalizedText; tags: string[]; text: LocalizedText; stats?: ItemStats | null } | null
   image?: string | null
   imageBack?: string | null
+}
+
+/** The icons of an item card (rulebook p. 30, 89), read on the cards. */
+export interface ItemStats {
+  /** Combat dice by colour; a black die means the Attack is always Empowered. */
+  dice?: string[] | null
+  hands?: number | null
+  /** The Melee/Ranged icon ("either") takes the range and type of the other weapon. */
+  attack?: 'melee' | 'ranged' | 'either' | null
+  range?: number | null
+  armor?: number | null
+  /** "X": set by the card's text. */
+  defense?: number | 'X' | null
+  health?: number | null
+  movement?: number | null
 }

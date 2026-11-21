@@ -298,6 +298,7 @@ function moveFigure(figure: string, to: Cell) {
           :encounter="encounter"
           :node="node"
           :cards="cards"
+          :party="state?.campaign.party"
           :from="duel"
           :to="duelTarget"
           :spell="duelSpell"

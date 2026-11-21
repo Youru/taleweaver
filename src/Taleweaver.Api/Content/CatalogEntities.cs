@@ -30,6 +30,9 @@ public sealed record Item
 
     public LocalizedText? Text { get; init; }
 
+    /// <summary>The icons printed on the front (dice, hands, range, Armor, Defense…); null when it prints none.</summary>
+    public ItemStats? Stats { get; init; }
+
     public ItemSide? BackSide { get; init; }
 
     public string? Image { get; init; }
@@ -39,7 +42,37 @@ public sealed record Item
     public string? Review { get; init; }
 }
 
-public sealed record ItemSide(LocalizedText Name, IReadOnlyList<string> Tags, LocalizedText Text);
+public sealed record ItemSide(LocalizedText Name, IReadOnlyList<string> Tags, LocalizedText Text)
+{
+    public ItemStats? Stats { get; init; }
+}
+
+/// <summary>
+/// The icons of an item card (rulebook p. 30 and 89): a weapon's combat dice, hands and Melee/Ranged icon,
+/// and the bonuses to the Armor, Defense, Health and Movement of who equips it.
+/// </summary>
+public sealed record ItemStats
+{
+    /// <summary>Combat dice by colour; a black die is always rolled (Empowered).</summary>
+    public IReadOnlyList<string>? Dice { get; init; }
+
+    public int? Hands { get; init; }
+
+    /// <summary>melee, ranged, or either (the Melee/Ranged icon: it takes the other weapon's).</summary>
+    public string? Attack { get; init; }
+
+    /// <summary>The Ranged icon's value.</summary>
+    public int? Range { get; init; }
+
+    public int? Armor { get; init; }
+
+    /// <summary>A number, or "X" when the card's text sets it.</summary>
+    public JsonElement? Defense { get; init; }
+
+    public int? Health { get; init; }
+
+    public int? Movement { get; init; }
+}
 
 public sealed record ItemUpgrade
 {

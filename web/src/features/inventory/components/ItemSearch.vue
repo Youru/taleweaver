@@ -17,6 +17,7 @@ import { assetUrl } from '@/shared/api/assets'
 import { pick } from '@/shared/lib/localized'
 import { usePreferences } from '@/shared/lib/preferences'
 import { itemTiers, itemTypes, searchItems } from '../lib/inventory'
+import ItemStatsLine from './ItemStatsLine.vue'
 
 /**
  * Find the card the players just got (bought, looted, drawn for an Item Loot) and hand it out:
@@ -158,6 +159,7 @@ function add() {
               <template v-if="card.tier"> · {{ t(`inventory.tier.${card.tier}`, card.tier) }}</template>
               <template v-if="card.unique"> · {{ t('inventory.unique') }}</template>
             </small>
+            <ItemStatsLine :stats="card.stats" />
           </span>
           <span v-if="card.cost" class="cost">{{ t('inventory.gold', { gold: card.cost }) }}</span>
         </button>
@@ -168,7 +170,10 @@ function add() {
     <div v-if="chosen" class="give">
       <div class="chosen-card">
         <img v-if="chosen.image" :src="assetUrl(chosen.image)" :alt="pick(chosen.name, language)" />
-        <p class="text">{{ pick(chosen.text, language) }}</p>
+        <div class="text">
+          <ItemStatsLine :stats="chosen.stats" />
+          <p>{{ pick(chosen.text, language) }}</p>
+        </div>
       </div>
       <label class="field">
         <span>{{ t('inventory.giveTo') }}</span>
@@ -303,6 +308,9 @@ h3 {
   width: 7rem;
   border-radius: 0.3rem;
   align-self: flex-start;
+}
+.text p {
+  margin: 0.3rem 0 0;
 }
 .text {
   margin: 0;

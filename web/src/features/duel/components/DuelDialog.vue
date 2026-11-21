@@ -7,12 +7,13 @@ import Dialog from 'primevue/dialog'
 import Message from 'primevue/message'
 import SelectButton from 'primevue/selectbutton'
 import ToggleSwitch from 'primevue/toggleswitch'
-import type { Combatant } from '@/features/catalog'
-import type { EncounterCommand, EncounterState } from '@/features/games'
+import { useItems, type CatalogItem, type Combatant } from '@/features/catalog'
+import type { AdventurerState, EncounterCommand, EncounterState } from '@/features/games'
 import type { ScenarioNode } from '@/features/scenarios'
 import { BoardCanvas, boardLayout, useBoardPieces, type Selection } from '@/features/table'
 import { usePreferences } from '@/shared/lib/preferences'
 import { useDice } from '../api/queries'
+import { partyEquipment } from '../lib/equipment'
 import { distance, fighters, type AdventurerSheet, type Fighter } from '../lib/fighters'
 import { useAdventurerSheets } from '../lib/sheets'
 import AttackArena from './AttackArena.vue'
@@ -31,6 +32,8 @@ const props = defineProps<{
   /** The encounter's scenario node, to draw the board. */
   node: ScenarioNode | undefined
   cards: Map<string, Combatant>
+  /** The party, with what each adventurer has equipped: their dice, Defense and Armor come from it. */
+  party?: AdventurerState[]
   /** The figure the duel opened with (combatant instance or "adventurer:<name>"). */
   from: string | null
   /** The target the AI picked, if any. */
@@ -46,6 +49,14 @@ const { language, showOdds } = storeToRefs(usePreferences())
 const dice = useDice()
 const pieces = useBoardPieces()
 const { sheets, remember } = useAdventurerSheets(() => props.game)
+const items = useItems()
+const equipment = computed(() =>
+  partyEquipment(
+    props.party,
+    new Map<string, CatalogItem>((items.data.value ?? []).map((i) => [i.id, i])),
+    language.value,
+  ),
+)
 
 // The board as the table draws it: what lies under the fog is not on the table yet.
 const layout = computed(() => boardLayout(props.node, props.encounter, pieces.data.value))
@@ -58,7 +69,7 @@ const onTable = computed(() => {
   return new Set(layout.value.figures.filter((f) => onTile(f.x, f.y)).map((f) => f.id))
 })
 const all = computed(() =>
-  fighters(props.encounter, props.cards, sheets.value, language.value, pieces.data.value).filter(
+  fighters(props.encounter, props.cards, sheets.value, language.value, pieces.data.value, equipment.value).filter(
     (f) => !onTable.value || onTable.value.has(f.id) || f.id === props.from,
   ),
 )

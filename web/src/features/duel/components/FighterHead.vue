@@ -46,6 +46,13 @@ const remaining = computed(() =>
         {{ t('duel.remaining', { n: remaining, max: fighter.health }) }}
         <span class="bar"><span :style="{ width: `${(remaining / fighter.health) * 100}%` }" /></span>
       </span>
+      <span v-if="fighter?.equipment?.length" class="gear">
+        <i class="pi pi-shield" aria-hidden="true" />
+        {{ t('duel.equipment', { items: fighter.equipment.join(', ') }) }}
+      </span>
+      <span v-if="fighter?.variableDefense?.length" class="gear warn">
+        {{ t('duel.variableDefense', { items: fighter.variableDefense.join(', ') }) }}
+      </span>
       <Image
         v-if="fighter?.card"
         :src="fighter.card"
@@ -134,5 +141,12 @@ const remaining = computed(() =>
   width: 3.2rem;
   border-radius: 0.25rem;
   cursor: zoom-in;
+}
+.gear {
+  font-size: 0.8rem;
+  color: var(--p-text-muted-color);
+}
+.gear.warn {
+  color: var(--p-orange-600);
 }
 </style>
