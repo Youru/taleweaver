@@ -7,6 +7,7 @@ import {
   discardedOnUse,
   equippedCounts,
   limitWarnings,
+  playerMat,
   salePrice,
   searchItems,
   suggestedToken,
@@ -112,5 +113,27 @@ describe('cards', () => {
   it('discards Consumables and X DISCARD cards when used', () => {
     expect(discardedOnUse(plank)).toBe(true)
     expect(discardedOnUse(sword)).toBe(false)
+  })
+})
+
+describe('playerMat', () => {
+  it('lays out spaces per type, empty ones and cards over the limit', () => {
+    const catalog = new Map([sword, plank].map((i) => [i.id, i]))
+    const own = (id: string, it: string) => ({ id, item: it, flipped: false })
+    const adventurer: AdventurerState = {
+      name: 'Rhia',
+      xp: 0,
+      equipped: [own('a', sword.id), own('b', sword.id), own('c', sword.id)],
+      pack: [own('d', plank.id)],
+    }
+    const mat = playerMat(adventurer, catalog)
+    const weapons = mat.rows.find((r) => r.type === 'weapon')!.slots
+    expect(weapons.map((s) => [s.owned?.id, !!s.extra])).toEqual([
+      ['a', false],
+      ['b', false],
+      ['c', true],
+    ])
+    expect(mat.rows.find((r) => r.type === 'relic')!.slots.filter((s) => !s.owned)).toHaveLength(3)
+    expect(mat.pack.map((s) => s.owned?.id)).toEqual(['d', undefined, undefined])
   })
 })

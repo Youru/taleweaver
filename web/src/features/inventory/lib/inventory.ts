@@ -170,3 +170,34 @@ function countBy(values: string[]): Map<string, number> {
   for (const value of values) counts.set(value, (counts.get(value) ?? 0) + 1)
   return counts
 }
+
+/** One space of the adventurer's mat: a card in it, or empty; `extra` when over the type's limit. */
+export interface MatSlot {
+  key: string
+  owned?: OwnedItem
+  extra?: boolean
+}
+
+/**
+ * The adventurer's equipment laid out like a player mat: one row per item type with its spaces
+ * (2 Weapons, 1 Armor…), empty spaces shown, cards over the limit added in red; then the Pack, with
+ * its spaces (3, +6 per Adventurer's Pack). Cards of unknown type (still to draw) go in "other".
+ */
+export function playerMat(adventurer: AdventurerState, catalog: Map<string, CatalogItem>) {
+  const typeOf = (o: OwnedItem) => (o.item ? catalog.get(o.item)?.type : o.type) ?? 'other'
+  const equipped = adventurer.equipped ?? []
+  const fill = (key: string, cards: OwnedItem[], spaces: number): MatSlot[] => [
+    ...cards.map((owned, i) => ({ key: owned.id, owned, extra: i >= spaces })),
+    ...Array.from({ length: Math.max(0, spaces - cards.length) }, (_, i) => ({ key: `${key}-${i}` })),
+  ]
+  const rows = itemTypes.map((type) => ({
+    type,
+    slots: fill(type, equipped.filter((o) => typeOf(o) === type), equipLimits[type] ?? 0),
+  }))
+  const other = equipped.filter((o) => !(itemTypes as readonly string[]).includes(typeOf(o)))
+  if (other.length) rows.push({ type: 'other' as never, slots: fill('other', other, 0).map((s) => ({ ...s, extra: false })) })
+  const packSpaces =
+    packSize +
+    6 * equipped.filter((o) => o.item && adventurersPack.test(catalog.get(o.item)?.id ?? '')).length
+  return { rows, pack: fill('pack', adventurer.pack ?? [], packSpaces), packSpaces }
+}

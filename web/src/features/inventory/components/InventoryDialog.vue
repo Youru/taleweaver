@@ -12,6 +12,7 @@ import { allItems, equippedCounts, limitWarnings, samePlace, type Place } from '
 import ItemCard from './ItemCard.vue'
 import ItemDetail from './ItemDetail.vue'
 import ItemSearch from './ItemSearch.vue'
+import PlayerMat from './PlayerMat.vue'
 import { storeToRefs } from 'pinia'
 import { usePreferences } from '@/shared/lib/preferences'
 
@@ -79,16 +80,8 @@ const adventurer = computed(() => props.campaign.party.find((a) => a.name === cu
 const sections = computed<{ title: string; place: Place; items: OwnedItem[] }[]>(() => {
   if (current.value === 'unassigned') return [{ title: '', place: { owner: 'unassigned' }, items: unassigned.value }]
   if (current.value === 'stash') return [{ title: '', place: { owner: 'stash' }, items: props.campaign.stash ?? [] }]
-  const a = adventurer.value
-  if (!a) return []
-  return [
-    { title: t('inventory.equipped'), place: { owner: a.name, slot: 'equipped' }, items: a.equipped ?? [] },
-    {
-      title: t('inventory.packCount', { n: a.pack?.length ?? 0 }),
-      place: { owner: a.name, slot: 'pack' },
-      items: a.pack ?? [],
-    },
-  ]
+  // An adventurer: shown as a player mat (PlayerMat)
+  return []
 })
 const counts = computed(() => (adventurer.value ? equippedCounts(adventurer.value, byId.value) : []))
 const warnings = computed(() =>
@@ -188,6 +181,13 @@ function isSelected(owned: OwnedItem, place: Place) {
         </div>
         <Message v-for="w in warnings" :key="w" severity="warn" size="small">{{ w }}</Message>
 
+        <PlayerMat
+          v-if="adventurer"
+          :adventurer="adventurer"
+          :catalog="byId"
+          :is-selected="isSelected"
+          @select="selectedId = $event.id"
+        />
         <div v-for="section in sections" :key="section.title" class="section">
           <h3 v-if="section.title">{{ section.title }}</h3>
           <div class="grid">
