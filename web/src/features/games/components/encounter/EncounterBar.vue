@@ -6,9 +6,12 @@ import type { ScenarioNode } from '@/features/scenarios'
 import { pick } from '@/shared/lib/localized'
 import { usePreferences } from '@/shared/lib/preferences'
 import type { EncounterState } from '../../api/types'
-import { shortId } from '../../lib/ids'
+import InitiativeTrack from './InitiativeTrack.vue'
 
-/** The encounter at a glance: round, Urgency, initiative track, and the button that moves the game on. */
+/**
+ * The encounter at a glance: round, Urgency, the button that moves the game on, and below them the
+ * initiative track of the round (larger on the table shown to the players).
+ */
 defineProps<{
   encounter: EncounterState
   node: ScenarioNode | undefined
@@ -37,20 +40,6 @@ const { language } = storeToRefs(usePreferences())
     >
       <span v-for="n in 4" :key="n" class="pip" :class="{ on: n <= encounter.urgency, last: n === 4 }" />
     </span>
-    <ol v-if="encounter.round > 0" class="track" :aria-label="t('play.initiative')">
-      <li
-        v-for="(card, index) in encounter.initiativeTrack"
-        :key="card"
-        :class="{
-          current: index === encounter.currentTurn,
-          done: index < encounter.currentTurn,
-          adventurer: card.startsWith('adventurer:'),
-        }"
-        :aria-current="index === encounter.currentTurn ? 'step' : undefined"
-      >
-        {{ shortId(card) }}
-      </li>
-    </ol>
     <Button
       v-if="!readonly"
       class="next"
@@ -59,6 +48,7 @@ const { language } = storeToRefs(usePreferences())
       :disabled="disabled || encounter.ended"
       @click="emit('nextTurn')"
     />
+    <InitiativeTrack v-if="encounter.round > 0" class="track" :encounter="encounter" :large="readonly" />
   </section>
 </template>
 
@@ -97,31 +87,7 @@ h2 {
   background: var(--p-red-600);
 }
 .track {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem;
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  flex: 1;
-}
-.track li {
-  padding: 0.1rem 0.5rem;
-  border-radius: 1rem;
-  border: 1px solid var(--p-content-border-color);
-  font-size: 0.8rem;
-}
-.track li.adventurer {
-  border-color: var(--p-blue-400);
-}
-.track .done {
-  opacity: 0.45;
-}
-.track .current {
-  background: var(--p-primary-color);
-  border-color: var(--p-primary-color);
-  color: var(--p-primary-contrast-color);
-  font-weight: 600;
+  flex-basis: 100%;
 }
 .next {
   margin-left: auto;

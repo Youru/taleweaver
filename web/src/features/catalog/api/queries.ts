@@ -1,7 +1,7 @@
 import { useQueries, useQuery } from '@tanstack/vue-query'
 import { computed, toValue, type MaybeRefOrGetter } from 'vue'
 import { http } from '@/shared/api/http'
-import type { Combatant, GameEffect } from './types'
+import type { Combatant, GameEffect, InitiativeCard } from './types'
 
 /** "um1:combatant/fragor-1-3-common" → "/api/packs/um1/combatants/fragor-1-3-common". */
 export function combatantPath(id: string): string {
@@ -12,6 +12,7 @@ export function combatantPath(id: string): string {
 export const catalogKeys = {
   combatant: (id: string) => ['catalog', 'combatant', id] as const,
   effects: ['catalog', 'effects'] as const,
+  initiative: ['catalog', 'initiative'] as const,
 }
 
 /** The cards of the given ids, by id (cards never change while the app runs). */
@@ -39,6 +40,15 @@ export function useEffects() {
   return useQuery({
     queryKey: catalogKeys.effects,
     queryFn: ({ signal }) => http<GameEffect[]>('/api/catalog/effects', { signal }),
+    staleTime: Infinity,
+  })
+}
+
+/** The initiative cards of the enabled packs (they never change while the app runs). */
+export function useInitiativeCards() {
+  return useQuery({
+    queryKey: catalogKeys.initiative,
+    queryFn: ({ signal }) => http<InitiativeCard[]>('/api/catalog/initiative', { signal }),
     staleTime: Infinity,
   })
 }

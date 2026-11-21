@@ -33,6 +33,16 @@ public class BoardEndpointsTests(HomebrewFactory factory) : IClassFixture<Homebr
     }
 
     [Fact]
+    public async Task GetInitiativeCards_HomebrewContent_ReturnsEachCardWithItsPicture()
+    {
+        var cards = await _client.GetFromJsonAsync<List<InitiativeCard>>("/api/catalog/initiative", JsonDefaults.Options, TestContext.Current.CancellationToken);
+
+        cards!.Select(c => c.Id).Should().BeEquivalentTo("hb:initiative/brute", "hb:initiative/rook");
+        cards.Should().ContainSingle(c => c.Adventurer).Which.Label.Should().Be("Rook");
+        cards.Should().OnlyContain(c => c.Image == "assets/hb/pixel.png");
+    }
+
+    [Fact]
     public async Task GetAsset_Image_ReturnsTheFile()
     {
         var response = await _client.GetAsync("/api/assets/hb/pixel.png", TestContext.Current.CancellationToken);

@@ -1,2 +1,2 @@
-export type { Combatant, GameEffect, SymbolAbilityCard } from './api/types'
-export { useCombatants, useEffects } from './api/queries'
+export type { Combatant, GameEffect, InitiativeCard, SymbolAbilityCard } from './api/types'
+export { useCombatants, useEffects, useInitiativeCards } from './api/queries'

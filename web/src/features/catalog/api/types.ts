@@ -46,3 +46,20 @@ export interface GameEffect {
   /** "status": resolves at the start of the figure's turn; "passive": always on. */
   condition?: string
 }
+
+/** Mirrors Taleweaver.Api.Content.InitiativeCard: a card of the initiative track (rulebook p. 36). */
+export interface InitiativeCard {
+  id: string
+  label: string
+  /** An adventurer's card (black border), else an opponent's (red). */
+  adventurer: boolean
+  /** Activation numbers printed on a group's card ([1, 3]). */
+  group?: number[] | null
+  family?: string | null
+  hidden: boolean
+  /** red or black when the game has both prints of the card. */
+  border?: string | null
+  /** Only a thumbnail is known. */
+  lowres: boolean
+  image?: string | null
+}

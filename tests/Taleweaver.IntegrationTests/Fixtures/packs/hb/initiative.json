@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "pack": "hb",
+  "initiativeCards": [
+    { "id": "hb:initiative/brute", "label": "Brute", "adventurer": false, "group": [1, 2], "family": "brute", "image": "assets/hb/pixel.png" },
+    { "id": "hb:initiative/rook", "label": "Rook", "adventurer": true, "family": "rook", "image": "assets/hb/pixel.png" }
+  ]
+}
