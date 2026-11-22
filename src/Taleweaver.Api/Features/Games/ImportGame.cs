@@ -13,7 +13,8 @@ public static class ImportGame
         public Validator()
         {
             RuleFor(g => g.Scenario).NotEmpty();
-            RuleFor(g => g.Party).NotEmpty();
+            RuleFor(g => g.Party).NotNull();
+            RuleFor(g => g.Options).Must(o => GameOptions.IsKnownUrgencyLimit(o?.UrgencyLimit)).WithMessage("The Urgency limit is 3, 4 or 5.");
             RuleForEach(g => g.Commands).ChildRules(c => c.RuleFor(x => x.Type).NotEmpty());
         }
     }

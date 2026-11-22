@@ -8,5 +8,7 @@ namespace Taleweaver.Api.Engine;
 /// </summary>
 public sealed record GameContext(Scenario Scenario, Catalog Catalog, IRandomSource Random)
 {
+    public GameOptions? Options { get; init; }
+
     public IReadOnlyDictionary<string, Scenario> Bounties { get; init; } = new Dictionary<string, Scenario>();
 }

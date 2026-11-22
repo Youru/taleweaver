@@ -69,5 +69,5 @@ public sealed record RoomView(
 
 public sealed record SeatView(string Id, string DisplayName, string Color, IReadOnlyList<string> Adventurers, string? Followed, DateTimeOffset LastSeen, bool Connected);
 
-/// <summary>What a phone sees of a room before joining it.</summary>
-public sealed record RoomSummary(string Code, string Scenario, LocalizedText? ScenarioTitle, IReadOnlyList<string> Seats);
+/// <summary>What a phone sees of a room before joining it; the game tells it whether it already has a seat here (the code changes at each opening).</summary>
+public sealed record RoomSummary(string Code, string GameId, string Scenario, LocalizedText? ScenarioTitle, IReadOnlyList<string> Seats);

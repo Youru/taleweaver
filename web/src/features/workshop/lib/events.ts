@@ -69,6 +69,8 @@ export const SIMPLE_ACTIONS = [
   'gainGold',
   'gainXp',
   'gainItem',
+  'gainDiscipline',
+  'revealHiddenCard',
   'restore',
   'setFlag',
   'endEncounter',
@@ -95,12 +97,24 @@ export function newAction(kind: SimpleAction, language: string): DraftAction {
       return { do: kind, amount: 1, each: true }
     case 'gainItem':
       return { do: kind, tiers: ['common'], type: 'consumable', count: 1 }
+    case 'gainDiscipline':
+      return { do: kind, ref: '' }
+    case 'revealHiddenCard':
+      return { do: kind, size: 'medium', code: '' }
     case 'spawn':
       return { do: kind, family: '', count: 1 }
     default:
       return { do: kind }
   }
 }
+
+export const CARD_SIZES = ['small', 'medium', 'large', 'xlarge'] as const
+
+/** The condition "this Hidden Card is revealed", as the engine reads it. */
+export const hiddenCardCondition = (size: string, code: string) => ({
+  var: `hiddenCard.${size}:${code.replace(/\s+/g, '').toUpperCase()}`,
+  value: true,
+})
 
 export function eventsOf(node: DraftNode): DraftEvent[] {
   return (node.events as DraftEvent[] | undefined) ?? []

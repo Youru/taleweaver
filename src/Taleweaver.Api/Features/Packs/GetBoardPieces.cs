@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Http.HttpResults;
 using Taleweaver.Api.Common;
 using Taleweaver.Api.Content;
+using Taleweaver.Api.Features.Rooms;
 
 namespace Taleweaver.Api.Features.Packs;
 
@@ -116,7 +117,21 @@ public static class GetBoardPieces
     }
 
     public static void Map(RouteGroupBuilder group) =>
-        group.MapGet("/board", async Task<Ok<Response>> (Handler handler, CancellationToken cancellationToken) =>
-                TypedResults.Ok(await handler.Handle(cancellationToken)))
+        group.MapGet("/board", async Task<Ok<Response>> (Handler handler, HttpContext http, PhoneCards phones, CancellationToken cancellationToken) =>
+            {
+                var pieces = await handler.Handle(cancellationToken);
+                if (await phones.ForAsync(http, cancellationToken) is { } sight)
+                {
+                    // A phone: no family, figure nor portrait that is not in view (they name the bosses)
+                    pieces = pieces with
+                    {
+                        Figures = pieces.Figures.Where(f => sight.SeesFigure(f.Key))
+                            .ToDictionary(f => f.Key, f => f.Value with { Image = sight.Standee(f.Key, f.Value.Image) }),
+                        Families = pieces.Families.Where(f => sight.SeesFamily(f.Key)).ToDictionary(),
+                    };
+                }
+
+                return TypedResults.Ok(pieces);
+            })
             .WithName("GetBoardPieces");
 }

@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 import Button from 'primevue/button'
+import Checkbox from 'primevue/checkbox'
 import Chip from 'primevue/chip'
 import InputGroup from 'primevue/inputgroup'
 import InputNumber from 'primevue/inputnumber'
@@ -10,6 +11,7 @@ import Select, { type SelectChangeEvent } from 'primevue/select'
 import Tag from 'primevue/tag'
 import { useEffects, type Combatant } from '@/features/catalog'
 import type { AdventurerState, EncounterCommand, EncounterState } from '@/features/games'
+import { ruleOfToken, useReference } from '@/features/reference'
 import type { ScenarioNode } from '@/features/scenarios'
 import { pick } from '@/shared/lib/localized'
 import { usePreferences } from '@/shared/lib/preferences'
@@ -42,13 +44,32 @@ const combatant = computed(() =>
     ? props.encounter.combatants.find((c) => c.instance === props.selection.id)
     : undefined,
 )
-const card = computed(() => (combatant.value ? props.cards.get(combatant.value.card) : undefined))
+const ally = computed(() =>
+  props.selection.kind === 'figure'
+    ? props.encounter.allies?.find((a) => `ally:${a.id}` === props.selection.id)
+    : undefined,
+)
+/** Who shares this Esper's Damage, and may spend a Summon token on it (rulebook p. 75). */
+const summoner = computed(() =>
+  ally.value?.esper ? props.party?.find((a) => a.name === ally.value?.owner) : undefined,
+)
+const fromOpponent = ref(true)
+const useToken = ref(false)
+const card = computed(() => {
+  const id = combatant.value?.card ?? ally.value?.card
+  return id ? props.cards.get(id) : undefined
+})
 /** The selected adventurer's sheet: Damage, maximum HP, SP. */
 const member = computed(() => props.party?.find((a) => a.name === adventurer.value))
 const token = computed(() =>
   props.selection.kind === 'token' ? props.encounter.tokens.find((tk) => tk.id === props.selection.id) : undefined,
 )
 const tokenRule = computed(() => (token.value ? props.node?.tokens[token.value.key] : undefined))
+const reference = useReference()
+/** The rulebook's line on the selected token (terrain, Plank…). */
+const tokenHelp = computed(() =>
+  reference.data.value ? ruleOfToken(reference.data.value, token.value?.type) : undefined,
+)
 const area = computed(() =>
   props.selection.kind === 'area'
     ? props.layout.tiles.find((tile) => tile.hidden?.id === props.selection.id)?.hidden
@@ -57,6 +78,7 @@ const area = computed(() =>
 
 const title = computed(() => {
   if (adventurer.value) return adventurer.value
+  if (ally.value) return pick(ally.value.name, language.value) || ally.value.id
   if (combatant.value) return combatant.value.instance
   if (token.value) return token.value.key
   if (area.value) return pick(area.value.name, language.value) || area.value.id
@@ -66,19 +88,33 @@ const title = computed(() => {
 /** Health printed on the card (an adventurer's: with their equipment), and the share of it already taken (for the bar). */
 const health = computed(() => {
   if (member.value) return member.value.health || undefined
-  const value = card.value?.stats?.health
+  if (ally.value) return ally.value.health ?? undefined
+  const value = combatant.value?.health ?? card.value?.stats?.health
   return typeof value === 'number' ? value : undefined
 })
-const damageTaken = computed(() => combatant.value?.damage ?? member.value?.damage ?? 0)
+const damageTaken = computed(() => combatant.value?.damage ?? ally.value?.damage ?? member.value?.damage ?? 0)
 const taken = computed(() => (health.value ? Math.min(100, (damageTaken.value / health.value) * 100) : 0))
 /** Who takes the Damage: a combatant, or "adventurer:<name>". */
-const vitalsTarget = computed(() => (combatant.value ? combatant.value.instance : member.value ? props.selection.id : undefined))
-const defeated = computed(() => combatant.value?.defeated ?? member.value?.defeated ?? false)
+const vitalsTarget = computed(() =>
+  combatant.value ? combatant.value.instance : member.value || ally.value ? props.selection.id : undefined,
+)
+/** Who holds SP: an adventurer, or an ally. */
+const spHolder = computed(() => {
+  const held = member.value ?? ally.value
+  if (!held) return undefined
+  return {
+    id: member.value ? member.value.name : props.selection.id,
+    stamina: held.stamina ?? 0,
+    max: held.staminaMax ?? 5,
+    defeated: !!held.defeated,
+  }
+})
+const defeated = computed(() => combatant.value?.defeated ?? ally.value?.defeated ?? member.value?.defeated ?? false)
 
 function stamina(by: number) {
-  if (!member.value) return
-  const value = Math.max(0, Math.min(member.value.staminaMax ?? 5, (member.value.stamina ?? 0) + by))
-  emit('command', { type: 'stamina', adventurer: member.value.name, value })
+  if (!spHolder.value) return
+  const value = Math.max(0, Math.min(spHolder.value.max, spHolder.value.stamina + by))
+  emit('command', { type: 'stamina', adventurer: spHolder.value.id, value })
 }
 
 const amount = ref<number | null>(null)
@@ -88,12 +124,19 @@ watch(
   () => {
     amount.value = null
     effect.value = ''
+    fromOpponent.value = true
+    useToken.value = false
   },
 )
 
 function damage(sign: 1 | -1) {
   if (vitalsTarget.value && amount.value) {
-    emit('command', { type: 'damage', instance: vitalsTarget.value, amount: sign * amount.value })
+    const shared =
+      sign === 1 && summoner.value
+        ? { fromOpponent: fromOpponent.value, tokens: useToken.value ? 1 : undefined }
+        : {}
+    emit('command', { type: 'damage', instance: vitalsTarget.value, amount: sign * amount.value, ...shared })
+    useToken.value = false
   }
   amount.value = null
 }
@@ -102,12 +145,12 @@ function damage(sign: 1 | -1) {
 const effectTarget = computed(() =>
   combatant.value && !combatant.value.defeated
     ? combatant.value.instance
-    : adventurer.value && !member.value?.defeated
+    : (adventurer.value && !member.value?.defeated) || (ally.value && !ally.value.defeated)
       ? props.selection.id
       : undefined,
 )
 const figureEffects = computed(
-  () => combatant.value?.effects ?? props.encounter.adventurers.find((a) => a.name === adventurer.value)?.effects ?? [],
+  () => combatant.value?.effects ?? ally.value?.effects ?? props.encounter.adventurers.find((a) => a.name === adventurer.value)?.effects ?? [],
 )
 
 /** The Effects of the rules, for the list; a home-made one can still be typed. */
@@ -156,10 +199,14 @@ function pickEffect(event: SelectChangeEvent) {
   <section class="selection" :aria-label="t('table.selection', { name: title })">
     <header>
       <span v-if="combatant" class="number" aria-hidden="true">{{ combatant.number || '·' }}</span>
-      <span v-else-if="adventurer" class="number adventurer" aria-hidden="true"><i class="pi pi-user" /></span>
+      <span v-else-if="adventurer || ally" class="number adventurer" aria-hidden="true"><i class="pi pi-user" /></span>
       <span class="who">
         <strong>{{ title }}</strong>
-        <small v-if="card">{{ pick(card.name, language) }}</small>
+        <small v-if="ally">
+          {{ ally.owner ? t('allies.of', { name: ally.owner }) : t('allies.ofParty') }}
+          <template v-if="ally.force"> · {{ t('allies.force', { n: ally.force }) }}</template>
+        </small>
+        <small v-else-if="card">{{ pick(card.name, language) }}</small>
         <small v-else-if="adventurer">{{ t('table.adventurer') }}</small>
       </span>
       <Tag v-if="combatant?.aggro" :value="t('play.aggro')" severity="danger" />
@@ -167,16 +214,19 @@ function pickEffect(event: SelectChangeEvent) {
       <Button icon="pi pi-times" text rounded size="small" :aria-label="t('table.close')" @click="emit('close')" />
     </header>
 
+    <p v-if="tokenHelp" class="rule-help">
+      <strong>{{ pick(tokenHelp.name, language) }}</strong> : {{ pick(tokenHelp.text, language) }}
+    </p>
     <template v-if="vitalsTarget">
       <div class="vitals">
         <span class="hp-text">{{ damageTaken }} / {{ health ?? '?' }} {{ t('play.health') }}</span>
         <span class="hp-bar" aria-hidden="true"><span :style="{ width: `${taken}%` }" /></span>
       </div>
 
-      <div v-if="member" class="stamina">
-        <span class="sp-text">{{ t('play.stamina', { sp: member.stamina ?? 0, max: member.staminaMax ?? 5 }) }}</span>
+      <div v-if="spHolder" class="stamina">
+        <span class="sp-text">{{ t('play.stamina', { sp: spHolder.stamina, max: spHolder.max }) }}</span>
         <span class="sp-dots" aria-hidden="true">
-          <span v-for="i in member.staminaMax ?? 5" :key="i" :class="{ on: i <= (member.stamina ?? 0) }" />
+          <span v-for="i in spHolder.max" :key="i" :class="{ on: i <= spHolder.stamina }" />
         </span>
         <Button
           icon="pi pi-minus"
@@ -184,7 +234,7 @@ function pickEffect(event: SelectChangeEvent) {
           rounded
           size="small"
           :aria-label="t('play.spendStamina')"
-          :disabled="locked || member.defeated || !member.stamina"
+          :disabled="locked || spHolder.defeated || !spHolder.stamina"
           @click="stamina(-1)"
         />
         <Button
@@ -193,11 +243,37 @@ function pickEffect(event: SelectChangeEvent) {
           rounded
           size="small"
           :aria-label="t('play.gainStamina')"
-          :disabled="locked || member.defeated || (member.stamina ?? 0) >= (member.staminaMax ?? 5)"
+          :disabled="locked || spHolder.defeated || spHolder.stamina >= spHolder.max"
           @click="stamina(1)"
         />
       </div>
 
+      <div v-if="ally && summoner && !ally.defeated" class="esper">
+        <label>
+          <Checkbox v-model="fromOpponent" binary />
+          {{ t('allies.fromOpponent', { name: summoner.name }) }}
+        </label>
+        <label v-if="summoner.summonTokens">
+          <Checkbox v-model="useToken" binary />
+          {{ t('allies.useToken', { n: summoner.summonTokens }) }}
+        </label>
+        <Button
+          :label="t('allies.dismiss')"
+          size="small"
+          severity="secondary"
+          text
+          :disabled="locked"
+          @click="emit('command', { type: 'dismissAlly', ally: selection.id })"
+        />
+        <Button
+          :label="t('allies.dismissInstead')"
+          size="small"
+          severity="secondary"
+          text
+          :disabled="locked"
+          @click="emit('command', { type: 'dismissAlly', ally: selection.id, ignoreDamage: true })"
+        />
+      </div>
       <InputGroup class="damage">
         <InputNumber
           v-model="amount"
@@ -285,7 +361,7 @@ function pickEffect(event: SelectChangeEvent) {
     <template v-if="selection.kind === 'figure'">
       <div class="footer">
         <Button
-          v-if="adventurer || (combatant && !combatant.defeated)"
+          v-if="adventurer || (ally && !ally.defeated) || (combatant && !combatant.defeated)"
           :label="t('duel.open')"
           icon="pi pi-bolt"
           size="small"
@@ -334,6 +410,23 @@ function pickEffect(event: SelectChangeEvent) {
 </template>
 
 <style scoped>
+.esper {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+}
+.esper label {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  width: 100%;
+}
+.rule-help {
+  margin: 0.4rem 0;
+  font-size: 0.9rem;
+}
 .selection {
   display: flex;
   flex-direction: column;

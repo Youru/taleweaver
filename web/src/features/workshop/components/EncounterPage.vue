@@ -204,6 +204,14 @@ const folio = (index: number) => (props.firstPage ? props.firstPage + index : un
               <p>{{ rule.text }}</p>
             </div>
           </section>
+          <section v-if="sheet.achievements?.length">
+            <h2>{{ t('achievements.title') }}</h2>
+            <div v-for="(item, i) in sheet.achievements" :key="i" class="rule">
+              <h3>{{ item.name }}</h3>
+              <p>{{ item.condition }}</p>
+              <p v-if="item.hiddenText" :class="{ veiled }" :style="veiled ? veil : undefined">{{ item.hiddenText }}</p>
+            </div>
+          </section>
           <section v-if="sheet.hiddenRules.length">
             <h2>{{ t('workshop.print.hiddenRules') }}</h2>
             <div v-for="(rule, i) in sheet.hiddenRules" :key="i" class="rule">

@@ -49,11 +49,59 @@ public class RoomEndpointsTests(HomebrewFactory factory) : IClassFixture<Homebre
 
         using var document = JsonDocument.Parse(json);
         document.RootElement.EnumerateObject().Select(p => p.Name).Should().BeSubsetOf(
-            ["version", "gameId", "scenarioTitle", "roomCode", "seat", "impersonated", "adventurers", "party", "gold", "stash", "unassigned", "encounter", "log", "requests", "autonomy", "shop"]);
+            ["version", "gameId", "scenarioTitle", "roomCode", "seat", "impersonated", "adventurers", "party", "gold", "stash", "unassigned", "encounter", "log", "requests", "autonomy", "shop", "upgrades", "preparation", "cards"]);
         json.Should().NotContain("\"prompt\"").And.NotContain("hiddenText").And.NotContain("\"variables\"").And.NotContain("aiSteps");
         document.RootElement.GetProperty("log").EnumerateArray().Select(l => l.GetProperty("entry").GetProperty("code").GetString())
             .Should().NotBeEmpty().And.OnlyContain(code => PlayerViewProjector.PublicLogCodes.Contains(code!));
         document.RootElement.GetProperty("party").EnumerateArray().SelectMany(p => p.EnumerateObject().Select(o => o.Name)).Should().NotContain(["equipped", "pack", "disciplines", "xp"]);
+    }
+
+    [Fact]
+    public async Task BeforeTheDeparture_PhonesChooseAtTheSameMoment_AndNoChoiceIsLost()
+    {
+        var game = await Read<GameView>(await _gm.PostAsJsonAsync("/api/games", new StartGame.Request("hb:scenario/meadow-ambush", []), JsonDefaults.Options, Token));
+        var room = await Read<RoomView>(await _gm.PostAsync($"/api/games/{game.Id}/room", null, Token));
+        var phones = new List<HttpClient>();
+        foreach (var name in new[] { "Ana", "Ben", "Chloe", "Dan", "Eve" })
+        {
+            var phone = Phone();
+            var joined = await Read<RoomEndpoints.JoinResponse>(await phone.PostAsJsonAsync($"/api/rooms/{room.Code}/seats", new RoomEndpoints.JoinRequest(name, null), JsonDefaults.Options, Token));
+            joined.View.Preparation.Should().NotBeNull();
+            phone.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Seat", joined.SeatToken);
+            phones.Add(phone);
+        }
+
+        var answers = await Task.WhenAll(phones.Select((phone, i) => phone.PostAsJsonAsync(
+            $"/api/rooms/{room.Code}/me/requests", new PlayerCommand(PlayerCommand.ChooseAdventurer, Adventurer: $"Hero {i}"), JsonDefaults.Options, Token)));
+
+        answers.Should().OnlyContain(a => a.IsSuccessStatusCode);
+        var prepared = await Read<GameView>(await _gm.GetAsync($"/api/games/{game.Id}", Token));
+        prepared.State.Campaign.Party.Should().HaveCount(5);
+        var seats = await Read<RoomView>(await _gm.GetAsync($"/api/games/{game.Id}/room", Token));
+        seats.Seats.Should().OnlyContain(s => s.Adventurers.Count == 1);
+    }
+
+    [Fact]
+    public async Task BeforeTheDeparture_AnAdventurerIsOnePlayers_AndOnlyTheGmSetsOut()
+    {
+        var game = await Read<GameView>(await _gm.PostAsJsonAsync("/api/games", new StartGame.Request("hb:scenario/meadow-ambush", []), JsonDefaults.Options, Token));
+        var room = await Read<RoomView>(await _gm.PostAsync($"/api/games/{game.Id}/room", null, Token));
+        var responses = new List<HttpStatusCode>();
+        HttpClient phone = null!;
+        foreach (var name in new[] { "Ana", "Ben" })
+        {
+            phone = Phone();
+            var joined = await Read<RoomEndpoints.JoinResponse>(await phone.PostAsJsonAsync($"/api/rooms/{room.Code}/seats", new RoomEndpoints.JoinRequest(name, null), JsonDefaults.Options, Token));
+            phone.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Seat", joined.SeatToken);
+            var chosen = await phone.PostAsJsonAsync($"/api/rooms/{room.Code}/me/requests", new PlayerCommand(PlayerCommand.ChooseAdventurer, Adventurer: "Hero"), JsonDefaults.Options, Token);
+            responses.Add(chosen.StatusCode);
+        }
+
+        responses.Should().Equal(HttpStatusCode.OK, HttpStatusCode.Conflict);
+        (await phone.PostAsync($"/api/games/{game.Id}/preparation/departure", null, Token)).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        var setOut = await Read<GameView>(await _gm.PostAsync($"/api/games/{game.Id}/preparation/departure", null, Token));
+        setOut.State.Preparation.Should().BeNull();
+        setOut.Party.Should().Equal("Hero");
     }
 
     [Fact]
@@ -225,6 +273,51 @@ public class RoomEndpointsTests(HomebrewFactory factory) : IClassFixture<Homebre
         await _gm.PutAsJsonAsync($"/api/games/{game.Id}/room/seats/{joined.SeatId}/adventurers", new RoomEndpoints.AssignRequest(adventurers), JsonDefaults.Options, Token);
         phone.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Seat", joined.SeatToken);
         return (phone, room.Code, joined.SeatId);
+    }
+
+    [Fact]
+    public async Task AForgedForwardedHeader_DoesNotMakeAPhoneTheGm()
+    {
+        using var forged = factory.CreateClient();
+        forged.DefaultRequestHeaders.Add("X-Forwarded-For", $"127.0.0.1,{PhoneAddress}");
+
+        (await forged.GetAsync("/api/games", Token)).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task TryingCodes_IsStoppedAfterTenUnknownRooms()
+    {
+        using var guesser = factory.CreateClient();
+        guesser.DefaultRequestHeaders.Add("X-Forwarded-For", "192.168.1.77");
+        for (var i = 0; i < CodeGuessLimiter.MaxFailures; i++)
+        {
+            (await guesser.GetAsync("/api/rooms/ZZZZZZ", Token)).StatusCode.Should().Be(HttpStatusCode.NotFound);
+        }
+
+        (await guesser.GetAsync("/api/rooms/ZZZZZZ", Token)).StatusCode.Should().Be(HttpStatusCode.TooManyRequests);
+    }
+
+    [Fact]
+    public async Task APhone_MayNotSearchTheWholeCatalogue()
+    {
+        var game = await StartGame();
+        var (phone, _, _) = await JoinedPhone(game, ["Rook"]);
+
+        (await phone.GetAsync("/api/catalog", Token)).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        (await phone.GetAsync("/api/catalog/items", Token)).StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task ASeatSentAway_LosesItsPendingRequests()
+    {
+        var game = await StartGame();
+        var (phone, code, seat) = await JoinedPhone(game, []);
+        await Read<PlayerView>(await phone.PostAsJsonAsync($"/api/rooms/{code}/me/requests", new PlayerCommand(PlayerCommand.TakeAdventurer, Adventurer: "Rook"), JsonDefaults.Options, Token));
+
+        var room = await Read<RoomView>(await _gm.DeleteAsync($"/api/games/{game.Id}/room/seats/{seat}", Token));
+
+        room.Requests.Should().OnlyContain(r => r.Status == RequestStatus.Cancelled);
+        (await phone.GetAsync($"/api/rooms/{code}/me", Token)).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
     /// <summary>Another device of the Wi-Fi, as the Vite proxy forwards it.</summary>

@@ -37,8 +37,7 @@ internal sealed partial class Session
         Log("encounter", node.Intro, Args(("node", node.Id), ("name", node.Name?.GetValueOrDefault("en")), ("lootLevel", node.LootLevel), ("locationType", node.LocationType)));
         foreach (var card in node.Setup?.RevealHiddenCards ?? [])
         {
-            State.Campaign.RevealedHiddenCards.Add($"{card.Size}:{card.Code}");
-            Log("revealHiddenCard", args: Args(("size", card.Size), ("code", card.Code)));
+            RevealHiddenCard(card.Size, card.Code);
         }
 
         foreach (var rule in node.SpecialRules)
@@ -50,6 +49,7 @@ internal sealed partial class Session
         RevealAtStart(node.Map);
         BuildLootDeck(node);
         PlaceAdventurers(node.Map, node.Setup);
+        BringKeptAllies();
         foreach (var placement in node.Setup?.Combatants ?? [])
         {
             Spawn(SpawnOf(placement), fromSetup: true, placement.InitiativeCard);
@@ -120,7 +120,11 @@ internal sealed partial class Session
         var encounter = Encounter;
         encounter.Round++;
         encounter.RoundLog = new RoundLog();
-        ShuffleTrack();
+        if (encounter.Round == 1 || !Options.StaticMonsters)
+        {
+            ShuffleTrack();
+        }
+
         encounter.PlayedCards.Clear();
         encounter.CurrentTurn = 0;
         Log("roundStart", args: Args(("round", Number(encounter.Round)), ("track", string.Join(", ", encounter.InitiativeTrack))));
@@ -153,12 +157,17 @@ internal sealed partial class Session
 
     private void AddUrgency(int amount)
     {
+        if (Options.RemoveUrgency)
+        {
+            return;
+        }
+
         var encounter = Encounter;
         encounter.Urgency += amount;
         Log("urgency", args: Args(("urgency", Number(encounter.Urgency))));
-        if (encounter.Urgency >= 4)
+        if (encounter.Urgency >= ((Options.NoPlayerElimination ? Options.UrgencyLimit : null) ?? GameOptions.DefaultUrgencyLimit))
         {
-            // A 4th Urgency token defeats every Adventurer.
+            // The last Urgency token (the 4th, as printed) defeats every Adventurer.
             var node = EncounterNode;
             var lose = node.EndConditions.FirstOrDefault(e => e.Kind == "lose" && encounter.ActiveEndConditions.Contains(e.Id));
             Log("urgencyDefeat");
@@ -187,11 +196,18 @@ internal sealed partial class Session
         var adventurer = card.StartsWith(AdventurerCard, StringComparison.Ordinal) ? card[AdventurerCard.Length..] : null;
         if (adventurer is not null)
         {
+            ReturnToPlay(adventurer);
             RefreshStamina(adventurer);
         }
 
-        var statusEffects = Encounter.Adventurers.FirstOrDefault(a => a.Name == adventurer)?.Effects.Where(IsStatusEffect).ToList() ?? [];
-        Log("turn", args: Args(("card", card), ("adventurer", adventurer),
+        // Every ally of the card takes its turn, in the order the players choose (p. 58)
+        var allies = IsAlly(card) ? LivingAllies().Where(a => a.TrackCard == card).ToList() : [];
+        allies.ForEach(BeginAllyTurn);
+        var carried = allies.Count > 0
+            ? allies.SelectMany(a => a.Effects).Distinct()
+            : Encounter.Adventurers.FirstOrDefault(a => a.Name == adventurer)?.Effects ?? [];
+        var statusEffects = carried.Where(IsStatusEffect).ToList();
+        Log("turn", args: Args(("card", card), ("adventurer", adventurer), ("ally", allies.Count > 0 ? string.Join(", ", allies.Select(NameOf)) : null),
             ("statusEffects", statusEffects.Count > 0 ? string.Join(", ", statusEffects) : null)));
         var figures = Alive().Where(c => c.InitiativeCards.Contains(card)).OrderBy(c => c.Number).Select(c => c.Instance).ToList();
         if (figures.Count > 0)
@@ -335,7 +351,32 @@ internal sealed partial class Session
     private void Spawn(ScenarioAction action, bool fromSetup, string? initiativeCard = null, bool? possibleSpawns = null)
     {
         var lootLevel = action.LootLevel ?? EncounterNode.LootLevel;
-        for (var i = 0; i < (action.Count ?? 1); i++)
+        var count = action.Count ?? 1;
+        if (HiddenAreaOf(action.At) is { } area)
+        {
+            // Under the fog: not in play until revealed (neither figure, nor number, nor card on the track)
+            for (var i = 0; i < count; i++)
+            {
+                Encounter.Waiting.Add(new WaitingCombatant
+                {
+                    Area = area,
+                    // Only the first one stands on the square named, as for figures spawned in view
+                    Action = action with { Count = 1, At = i == 0 ? action.At : null },
+                    InitiativeCard = initiativeCard,
+                    PossibleSpawns = possibleSpawns ?? !fromSetup,
+                });
+            }
+
+            return;
+        }
+
+        if (action.Ref is { } named && Catalog.FindCombatant(named) is { } command && AllyRules.IsCommand(command))
+        {
+            SpawnAlly(action, command, fromSetup, initiativeCard);
+            return;
+        }
+
+        for (var i = 0; i < count; i++)
         {
             var figure = action.Ref is not null ? NamedFigure(action) : FamilyFigure(action.Family!, lootLevel, possibleSpawns ?? !fromSetup);
             if (figure is null)
@@ -351,6 +392,7 @@ internal sealed partial class Session
             }
 
             figure.Figure = action.Figure ?? figure.Figure;
+            figure.Health = HealthInThisGame(figure.Card);
             figure.Effects.AddRange((action.Effects ?? []).Except(figure.Effects));
             figure.Position = i == 0 ? Locate(action.At) : null;
             var existing = Encounter.Combatants.FindIndex(c => c.Instance == figure.Instance);
@@ -398,7 +440,8 @@ internal sealed partial class Session
     /// </summary>
     private CombatantState? FamilyFigure(string family, string? lootLevel, bool possibleSpawns)
     {
-        var chosen = Catalog.CardFor(family, lootLevel);
+        possibleSpawns &= !Options.LessVariety;
+        var chosen = Options.NoScaling ? Catalog.LowestCardFor(family) : Catalog.CardFor(family, lootLevel);
         if (chosen is null)
         {
             return null;
@@ -518,7 +561,7 @@ internal sealed partial class Session
         var encounter = Encounter;
         foreach (var card in cards.Where(c => !encounter.InitiativeTrack.Contains(c)))
         {
-            if (encounter.Round > 0 && encounter.CurrentTurn >= 0)
+            if (encounter.Round > 0 && encounter.CurrentTurn >= 0 && !Options.SlowMonsters)
             {
                 encounter.InitiativeTrack.Insert(encounter.CurrentTurn + 1, card);
             }
@@ -537,7 +580,7 @@ internal sealed partial class Session
         for (var i = encounter.InitiativeTrack.Count - 1; i >= 0; i--)
         {
             var card = encounter.InitiativeTrack[i];
-            if (!card.StartsWith(AdventurerCard, StringComparison.Ordinal) && !used.Contains(card))
+            if (!card.StartsWith(AdventurerCard, StringComparison.Ordinal) && !IsAlly(card) && !used.Contains(card))
             {
                 encounter.InitiativeTrack.RemoveAt(i);
                 if (i <= encounter.CurrentTurn)
@@ -576,7 +619,7 @@ internal sealed partial class Session
 
         figure.Damage = Math.Max(0, figure.Damage + amount);
         figure.Attacked |= amount > 0;
-        var health = Catalog.FindCombatant(figure.Card)?.Stats?.Health?.Value;
+        var health = figure.Health ?? Catalog.FindCombatant(figure.Card)?.Stats?.Health?.Value;
         Log("damage", args: Args(("instance", figure.Instance), ("amount", Number(amount)), ("damage", Number(figure.Damage)), ("health", Number(health))));
         if (health is { } max && figure.Damage >= max)
         {
@@ -591,6 +634,7 @@ internal sealed partial class Session
     {
         var effects = instance?.StartsWith(AdventurerCard, StringComparison.Ordinal) == true
             ? Encounter.Adventurers.FirstOrDefault(a => a.Name == instance[AdventurerCard.Length..])?.Effects
+            : IsAlly(instance) ? FindAlly(instance)?.Effects
             : Find(instance) is { Defeated: false } figure ? figure.Effects : null;
         if (effects is null)
         {
@@ -707,6 +751,12 @@ internal sealed partial class Session
 
         Push([.. condition.Mechanics, Continue(), GoTo(condition.Next)]);
     }
+
+    /// <summary>Tougher Mobs: 50% more HP to every non-BOSS opponent (rounded up).</summary>
+    private int? HealthInThisGame(string card) =>
+        Options.TougherMobs && Catalog.FindCombatant(card) is { IsBoss: false, Kind: "intelligent" } combatant && combatant.Stats?.Health?.Value is { } health
+            ? health + ((health + 1) / 2)
+            : null;
 
     private IEnumerable<CombatantState> Alive() => Encounter.Combatants.Where(c => !c.Defeated);
 

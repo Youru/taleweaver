@@ -205,7 +205,7 @@ internal sealed partial class Session
         }
 
         State.Bounty = null;
-        State.Encounter = null;
+        LeaveEncounter();
         State.PendingActions.Clear();
         Log("bountyEnd", args: Args(("scenario", bounty.Scenario), ("won", won ? "true" : "false")));
         var storyRound = Campaign.Nodes.First(n => n.Id == bounty.StoryRound);
@@ -252,12 +252,13 @@ internal sealed partial class Session
             return PartyErrors.AlreadyLearnt(member.Name, discipline);
         }
 
-        if (card is { Story: false, Level: { } level } && MissingLevel(member, card.Tree, level) is { } missing)
+        var known = member.Disciplines.Select(d => d.Id).ToList();
+        if (DisciplineRules.MissingLevel(Catalog, known, card) is { } missing)
         {
-            return PartyErrors.MissingLevel(member.Name, card.Tree, missing);
+            return PartyErrors.MissingLevel(member.Name, card!.Tree, missing);
         }
 
-        var cost = DisciplineCost(member, card) ?? Math.Max(0, xp);
+        var cost = DisciplineRules.Cost(Catalog, known, card) ?? Math.Max(0, xp);
         var left = member.Xp - member.Disciplines.Sum(d => d.Xp);
         if (cost > left)
         {
@@ -267,23 +268,6 @@ internal sealed partial class Session
         member.Disciplines.Add(new LearnedDiscipline { Id = discipline, Xp = cost });
         Log("disciplineLearnt", args: Args(("adventurer", member.Name), ("discipline", discipline), ("xp", Number(cost))));
         return Result.Success();
-    }
-
-    /// <summary>The XP a card costs this adventurer: printed cost +1 per Discipline of the same level; null when unknown.</summary>
-    private int? DisciplineCost(AdventurerState member, Discipline? card) => card switch
-    {
-        { Story: true } => 0,
-        { Level: { } level } => (card.Cost ?? 2 * level + 1)
-                                + member.Disciplines.Count(d => Catalog.FindDiscipline(d.Id) is { Story: false } other && other.Level == level),
-        _ => null,
-    };
-
-    /// <summary>The lowest level of the tree the adventurer still lacks below <paramref name="level"/>, or null.</summary>
-    private int? MissingLevel(AdventurerState member, string tree, int level)
-    {
-        var known = member.Disciplines.Select(d => Catalog.FindDiscipline(d.Id))
-            .Where(d => d is { Story: false } && d.Tree == tree).Select(d => d!.Level).ToHashSet();
-        return Enumerable.Range(1, Math.Max(0, level - 1)).Cast<int?>().FirstOrDefault(l => !known.Contains(l));
     }
 
     /// <summary>
@@ -297,10 +281,16 @@ internal sealed partial class Session
             return PartyErrors.UnknownAdventurer(adventurer);
         }
 
-        var price = RespecPrice();
+        var free = Options.XpLeniency && !State.Campaign.FreeRespecs.Contains(member.Name);
+        var price = free ? 0 : RespecPrice();
         if (price > State.Campaign.Gold)
         {
             return PartyErrors.NotEnoughGold(price, State.Campaign.Gold);
+        }
+
+        if (free)
+        {
+            State.Campaign.FreeRespecs.Add(member.Name);
         }
 
         var lost = member.Disciplines.RemoveAll(d => Catalog.FindDiscipline(d.Id) is not { Story: true });

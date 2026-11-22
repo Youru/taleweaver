@@ -45,10 +45,13 @@ test('a GM creates a scenario in the workshop, branches it on the graph, and tes
   await page.getByRole('button', { name: 'Enregistrer' }).click()
   await expect(page.getByRole('button', { name: 'Enregistré' })).toBeDisabled()
   await page.getByRole('button', { name: 'Tester' }).click()
-  await page.getByLabel('Aventurier 1').fill('Nightingale')
-  await page.getByRole('button', { name: 'Commencer' }).click()
+  await page.getByRole('button', { name: 'Préparer le groupe' }).click()
+  await page.getByRole('button', { name: 'Ajouter Nightingale' }).click()
+  await page.getByRole('button', { name: 'Partir à l’aventure' }).click()
   await expect(page).toHaveURL(/\/games\/\w+/)
-  await expect(page.getByText('Le marais sent la vase et le danger.')).toBeVisible()
+  await expect(
+    page.getByRole('region', { name: 'Récit' }).getByText('Le marais sent la vase et le danger.'),
+  ).toBeVisible()
   // The scene asks its question right away; option 1 leads to the encounter
   await expect(page.getByText('Que font les aventuriers ?')).toBeVisible()
   await page.getByRole('button', { name: 'Option 1' }).click()
@@ -186,8 +189,9 @@ test('a GM draws the map of an encounter: tiles, tokens, enemies and the start, 
   await page.getByRole('option', { name: /^Rencontre · / }).click()
   await expect(page.getByText('Aucun problème')).toBeVisible()
   await page.getByRole('button', { name: 'Tester' }).click()
-  await page.getByLabel('Aventurier 1').fill('Nightingale')
-  await page.getByRole('button', { name: 'Commencer' }).click()
+  await page.getByRole('button', { name: 'Préparer le groupe' }).click()
+  await page.getByRole('button', { name: 'Ajouter Nightingale' }).click()
+  await page.getByRole('button', { name: 'Partir à l’aventure' }).click()
   await page.getByRole('button', { name: 'Continuer' }).click()
   const table = page.getByRole('img', { name: /^Plateau : / })
   await expect(table.locator('g.tile image')).toHaveCount(1)

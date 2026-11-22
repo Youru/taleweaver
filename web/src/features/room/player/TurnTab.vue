@@ -12,6 +12,7 @@ import { pick } from '@/shared/lib/localized'
 import { usePreferences } from '@/shared/lib/preferences'
 import type { PlayerCommand, PlayerView } from '../api/types'
 import { turnOf } from '../lib/room'
+import AlliesSection from './AlliesSection.vue'
 
 /**
  * The encounter as the table sees it (room-spec §5.1, Tour): whose turn it is, the initiative track, the effects
@@ -145,6 +146,8 @@ const opponents = computed(() => encounter.value.combatants.filter((c) => !c.def
       <Message v-if="failure" severity="error" :closable="false">{{ failure }}</Message>
       <Message v-else-if="reported" severity="info" :closable="false" :life="2500">{{ reported }}</Message>
     </template>
+
+    <AlliesSection :view="view" :followed="followed" :act="act" :amount="amount" />
 
     <h2>{{ t('room.player.opponents') }}</h2>
     <p v-if="opponents.length === 0" class="muted">{{ t('room.player.noOpponent') }}</p>

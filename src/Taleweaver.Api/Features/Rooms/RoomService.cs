@@ -52,6 +52,9 @@ public sealed partial class RoomService(RoomStore store, TimeProvider time)
     /// <summary>Raised after every change of a room (seats, adventurers, status), outside the lock.</summary>
     public event Func<Room, Task>? Changed;
 
+    /// <summary>The GM sent a seat away: its phone is told at once.</summary>
+    public event Func<string, Task>? SeatRemoved;
+
     public async Task<Room?> GetAsync(string gameId) => await Locked(rooms => rooms.GetValueOrDefault(gameId));
 
     public async Task<IReadOnlyList<Room>> OpenRoomsAsync() => await Locked(rooms => rooms.Values.Where(r => r.IsOpen).ToList());
@@ -239,11 +242,22 @@ public sealed partial class RoomService(RoomStore store, TimeProvider time)
                 return Errors.NoRoom(gameId);
             }
 
-            return room.Seats.RemoveAll(s => s.Id == seatId) == 0 ? Errors.SeatNotFound(seatId) : room;
+            if (room.Seats.RemoveAll(s => s.Id == seatId) == 0)
+            {
+                return Errors.SeatNotFound(seatId);
+            }
+
+            foreach (var asked in room.Requests.Where(r => r.SeatId == seatId && r.Status == RequestStatus.Pending))
+            {
+                asked.Status = RequestStatus.Cancelled;
+            }
+
+            return room;
         });
         if (outcome.IsSuccess)
         {
             await SaveAndNotify(outcome.Value, cancellationToken);
+            await (SeatRemoved?.Invoke(seatId) ?? Task.CompletedTask);
         }
 
         return outcome;

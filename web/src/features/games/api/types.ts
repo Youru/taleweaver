@@ -1,4 +1,6 @@
 import type { LocalizedText } from '@/shared/lib/localized'
+import type { AllyOption, AllyState } from './allies'
+import type { PartyPreparation } from './preparation'
 
 /** Mirrors Taleweaver.Api.Engine.GameState and its parts. */
 export type GameStatus = 'InProgress' | 'Finished'
@@ -21,8 +23,48 @@ export interface GameState {
   /** The Bounty played from a Story Round: its nodes are the ones read until it ends. */
   bounty?: { scenario: string; storyRound: string; lastEnd?: string | null } | null
   encounter?: EncounterState
+  /** The party being made: the scenario is not read yet. */
+  preparation?: PartyPreparation | null
   prompt?: Prompt
+  /** The optional rules of this game. */
+  options?: GameOptions | null
+  abraxis?: AbraxisGame | null
   log: LogEntry[]
+}
+
+/** The optional rules chosen at the launch (rulebook p. 86-88): all off by default. */
+export interface GameOptions {
+  noPlayerElimination?: boolean
+  /** With No Player Elimination: 3, 4 or 5. */
+  urgencyLimit?: number | null
+  tougherMobs?: boolean
+  noScaling?: boolean
+  staticMonsters?: boolean
+  slowMonsters?: boolean
+  lessVariety?: boolean
+  removeUrgency?: boolean
+  xpLeniency?: boolean
+  forgivingTerrain?: boolean
+  randomCounters?: boolean
+  deadlierBosses?: boolean
+  bossRage?: boolean
+  nobodyLeftBehind?: boolean
+  favorableConditions?: boolean
+  reconnaissance?: boolean
+}
+
+export interface AbraxisGame {
+  round: number
+  name?: LocalizedText | null
+  rule?: LocalizedText | null
+  players: { name: string; points: number }[]
+}
+
+/** A Hidden Card revealed; no picture: it is taken from the box. */
+export interface HiddenCard {
+  size: string
+  code: string
+  pictures: { name: LocalizedText; image: string }[]
 }
 
 export interface CampaignState {
@@ -48,6 +90,14 @@ export interface CampaignState {
   bountiesAttempted?: string[]
   /** Item Upgrades unlocked (Adventure Sheet). */
   unlockedUpgrades?: string[]
+  achievements?: {
+    id: string
+    scenario: string
+    node: string
+    adventurer: string
+    name?: LocalizedText | null
+  }[]
+  freeRespecs?: string[]
 }
 
 export interface StoryRoundState {
@@ -75,6 +125,10 @@ export interface AdventurerState {
   /** SP gained each turn, and the most SP held (the Stamina Recovery Bar). */
   staminaRecovery?: number
   staminaMax?: number
+  summonTokens?: number
+  /** Conduit cards earned, and the one in the place of the Adventurer Card (rulebook p. 77). */
+  conduits?: string[]
+  conduitForm?: string | null
 }
 
 /** One item card the party holds; `item` is missing while the card is still to be drawn by the table. */
@@ -119,6 +173,8 @@ export interface EncounterState {
   playedCards?: string[]
   combatants: CombatantState[]
   tokens: BoardToken[]
+  allies?: AllyState[]
+  allyOptions?: AllyOption[]
   placedDiagrams: string[]
   /** A NAVIGATE cleared the encounter's own map: only the placed diagrams are on the table. */
   mapCleared?: boolean
@@ -140,12 +196,22 @@ export interface CombatantState {
   position?: Cell
   damage: number
   effects: string[]
+  /** Maximum HP when an option changes the card's. */
+  health?: number | null
   aggro: boolean
   defeated: boolean
 }
 
 export type PromptKind =
-  'continue' | 'choice' | 'skillCheck' | 'aiCondition' | 'spawnPossible' | 'number' | 'adventurer' | 'storyRound'
+  | 'continue'
+  | 'choice'
+  | 'skillCheck'
+  | 'aiCondition'
+  | 'spawnPossible'
+  | 'number'
+  | 'adventurer'
+  | 'storyRound'
+  | 'abraxis'
 
 export interface Prompt {
   kind: PromptKind
@@ -169,6 +235,7 @@ export interface GameSummary {
   updatedAt: string
   status: GameStatus
   currentNode?: string
+  preparing?: boolean
 }
 
 /** Commands on the party's members, as sent to /api/games/{id}/party… */
@@ -179,12 +246,23 @@ export type PartyCommand =
   | { type: 'forget'; adventurer: string; discipline: string }
   | { type: 'respec'; adventurer: string }
 
-export type Answer = { option: string; value?: undefined } | { value: number; option?: undefined }
+export type Answer =
+  | { option: string; value?: undefined }
+  | { value: number; option?: undefined }
+  /** A round of Abraxis: each player's symbols extra or missing, `value` the points everyone loses. */
+  | { misses: number[]; value: number; option?: undefined }
 
 /** Commands of the encounter, as sent to /api/games/{id}/encounter/… */
 export type EncounterCommand =
   | { type: 'nextTurn' }
-  | { type: 'damage'; instance: string; amount: number }
+  /** fromOpponent, tokens: a Loyal Esper's Damage (its summoner takes it too; Summon tokens discarded). */
+  | { type: 'damage'; instance: string; amount: number; fromOpponent?: boolean; tokens?: number }
+  | { type: 'summon'; adventurer: string; card: string }
+  | { type: 'addAlly'; card: string; owner?: string }
+  | { type: 'dismissAlly'; ally: string; ignoreDamage?: boolean }
+  | { type: 'earnConduit'; adventurer: string; card: string }
+  /** No card: the Adventurer Card again. */
+  | { type: 'conduitForm'; adventurer: string; card?: string }
   | { type: 'effect'; instance: string; effect: string; active: boolean }
   | { type: 'defeat'; instance: string }
   | { type: 'activateToken'; token: string }
@@ -196,6 +274,7 @@ export type EncounterCommand =
   | { type: 'moveInitiative'; card: string; by: number }
   /** The adventurer now holds `value` SP. */
   | { type: 'stamina'; adventurer: string; value: number }
+  | { type: 'achievement'; achievement: string; adventurer: string }
 
 export interface Cell {
   x: number

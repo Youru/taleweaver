@@ -33,11 +33,11 @@ public static partial class ScenarioChecker
     /// <summary>The actions the engine plays (Engine/Session.Actions.cs); any other is skipped in play.</summary>
     public static readonly IReadOnlySet<string> EngineActions = new HashSet<string>
     {
-        "goToNode", "showText", "gainGold", "gainXp", "gainItem", "restore", "revealHiddenCard", "setFlag", "setVar",
+        "goToNode", "showText", "gainGold", "gainXp", "gainItem", "gainDiscipline", "restore", "revealHiddenCard", "setFlag", "setVar",
         "askChoice", "askSkillCheck", "readHiddenRule", "placeToken", "removeToken", "activateToken", "spawn",
         "appendAiStep", "revealArea", "placeDiagram", "addEndCondition", "endEncounter", "addUrgency",
         "restoreCombatant", "replaceInitiativeCard", "defeatAdventurer", "navigate", "addVar", "branch", "askNumber",
-        "unlockUpgrade", "joinParty", "leaveParty", "setInjured", "setUnselectable", "setActiveGroup",
+        "abraxis", "unlockUpgrade", "joinParty", "leaveParty", "setInjured", "setUnselectable", "setActiveGroup",
     };
 
     /// <summary>The triggers the engine fires.</summary>
@@ -62,7 +62,7 @@ public static partial class ScenarioChecker
     };
 
     private static readonly HashSet<string> BuiltInVariables = ["round", "urgency", "gold"];
-    private static readonly string[] BooleanPrefixes = ["placed.", "activated.", "revealed."];
+    private static readonly string[] BooleanPrefixes = ["placed.", "activated.", "revealed.", "hiddenCard."];
     private static readonly string[] CountPrefixes = ["defeated.", "alive."];
 
     public static ScenarioReport Check(Scenario scenario, Catalog catalog)
@@ -71,6 +71,9 @@ public static partial class ScenarioChecker
         run.CheckNodes(scenario);
         run.CheckCatalogReferences(scenario);
         run.CheckCardPacks(scenario);
+        var (partyErrors, partyWarnings) = PartyChecker.Check(scenario.Party, catalog);
+        run.Errors.AddRange(partyErrors);
+        run.Warnings.AddRange(partyWarnings);
         return new ScenarioReport(
             run.Errors,
             run.Warnings,
@@ -147,6 +150,7 @@ public static partial class ScenarioChecker
             CollectVariables(scenario);
             foreach (var node in scenario.Nodes)
             {
+                CheckCards(node);
                 foreach (var action in ScenarioAction.Flatten(node.Mechanics))
                 {
                     CheckKnownAction(node.Id, action);
@@ -193,7 +197,8 @@ public static partial class ScenarioChecker
             var actions = scenario.Nodes.SelectMany(n => ScenarioAction.Flatten(n.Mechanics
                 .Concat(n.EndConditions.SelectMany(e => e.Mechanics))
                 .Concat(n.Events.SelectMany(e => e.Actions))
-                .Concat(n.HiddenRules.SelectMany(r => r.Actions))));
+                .Concat(n.HiddenRules.SelectMany(r => r.Actions))
+                .Concat(n.Achievements.SelectMany(a => a.Actions))));
             foreach (var action in actions)
             {
                 if (action.Do == "setFlag" && Extra(action, "flag") is { } flag)
@@ -214,6 +219,26 @@ public static partial class ScenarioChecker
             if (!EngineActions.Contains(action.Do))
             {
                 Warn("UnknownAction", where, $"action '{action.Do}' is skipped by the engine");
+            }
+        }
+
+        /// <summary>The Hidden Cards and the Disciplines named: known to a pack, when any pack maps that code's size.</summary>
+        private void CheckCards(Node node)
+        {
+            var actions = ScenarioAction.Flatten(node.Mechanics
+                .Concat(node.EndConditions.SelectMany(e => e.Mechanics))
+                .Concat(node.Events.SelectMany(e => e.Actions))).ToList();
+            foreach (var action in actions.Where(a => a.Do == "gainDiscipline" && catalog.FindDiscipline(a.Ref) is null))
+            {
+                Error("UnknownDiscipline", node.Id, $"gainDiscipline: unknown discipline '{action.Ref}'");
+            }
+
+            foreach (var action in actions.Where(a => a.Do == "revealHiddenCard"))
+            {
+                if (action.Size is not ("small" or "medium" or "large" or "xlarge") || string.IsNullOrWhiteSpace(action.Code))
+                {
+                    Error("BadHiddenCard", node.Id, "revealHiddenCard: a size (small, medium, large, xlarge) and a code are needed");
+                }
             }
         }
 
@@ -314,7 +339,13 @@ public static partial class ScenarioChecker
 
             var actions = encounter.Events.SelectMany(e => ScenarioAction.Flatten(e.Actions))
                 .Concat(encounter.HiddenRules.SelectMany(r => ScenarioAction.Flatten(r.Actions)))
+                .Concat(encounter.Achievements.SelectMany(a => ScenarioAction.Flatten(a.Actions)))
                 .ToList();
+            foreach (var twice in encounter.Achievements.GroupBy(a => a.Id).Where(g => g.Count() > 1))
+            {
+                Error("DuplicateAchievement", id, $"duplicate achievement '{twice.Key}'");
+            }
+
             CheckCombatants(encounter, boards.SelectMany(b => b.Setup.Combatants), actions);
 
             // Fog areas: declared before tiles and tokens refer to them

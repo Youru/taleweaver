@@ -48,8 +48,10 @@ internal sealed partial class Session
                 ReturnLootCards();
                 break;
             case "revealHiddenCard":
-                State.Campaign.RevealedHiddenCards.Add($"{action.Size}:{action.Code}");
-                Log("revealHiddenCard", args: Args(("size", action.Size), ("code", action.Code)));
+                RevealHiddenCard(action.Size, action.Code);
+                break;
+            case "gainDiscipline":
+                GainDiscipline(action);
                 break;
             case "setFlag":
                 SetVariable(ExtraString(action, "flag"), JsonSerializer.SerializeToElement(true));
@@ -63,6 +65,9 @@ internal sealed partial class Session
                 break;
             case "branch":
                 Push((action.If ?? []).All(IsTrue) ? action.Then ?? [] : action.Else ?? []);
+                break;
+            case "abraxis":
+                StartAbraxis(action);
                 break;
             case "askNumber":
                 Ask(PromptKinds.Number, action.Question ?? action.Text, [], action);
@@ -174,12 +179,18 @@ internal sealed partial class Session
     private void GainXp(ScenarioAction action)
     {
         var amount = action.Amount ?? 0;
+        string? who = null;
         if (action.Each == true)
         {
             State.Campaign.Party.ForEach(a => a.Xp += amount);
         }
+        else if (action.Who is { ValueKind: JsonValueKind.String } named && Member(named.GetString()) is { } member)
+        {
+            member.Xp += amount;
+            who = member.Name;
+        }
 
-        Log("gainXp", args: Args(("amount", Number(amount)), ("each", action.Each == true ? "true" : null)));
+        Log("gainXp", args: Args(("amount", Number(amount)), ("each", action.Each == true ? "true" : null), ("adventurer", who)));
     }
 
     private void GainItem(ScenarioAction action)
@@ -195,7 +206,65 @@ internal sealed partial class Session
             GainOwned(known, "scenario", known is null ? action.Tiers : null, known is null ? action.Type : null);
         }
 
-        Log("gainItem", args: Args(("item", action.Ref), ("count", Number(action.Count)), ("tiers", action.Tiers is null ? null : string.Join("/", action.Tiers)), ("type", action.Type)));
+        Log("gainItem", args: Args(("item", action.Ref), ("count", Number(action.Count)), ("tiers", action.Tiers is null ? null : string.Join("/", action.Tiers)), ("type", action.Type),
+            ("adventurer", action.Who is { ValueKind: JsonValueKind.String } who ? who.GetString() : null)));
+    }
+
+    /// <summary>Several events may name the same card (rulebook p. 37): it is revealed once.</summary>
+    private void RevealHiddenCard(string? size, string? code)
+    {
+        var key = $"{size}:{code}";
+        if (!State.Campaign.RevealedHiddenCards.Contains(key))
+        {
+            State.Campaign.RevealedHiddenCards.Add(key);
+            Log("revealHiddenCard", args: Args(("size", size), ("code", code)));
+        }
+    }
+
+    /// <summary>A Discipline the story gives, without XP; nobody named: the GM is asked who takes it.</summary>
+    private void GainDiscipline(ScenarioAction action)
+    {
+        var card = Catalog.FindDiscipline(action.Ref);
+        var name = ExtraString(action, "adventurer");
+        if (card is null || State.Campaign.Party.Count == 0 || (name is not null && Member(name) is null))
+        {
+            Log("manualAction", action.Text, Args(("do", action.Do), ("discipline", action.Ref), ("adventurer", name)));
+            return;
+        }
+
+        if (name is null)
+        {
+            var options = State.Campaign.Party
+                .Where(a => a.Disciplines.All(d => d.Id != card.Id))
+                .Select(a => new ActionOption
+                {
+                    Label = new Dictionary<string, string> { ["en"] = a.Name },
+                    Actions = [action with { Extra = new Dictionary<string, JsonElement> { ["adventurer"] = JsonSerializer.SerializeToElement(a.Name) } }],
+                })
+                .ToList();
+            if (options.Count > 0)
+            {
+                Push([new ScenarioAction
+                {
+                    Do = "askChoice",
+                    Question = new Dictionary<string, string>
+                    {
+                        ["en"] = $"Who takes the Discipline {card.Name["en"]}?",
+                        ["fr"] = $"Qui reçoit la Discipline {card.Name["en"]} ?",
+                    },
+                    Options = options,
+                }]);
+            }
+
+            return;
+        }
+
+        var member = Member(name)!;
+        if (member.Disciplines.All(d => d.Id != card.Id))
+        {
+            member.Disciplines.Add(new LearnedDiscipline { Id = card.Id, Xp = 0 });
+            Log("gainDiscipline", args: Args(("adventurer", member.Name), ("discipline", card.Name["en"])));
+        }
     }
 
     private void SetVariable(string? name, JsonElement value)
@@ -359,6 +428,7 @@ internal sealed partial class Session
 
         AddTokens(diagram.Map);
         RevealAtStart(diagram.Map);
+        AppearFromTheFog();
         foreach (var rule in diagram.SpecialRules)
         {
             Log("specialRule", rule.Text, Args(("rule", rule.Id), ("name", rule.Name.GetValueOrDefault("en"))));
@@ -389,7 +459,16 @@ internal sealed partial class Session
         }
 
         encounter.Combatants.RemoveAll(c => !c.Defeated);
-        encounter.InitiativeTrack = ActiveParty.Select(a => AdventurerCard + a.Name).ToList();
+        encounter.Waiting.Clear();
+        encounter.InitiativeTrack = ActiveParty.Select(a => AdventurerCard + a.Name)
+            .Concat(LivingAllies().Select(a => a.TrackCard).Distinct())
+            .ToList();
+        // The party takes its allies along: to place again
+        foreach (var ally in LivingAllies())
+        {
+            ally.Position = null;
+        }
+
         encounter.CurrentTurn = -1;
         LayDiagram(diagram);
         PlaceAdventurers(diagram.Map, diagram.Setup);

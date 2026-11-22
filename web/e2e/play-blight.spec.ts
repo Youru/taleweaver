@@ -3,9 +3,10 @@ import { expect, test, type Page } from '@playwright/test'
 async function startBlight(page: Page) {
   await page.goto('/')
   await page.getByRole('button', { name: 'Jouer Blight of Rhamsted' }).click()
-  await page.getByLabel('Aventurier 1').fill('Nightingale')
-  await page.getByLabel('Aventurier 2').fill('Rook')
-  await page.getByRole('button', { name: 'Commencer' }).click()
+  await page.getByRole('button', { name: 'Préparer le groupe' }).click()
+  await page.getByRole('button', { name: 'Ajouter Nightingale' }).click()
+  await page.getByRole('button', { name: 'Ajouter Rook' }).click()
+  await page.getByRole('button', { name: 'Partir à l’aventure' }).click()
   await expect(page).toHaveURL(/\/games\/\w+/)
 }
 
@@ -137,12 +138,9 @@ test('a GM sees the setup on the table and activates a totem from it', async ({ 
   // The Earth Loa spawns on the totem; the 2 Gevaudan are for the GM to place
   await expect(page.getByText('earth-loa-2', { exact: true })).toBeVisible()
   await expect(board.locator('g.figure.combatant')).toHaveCount(7)
-  // Combatants still to place are not named (nor listed) until the GM asks for them
-  const gevaudan = page.getByRole('button', { name: 'gevaudan-1', exact: true })
-  await expect(gevaudan).toHaveCount(0)
-  await expect(page.getByRole('tabpanel', { name: 'Combattants' })).not.toContainText('gevaudan')
-  await page.getByRole('button', { name: 'Combattants à placer' }).click()
-  await expect(gevaudan).toBeVisible()
+  // Those that just appeared are never kept secret: listed, and offered to place at once
+  await expect(page.getByRole('button', { name: 'gevaudan-1', exact: true })).toBeVisible()
+  await expect(page.getByRole('tabpanel', { name: 'Combattants' })).toContainText('gevaudan')
   await expect(board.getByRole('button', { name: 'Jeton totem:blue' })).toHaveCount(0)
 })
 
@@ -190,7 +188,6 @@ test('a GM drags a figure from "to place" onto the board', async ({ page }) => {
   const board = page.getByRole('img', { name: 'Plateau : Search for the Lair' })
   await board.getByRole('button', { name: 'Jeton totem:blue' }).click()
   await page.getByRole('button', { name: 'Activer' }).click()
-  await page.getByRole('button', { name: 'Combattants à placer' }).click()
   const toPlace = page.getByRole('button', { name: 'gevaudan-1', exact: true })
   await expect(toPlace).toBeVisible()
 

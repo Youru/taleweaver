@@ -18,6 +18,7 @@ import {
   renameChapter,
 } from '../lib/chapters'
 import { captionOf, text } from '../lib/graph'
+import PartyEditor from './PartyEditor.vue'
 import TextField from './TextField.vue'
 
 /**
@@ -73,6 +74,8 @@ function remove(chapter: DraftChapter) {
     <Message v-for="(issue, i) in issues" :key="i" severity="error" size="small">
       {{ issue.where }} : {{ issue.message }}
     </Message>
+
+    <PartyEditor :scenario="scenario" @change="(next) => emit('change', next)" />
 
     <h3>{{ t('workshop.chapters.title') }}</h3>
     <p class="hint">{{ t('workshop.chapters.hint') }}</p>

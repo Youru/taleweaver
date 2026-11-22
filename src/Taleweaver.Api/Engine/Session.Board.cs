@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Taleweaver.Api.Common;
 using Taleweaver.Api.Content;
 
@@ -56,6 +57,17 @@ internal sealed partial class Session
             return Result.Success();
         }
 
+        if (IsAlly(figure))
+        {
+            if (FindAlly(figure) is not { } ally)
+            {
+                return GameEngine.Errors.UnknownFigure(figure);
+            }
+
+            ally.Position = square;
+            return Result.Success();
+        }
+
         if (Find(figure) is not { Defeated: false } combatant)
         {
             return GameEngine.Errors.UnknownFigure(figure);
@@ -78,11 +90,30 @@ internal sealed partial class Session
     }
 
     /// <summary>Every fog area of the maps on the table: the encounter's and the diagrams placed so far.</summary>
-    private IEnumerable<FogArea> AreasOnTable()
+    private IEnumerable<FogArea> AreasOnTable() => FogOfWar.MapsOnTable(EncounterNode, Encounter).SelectMany(m => m.Areas);
+
+    /// <summary>
+    /// The hidden area a figure would appear in: its square's, or that of the figure or token it is adjacent to.
+    /// Null when it appears in view, or when the scenario only says where in words.
+    /// </summary>
+    private string? HiddenAreaOf(JsonElement? at) =>
+        (Locate(at) ?? Anchor(at)) is { } square ? FogOfWar.HiddenAreaAt(EncounterNode, Encounter, Catalog, square) : null;
+
+    private Cell? Anchor(JsonElement? at) =>
+        at is { ValueKind: JsonValueKind.Object } where && where.TryGetProperty("adjacentTo", out var next) && next.ValueKind == JsonValueKind.String
+            ? Locate(JsonSerializer.SerializeToElement(new { on = next.GetString() }))
+            : null;
+
+    /// <summary>The combatants whose area is revealed come into play: their figure, then their card on the track.</summary>
+    private void AppearFromTheFog()
     {
-        var node = EncounterNode;
-        var diagrams = node.Diagrams.Where(d => Encounter.PlacedDiagrams.Contains(d.Id)).Select(d => d.Map);
-        return (Encounter.MapCleared ? diagrams : new[] { node.Map }.Concat(diagrams)).SelectMany(m => m?.Areas ?? []);
+        var encounter = Encounter;
+        var appearing = encounter.Waiting.Where(w => encounter.RevealedAreas.Contains(w.Area)).ToList();
+        encounter.Waiting.RemoveAll(appearing.Contains);
+        foreach (var waiting in appearing)
+        {
+            Spawn(waiting.Action, fromSetup: false, waiting.InitiativeCard, waiting.PossibleSpawns);
+        }
     }
 
     private Result RevealAreaCommand(string? id)
@@ -107,6 +138,7 @@ internal sealed partial class Session
 
         Encounter.RevealedAreas.Add(area.Id);
         Log("revealArea", area.Name, Args(("area", area.Id)));
+        AppearFromTheFog();
         Fire(e => e.Trigger.On == "areaRevealed" && (e.Trigger.Area is null || e.Trigger.Area == area.Id));
     }
 }

@@ -77,6 +77,13 @@ const tones: Record<string, LogTone> = {
   gainXp: 'reward',
   gainItem: 'reward',
   revealHiddenCard: 'reward',
+  gainDiscipline: 'reward',
+  achievement: 'reward',
+  achievementText: 'narrative',
+  abraxisStart: 'narrative',
+  abraxisRound: 'info',
+  abraxisEnd: 'reward',
+  adventurerReturns: 'alert',
   lootGold: 'reward',
   possibleSpawn: 'alert',
   lootItem: 'reward',
@@ -94,6 +101,18 @@ const tones: Record<string, LogTone> = {
   itemDiscarded: 'muted',
   itemFlipped: 'muted',
   scenarioEnd: 'reward',
+  setOut: 'narrative',
+  allySummoned: 'reward',
+  allyJoined: 'reward',
+  allyStays: 'info',
+  allyPlaced: 'info',
+  allyDamage: 'alert',
+  allyDefeated: 'alert',
+  allyDismissed: 'muted',
+  summonToken: 'muted',
+  conduitEarned: 'reward',
+  conduitForm: 'info',
+  conduitLeft: 'muted',
   answer: 'muted',
   figureTurnEnd: 'muted',
 }
@@ -108,7 +127,7 @@ function readableArgs(entry: LogEntry): Record<string, string> {
     const value = args[key]
     if (value) args[key] = shortId(value)
   }
-  if (entry.code === 'turn') args.who = args.adventurer ?? shortId(args.card ?? '')
+  if (entry.code === 'turn') args.who = args.adventurer ?? args.ally ?? shortId(args.card ?? '')
   if (entry.code === 'gainItem' && !args.item) args.item = [args.count, args.tiers, args.type].filter(Boolean).join(' ')
   return args
 }
@@ -139,7 +158,9 @@ export function formatLog(
       ? 'itemBought'
       : entry.code === 'itemUsed' && args.token
         ? 'itemUsedToken'
-        : entry.code
+        : (entry.code === 'gainXp' || entry.code === 'gainItem') && args.adventurer
+          ? `${entry.code}To`
+          : entry.code
   const key = `log.${code}`
   let title = hasMessage(key) ? translate(key, args) : translate('log.unknown', { code: entry.code })
   // STATUS Effects resolve at the start of the figure's turn (Poison, Condemn, Haste)

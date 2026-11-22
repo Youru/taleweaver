@@ -22,8 +22,10 @@ public static class PacksEndpoints
         GetBoardPieces.Map(catalog);
         GetDice.Map(catalog);
         GetEffects.Map(catalog);
+        GetReference.Map(catalog);
         GetInitiativeCards.Map(catalog);
         GetItems.Map(catalog);
+        GetAllies.Map(catalog);
         GetUpgradesAndDisciplines.Map(catalog);
         return app;
     }

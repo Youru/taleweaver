@@ -8,7 +8,15 @@ import ProgressSpinner from 'primevue/progressspinner'
 import { useAiAdvice } from '@/features/ai'
 import { useCombatants } from '@/features/catalog'
 import { DuelDialog } from '@/features/duel'
-import { arrivedCombatants, EncounterBar, useGame, useGameCommand, type EncounterCommand } from '@/features/games'
+import {
+  arrivedCombatants,
+  cardsInPlay,
+  EncounterBar,
+  useGame,
+  useGameCommand,
+  urgencyMax,
+  type EncounterCommand,
+} from '@/features/games'
 import { useScenario } from '@/features/scenarios'
 import { ApiError } from '@/shared/api/http'
 import { pick } from '@/shared/lib/localized'
@@ -28,7 +36,9 @@ const encounter = computed(() => state.value?.encounter)
 const arrived = computed(() => arrivedCombatants(state.value?.log))
 const scenario = useScenario(() => game.data.value?.state.bounty?.scenario ?? game.data.value?.scenario)
 const node = computed(() => scenario.data.value?.nodes.find((n) => n.id === encounter.value?.node))
-const cards = useCombatants(() => encounter.value?.combatants.map((c) => c.card) ?? [])
+const cards = useCombatants(() =>
+  encounter.value ? cardsInPlay(encounter.value, state.value?.campaign.party ?? []) : [],
+)
 const command = useGameCommand(() => props.id)
 // The AI's plan for the acting figure, drawn on the board as on the GM's screen.
 const pieces = useBoardPieces()
@@ -79,6 +89,7 @@ function run(value: EncounterCommand) {
       </header>
       <EncounterBar
         v-if="encounter"
+        :urgency-max="urgencyMax(state?.options)"
         :encounter="encounter"
         :node="node"
         readonly

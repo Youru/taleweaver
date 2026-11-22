@@ -5,6 +5,10 @@ using System.Text.Json.Serialization.Metadata;
 
 namespace Taleweaver.Api.Common;
 
+/// <summary>An empty list that says something ("nothing bought", "no names: prepare the party"): written in the files too.</summary>
+[AttributeUsage(AttributeTargets.Property)]
+public sealed class KeptWhenEmptyAttribute : Attribute;
+
 /// <summary>Serializer settings shared by the content files, the saves and the HTTP API.</summary>
 public static class JsonDefaults
 {
@@ -31,7 +35,8 @@ public static class JsonDefaults
     {
         foreach (var property in typeInfo.Properties)
         {
-            if (property.PropertyType != typeof(string) && typeof(IEnumerable).IsAssignableFrom(property.PropertyType))
+            if (property.PropertyType != typeof(string) && typeof(IEnumerable).IsAssignableFrom(property.PropertyType)
+                && !property.IsRequired && property.AttributeProvider?.IsDefined(typeof(KeptWhenEmptyAttribute), inherit: false) != true)
             {
                 property.ShouldSerialize = (_, value) => value is not ICollection { Count: 0 };
             }

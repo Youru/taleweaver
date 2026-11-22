@@ -62,6 +62,10 @@ public sealed record Combatant
     public string? Note { get; init; }
 
     public IReadOnlyList<string> Review { get; init; } = [];
+
+    /// <summary>A BOSS: by its tag, or by the note of the cards whose tag line was not surveyed.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool IsBoss => Tags.Any(t => t.StartsWith("BOSS", StringComparison.Ordinal)) || Note?.StartsWith("BOSS", StringComparison.Ordinal) == true;
 }
 
 public sealed record CombatantStats

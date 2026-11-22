@@ -3,6 +3,7 @@ import type { EncounterState } from '../api/types'
 import { shortId } from './ids'
 
 const ADVENTURER = 'adventurer:'
+const ALLY = 'ally:'
 
 /** A card of the round's track, as the players see it (rulebook p. 36). */
 /** The phone of the room holding an adventurer (room-spec §7.3): its colour, its player, whether it is connected. */
@@ -58,14 +59,16 @@ export function initiativeTrack(encounter: EncounterState, cards: readonly Initi
             ? 'next'
             : 'later'
     const adventurer = id.startsWith(ADVENTURER)
-    const card = adventurer ? adventurerCard(shortId(id), cards) : byId.get(id)
-    const figures = adventurer ? [] : figuresOf(encounter, id, state)
+    const ally = id.startsWith(ALLY)
+    const printed = ally ? id.slice(ALLY.length) : id
+    const card = adventurer ? adventurerCard(shortId(id), cards) : byId.get(printed)
+    const figures = adventurer || ally ? [] : figuresOf(encounter, id, state)
     return {
       id,
       order: index + 1,
-      label: adventurer ? shortId(id) : (card?.label ?? shortId(id)),
+      label: adventurer ? shortId(id) : (card?.label ?? shortId(printed)),
       image: card?.image ?? undefined,
-      side: adventurer || card?.adventurer ? 'adventurer' : 'opponent',
+      side: adventurer || ally || card?.adventurer ? 'adventurer' : 'opponent',
       state,
       figures: card?.group || figures.length > 1 ? figures : [],
     }

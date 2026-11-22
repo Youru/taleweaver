@@ -25,10 +25,21 @@ internal sealed partial class Session
         foreach (var member in State.Campaign.Party)
         {
             var card = Catalog.FindAdventurer(member.Name);
-            var stamina = card?.Stamina ?? DefaultStamina;
+            // In Conduit Form, SP are the Conduit card's; maximum HP stay the adventurer's (p. 72, 77)
+            var stamina = member.ConduitForm is { } form ? AllyRules.StaminaOf(Catalog.FindCombatant(form)) : card?.Stamina ?? DefaultStamina;
             member.Health = (card?.Health ?? DefaultHealth) + member.Equipped.Sum(HealthBonus);
             member.StaminaRecovery = stamina.Recovery;
             member.StaminaMax = stamina.Max;
+        }
+
+        if (State.Encounter is { } encounter)
+        {
+            foreach (var ally in encounter.Allies)
+            {
+                ScaleAlly(ally);
+            }
+
+            encounter.AllyOptions = OptionsNow();
         }
     }
 
@@ -150,7 +161,13 @@ internal sealed partial class Session
     {
         member.Damage = member.Health;
         member.Defeated = true;
-        member.Stamina = 0;
+        // No Player Elimination: the next turn is played "as if they had not been Defeated", SP included
+        var comesBack = Options.NoPlayerElimination && State.Encounter is { Ended: false };
+        if (!comesBack)
+        {
+            member.Stamina = 0;
+        }
+
         Log("adventurerDefeated", args: Args(("adventurer", member.Name)));
         if (State.Encounter is not { Ended: false } encounter)
         {
@@ -162,6 +179,14 @@ internal sealed partial class Session
             figure.Effects.Clear();
             figure.Position = null;
             figure.Defeated = true;
+        }
+
+        if (comesBack)
+        {
+            // Their card stays on the track: the Urgency token is the price
+            AddUrgency(1);
+            Fire(e => e.Trigger.On == "adventurerDefeated");
+            return;
         }
 
         RemoveFromTrack(AdventurerCard + member.Name);
@@ -194,6 +219,24 @@ internal sealed partial class Session
         }
     }
 
+    /// <summary>No Player Elimination (p. 86): back on their turn, at half their HP; the GM places the figure near an ally.</summary>
+    private void ReturnToPlay(string adventurer)
+    {
+        if (!Options.NoPlayerElimination || MemberOf(adventurer) is not { Defeated: true } member)
+        {
+            return;
+        }
+
+        member.Defeated = false;
+        member.Damage = Math.Min(member.Damage, member.Health / 2);
+        if (Encounter.Adventurers.FirstOrDefault(a => a.Name == member.Name) is { } figure)
+        {
+            figure.Defeated = false;
+        }
+
+        Log("adventurerReturns", args: Args(("adventurer", member.Name), ("damage", Number(member.Damage))));
+    }
+
     private void RemoveFromTrack(string card)
     {
         var encounter = Encounter;
@@ -215,6 +258,7 @@ internal sealed partial class Session
     /// <summary>Restore Adventurers (p. 18): every Damage token and Effect removed. Flipped cards are left to the table.</summary>
     private void RestoreAdventurers()
     {
+        RestoreAllies();
         foreach (var member in State.Campaign.Party)
         {
             member.Damage = 0;

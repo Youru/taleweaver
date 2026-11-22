@@ -1,4 +1,5 @@
 import { inject, type InjectionKey } from 'vue'
+import { currentScreenToken } from '@/shared/lib/screen'
 
 /**
  * URL of a game image. The catalogue gives paths from the repository root ("assets/act1/tiles/um01.jpg");
@@ -8,7 +9,12 @@ export function assetUrl(path: string | undefined | null, width?: AssetWidth): s
   if (!path) return undefined
   const relative = path.replace(/^\/?assets\//, '')
   const url = `/api/assets/${relative.split('/').map(encodeURIComponent).join('/')}`
-  return width ? `${url}?w=${width}` : url
+  const query = new URLSearchParams()
+  if (width) query.set('w', String(width))
+  // An <img> sends no header: the GM's second screen proves itself in the address, as for the hub
+  const screen = currentScreenToken()
+  if (screen) query.set('screen_token', screen)
+  return query.size ? `${url}?${query}` : url
 }
 
 /**

@@ -34,6 +34,8 @@ export interface ScenarioNode {
   sideQuests?: StoryExit[]
   ventureForth?: StoryExit[]
   bountyDifficulty?: number
+  /** Achievements of an encounter (rulebook p. 17). */
+  achievements?: { id: string; name: LocalizedText; condition?: LocalizedText; hiddenText?: LocalizedText }[]
 }
 
 /** The Store of a Story Round: non-unique cards of these tiers/types, unlocked upgrades, random Unique Items. */

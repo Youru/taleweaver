@@ -51,15 +51,81 @@ public sealed record ScenarioChapter(string Id, LocalizedText? Title = null);
 
 public sealed record ScenarioSource(string? File, string? Reference, string? Version);
 
+/// <summary>Who may set out and with what (roadmap §5.2): the scenario launched decides, never the app.</summary>
 public sealed record Party
 {
+    /// <summary>The most adventurers (6 when not given).</summary>
     public int? Size { get; init; }
 
+    /// <summary>The fewest (1, or the number of those required).</summary>
+    public int? MinSize { get; init; }
+
+    /// <summary>Gold of the whole party, to spend at the start when <see cref="PartyStart.Items"/> opens a Store.</summary>
     public int? StartingGold { get; init; }
 
+    /// <summary>XP of each adventurer.</summary>
     public int? StartingXp { get; init; }
 
+    /// <summary>
+    /// Ids, names or "pack:adventurer/*". Null: every adventurer. Those still to unlock (hidden) come only when named
+    /// here one by one, or when the GM shows them.
+    /// </summary>
     public IReadOnlyList<string>? AllowedAdventurers { get; init; }
+
+    public IReadOnlyList<string>? ExcludedAdventurers { get; init; }
+
+    /// <summary>The story imposes them: in the party from the preparation on.</summary>
+    public IReadOnlyList<string>? RequiredAdventurers { get; init; }
+
+    /// <summary>An adventurer without a card may be named (the usual card); by default when no list restricts the choice.</summary>
+    public bool? Custom { get; init; }
+
+    public PartyStart? Start { get; init; }
+}
+
+public sealed record PartyStart
+{
+    /// <summary>A Store open before the departure; null: nothing to buy.</summary>
+    public StartItems? Items { get; init; }
+
+    /// <summary>What may be learnt before the departure; null: any Discipline the starting XP pays.</summary>
+    public StartDisciplines? Disciplines { get; init; }
+
+    public IReadOnlyList<StarterKit> Kits { get; init; } = [];
+}
+
+public sealed record StartItems
+{
+    public IReadOnlyList<string> Tiers { get; init; } = [];
+
+    public IReadOnlyList<string>? Types { get; init; }
+
+    /// <summary>Cards bought by each adventurer, at most.</summary>
+    public int? Max { get; init; }
+}
+
+public sealed record StartDisciplines
+{
+    public IReadOnlyList<string>? Trees { get; init; }
+
+    public int? MaxLevel { get; init; }
+
+    /// <summary>Disciplines bought by each adventurer, at most (the kit's aside).</summary>
+    public int? Max { get; init; }
+}
+
+/// <summary>A starting pack: free cards. One with an <see cref="Adventurer"/> is theirs alone.</summary>
+public sealed record StarterKit
+{
+    public required string Id { get; init; }
+
+    public required LocalizedText Name { get; init; }
+
+    public string? Adventurer { get; init; }
+
+    public IReadOnlyList<string> Items { get; init; } = [];
+
+    public IReadOnlyList<string> Disciplines { get; init; } = [];
 }
 
 /// <summary>A step of the scenario (§3.2). Encounter fields (§3.3) are only set when <see cref="Type"/> is "encounter".</summary>
@@ -108,6 +174,9 @@ public sealed record Node
     public IReadOnlyList<ScenarioEvent> Events { get; init; } = [];
 
     public IReadOnlyList<HiddenRule> HiddenRules { get; init; } = [];
+
+    /// <summary>The encounter's Achievements (rulebook p. 17).</summary>
+    public IReadOnlyList<Achievement> Achievements { get; init; } = [];
 
     public IReadOnlyList<Diagram> Diagrams { get; init; } = [];
 
@@ -302,6 +371,20 @@ public sealed record CombatantPlacement
 }
 
 public sealed record HiddenCardReveal(string Code, string? Size);
+
+/// <summary>An Achievement: its condition is read by all, its hidden text once completed, its actions are the reward.</summary>
+public sealed record Achievement
+{
+    public required string Id { get; init; }
+
+    public required LocalizedText Name { get; init; }
+
+    public LocalizedText? Condition { get; init; }
+
+    public LocalizedText? HiddenText { get; init; }
+
+    public IReadOnlyList<ScenarioAction> Actions { get; init; } = [];
+}
 
 public sealed record SpecialRule(string Id, LocalizedText Name, LocalizedText Text);
 
@@ -529,6 +612,9 @@ public sealed record ScenarioAction
 
     public IReadOnlyList<ActionOption>? Options { get; init; }
 
+    /// <summary>abraxis: the rewards by number of survivors (1, 2, 3, 4), cumulative.</summary>
+    public IReadOnlyList<IReadOnlyList<ScenarioAction>>? Rewards { get; init; }
+
     /// <summary>branch: the conditions (all must hold) choosing between <see cref="Then"/> and <see cref="Else"/>.</summary>
     public IReadOnlyList<EventCondition>? If { get; init; }
 
@@ -549,6 +635,11 @@ public sealed record ScenarioAction
             {
                 yield return action;
             }
+        }
+
+        foreach (var action in (Rewards ?? []).SelectMany(Flatten))
+        {
+            yield return action;
         }
 
         foreach (var option in Options ?? [])

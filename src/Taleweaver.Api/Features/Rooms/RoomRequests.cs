@@ -69,8 +69,34 @@ public sealed record PlayerCommand(
     int? Amount = null,
     string? Effect = null,
     bool? Active = null,
-    int? Price = null)
+    int? Price = null,
+    string? Upgrade = null,
+    string? Kit = null,
+    IReadOnlyList<string>? Items = null,
+    IReadOnlyList<string>? Disciplines = null,
+    string? Card = null,
+    string? Ally = null)
 {
+    /// <summary>Before the departure (roadmap §5.3): this adventurer for the seat, with a kit and purchases.</summary>
+    public const string ChooseAdventurer = "chooseAdventurer";
+
+    /// <summary>Before the departure: the seat lets its adventurer go.</summary>
+    public const string ReleaseAdventurer = "releaseAdventurer";
+
+    /// <summary>A Loyal Esper or Enslaved Spirits (<c>Card</c>) for one of the seat's adventurers.</summary>
+    public const string Summon = "summon";
+
+    public const string EarnConduit = "earnConduit";
+
+    /// <summary>A Conduit earned (<c>Card</c>), or none: the Adventurer Card again.</summary>
+    public const string ConduitForm = "conduitForm";
+
+    /// <summary>One of the seat's Espers (<c>Ally</c>) sent away.</summary>
+    public const string DismissAlly = "dismissAlly";
+
+    /// <summary>Damage (<c>Amount</c>) taken by an ally (<c>Ally</c>).</summary>
+    public const string AllyDamage = "allyDamage";
+
     public const string MoveItem = "moveItem";
     public const string FlipItem = "flipItem";
     public const string UseItem = "useItem";
@@ -78,6 +104,9 @@ public sealed record PlayerCommand(
 
     /// <summary>A card of the Store (<c>Item</c> = catalogue id), for <c>Owner</c>; its price is the Store's, set by the server.</summary>
     public const string BuyItem = "buyItem";
+
+    /// <summary>An unlocked Item Upgrade on the card <c>Item</c> held; its price is the tier's, set by the server.</summary>
+    public const string AttachUpgrade = "attachUpgrade";
 
     /// <summary>A free adventurer of the party for this seat (room-spec §4.3): the GM gives it, no engine command.</summary>
     public const string TakeAdventurer = "takeAdventurer";
@@ -95,7 +124,13 @@ public sealed record PlayerCommand(
         FlipItem => GameCommand.FlipItem(Item!, Flipped ?? false),
         UseItem => GameCommand.UseItem(Item!, Discard ?? true),
         BuyItem => GameCommand.AddItem(Item!, Owner!, Owner == "stash" ? null : Slot ?? "pack", Price ?? 0),
+        AttachUpgrade => GameCommand.AttachUpgrade(Item!, Upgrade!, Price ?? 0),
         Damage => GameCommand.Damage("adventurer:" + Adventurer, Amount ?? 0),
+        Summon => GameCommand.Summon(Adventurer!, Card!),
+        EarnConduit => GameCommand.EarnConduit(Adventurer!, Card!),
+        ConduitForm => GameCommand.ConduitForm(Adventurer!, Card),
+        DismissAlly => GameCommand.DismissAlly(Ally!),
+        AllyDamage => GameCommand.Damage(Ally!, Amount ?? 0),
         SetEffect => GameCommand.SetEffect("adventurer:" + Adventurer, Effect!, Active ?? true),
         _ => GameCommand.LearnDiscipline(Adventurer!, Discipline!, 0),
     }) with { By = by };
@@ -115,7 +150,11 @@ public static class PlayerCommands
 
         public static Error NotInStore(string item) => Error.Validation("Rooms.NotInStore", $"'{item}' is not for sale here now.");
 
+        public static Error UpgradeNotOffered(string upgrade) => Error.Validation("Rooms.UpgradeNotOffered", $"'{upgrade}' cannot be put on this card now.");
+
         public static Error AdventurerTaken(string adventurer) => Error.Conflict("Rooms.AdventurerTaken", $"'{adventurer}' is held by another seat.");
+
+        public static Error AllyNotYours(string ally) => Error.Forbidden("Rooms.AllyNotAccessible", $"'{ally}' is not this seat's to play.");
 
         public static readonly Error InvalidAutonomy = Error.Validation("Rooms.InvalidAutonomy", $"Autonomy is \"{RoomAutonomy.ValidateAll}\" or \"{RoomAutonomy.FreeInventory}\".");
     }
@@ -124,11 +163,23 @@ public static class PlayerCommands
     /// May this seat ask for it? Its own adventurers' items and the stash's, given to a party member or to the
     /// stash; disciplines for its own adventurers. Whether the engine accepts it is checked apart.
     /// </summary>
-    public static Error? Check(PlayerCommand command, IReadOnlyCollection<string> mine, CampaignState campaign)
+    public static Error? Check(PlayerCommand command, IReadOnlyCollection<string> mine, CampaignState campaign, EncounterState? encounter = null)
     {
         switch (command.Type)
         {
-            case PlayerCommand.MoveItem or PlayerCommand.FlipItem or PlayerCommand.UseItem:
+            case PlayerCommand.Summon or PlayerCommand.EarnConduit or PlayerCommand.ConduitForm:
+                if (string.IsNullOrEmpty(command.Adventurer) || !mine.Contains(command.Adventurer))
+                {
+                    return RoomService.Errors.AdventurerNotAccessible(command.Adventurer ?? "");
+                }
+
+                return command.Type != PlayerCommand.ConduitForm && string.IsNullOrEmpty(command.Card) ? Errors.NotAllowed(command.Type) : null;
+            case PlayerCommand.DismissAlly or PlayerCommand.AllyDamage:
+                // The story's allies are anybody's who plays
+                var ally = encounter?.Allies.FirstOrDefault(a => !a.Defeated && "ally:" + a.Id == command.Ally);
+                var theirs = ally is not null && (ally.Owner is { } owner0 ? mine.Contains(owner0) : mine.Count > 0);
+                return theirs ? null : Errors.AllyNotYours(command.Ally ?? "");
+            case PlayerCommand.MoveItem or PlayerCommand.FlipItem or PlayerCommand.UseItem or PlayerCommand.AttachUpgrade:
                 if (string.IsNullOrEmpty(command.Item) || OwnerOf(command.Item, campaign) is not { } owner || (owner != "stash" && !mine.Contains(owner)))
                 {
                     return Errors.ItemNotYours(command.Item ?? "");

@@ -100,7 +100,7 @@ export function fighters(
           ...(card?.passives ?? []).map((p) => ({ name: pick(p.name, language), text: pick(p.text, language) })),
           ...abilities.filter((a) => !a.boost).map((a) => ({ name: symbolsLabel(a), text: a.text })),
         ],
-        health: numberOrNull(stats?.health) ?? undefined,
+        health: c.health ?? numberOrNull(stats?.health) ?? undefined,
         damage: c.damage,
         position: c.position,
         portrait: figure(c.figure, c.family),
@@ -132,7 +132,36 @@ export function fighters(
       variableDefense: gear?.variableDefense,
     }
   })
-  return [...combatants, ...adventurers]
+  const allies = (encounter.allies ?? [])
+    .filter((a) => !a.defeated)
+    .map((a): Fighter => {
+      const id = `ally:${a.id}`
+      const name = pick(a.name, language) || a.id
+      const card = cards.get(a.card)
+      // Their numbers are the card's and their summoner's (scaling.ts), by figure id
+      const gear = equipment[id]
+      const sheet = gear ?? { ...defaultSheet, ...sheets[name] }
+      return {
+        id,
+        name,
+        kind: 'adventurer',
+        pool: sheet.pool,
+        defense: sheet.defense,
+        armor: sheet.armor,
+        conviction: sheet.conviction,
+        casting: sheet.casting,
+        abilities: symbolAbilities(card?.symbolAbilities, language),
+        reminders: gear?.reminders ?? [],
+        health: a.health ?? undefined,
+        damage: a.damage,
+        position: a.position ?? undefined,
+        portrait: figure(a.figure ?? undefined, a.family),
+        card: assetUrl(card?.image),
+        effects: a.effects,
+        pierce: gear?.pierce,
+      }
+    })
+  return [...combatants, ...adventurers, ...allies]
 }
 
 function symbolsLabel(ability: SymbolAbility): string {

@@ -40,6 +40,23 @@ public class RepositoryContentTests(RepositoryFactory factory) : IClassFixture<R
     }
 
     [Fact]
+    public async Task GetAdventurers_FromAPhone_LeavesOutThoseStillToUnlock()
+    {
+        var token = TestContext.Current.CancellationToken;
+        var started = await _client.PostAsJsonAsync("/api/games", new StartGame.Request("um1:scenario/act1", []), JsonDefaults.Options, token);
+        var game = await started.Content.ReadFromJsonAsync<GameView>(JsonDefaults.Options, token);
+        (await _client.PostAsync($"/api/games/{game!.Id}/room", null, token)).EnsureSuccessStatusCode();
+        var phone = factory.CreateClient();
+        phone.DefaultRequestHeaders.Add("X-Forwarded-For", "192.168.1.20");
+
+        var seen = await phone.GetFromJsonAsync<List<Adventurer>>("/api/catalog/adventurers", JsonDefaults.Options, token);
+
+        seen!.Should().HaveCount(4).And.OnlyContain(a => !a.Hidden);
+        (await _client.GetFromJsonAsync<List<Adventurer>>("/api/catalog/adventurers", JsonDefaults.Options, token)).Should().HaveCount(11);
+        (await phone.GetAsync("/api/catalog/allies", token)).StatusCode.Should().Be(System.Net.HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
     public async Task ListScenarios_RepositoryFiles_NoneSkipped()
     {
         // A scenario file the API cannot read is skipped with a mere log line: the Python checker does not see it

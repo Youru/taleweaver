@@ -26,20 +26,21 @@ export function readBoard(layout: BoardLayout, encounter: EncounterState): Board
     .filter((f) => squares.has(key({ x: f.x, y: f.y })))
     .map((f): BoardFigure => {
       const combatant = encounter.combatants.find((c) => c.instance === f.id)
+      const ally = encounter.allies?.find((a) => !a.defeated && `ally:${a.id}` === f.id)
       const places = combatant
         ? combatant.initiativeCards.map((card) => track.indexOf(card)).filter((i) => i >= 0)
-        : [track.indexOf(f.id)].filter((i) => i >= 0)
+        : [track.indexOf(ally?.trackCard ?? f.id)].filter((i) => i >= 0)
       return {
         id: f.id,
         name: f.name,
         side: f.kind,
         position: { x: f.x, y: f.y },
         size: f.size,
-        damage: combatant?.damage ?? 0,
+        damage: combatant?.damage ?? ally?.damage ?? 0,
         initiative: places.length ? Math.min(...places) : track.length,
         effects: combatant
           ? combatant.effects
-          : (encounter.adventurers.find((a) => `adventurer:${a.name}` === f.id)?.effects ?? []),
+          : (ally?.effects ?? encounter.adventurers.find((a) => `adventurer:${a.name}` === f.id)?.effects ?? []),
       }
     })
   // The Terrain printed on the tiles in view, then the Terrain tokens laid over it: what they cover

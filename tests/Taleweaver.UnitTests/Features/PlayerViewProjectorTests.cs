@@ -60,6 +60,71 @@ public class PlayerViewProjectorTests
     }
 
     [Fact]
+    public void AnEncountersTexts_StayWithTheGm_ThoseBetweenEncountersAreRead()
+    {
+        var state = new GameState
+        {
+            Scenario = "hb:scenario/test",
+            Campaign = new CampaignState(),
+            Log = [new LogEntry("text"), new LogEntry("encounter"), new LogEntry("text"), new LogEntry("encounterEnd"), new LogEntry("text")],
+        };
+
+        PlayerViewProjector.Project("game", 1, state, null, []).Log.Select(l => l.Index).Should().Equal(0, 1, 3, 4);
+    }
+
+    [Fact]
+    public void UnderTheFog_OnlyTheShapeOfTheTable_IsSent()
+    {
+        var tile = new Tile { Id = "hb:tile/secret", Name = "Secret" };
+        var catalog = new Catalog([new Pack { Manifest = new PackManifest { Id = "hb", Name = new Dictionary<string, string> { ["en"] = "hb" } }, Tiles = [tile] }]);
+        var scenario = new Scenario
+        {
+            Id = "hb:scenario/test",
+            Title = new Dictionary<string, string> { ["en"] = "Test" },
+            Start = "fight",
+            Nodes =
+            [
+                new Node
+                {
+                    Id = "fight",
+                    Type = Node.EncounterType,
+                    Map = new BoardMap
+                    {
+                        Tiles = [new MapTile("hb:tile/secret", 6, 0, 90, "lair")],
+                        Areas = [new FogArea("lair", false, new Dictionary<string, string> { ["en"] = "The Queen's lair" })],
+                        Zones = [new Zone("queen-throne", "objective", new Rect(7, 1))],
+                    },
+                },
+            ],
+        };
+        var state = new GameState
+        {
+            Scenario = scenario.Id,
+            Campaign = new CampaignState(),
+            Encounter = new EncounterState
+            {
+                Node = "fight",
+                Combatants = [new CombatantState { Instance = "queen", Card = "hb:combatant/queen", Family = "queen", Position = new Cell(8, 2) }],
+                Tokens = [new BoardToken { Id = "obj-queen-egg", Key = "objective:red", Area = new Rect(9, 3) }],
+            },
+        };
+
+        var encounter = PlayerViewProjector.Project("game", 1, state, null, [], catalog: catalog, scenario: scenario).Encounter!;
+
+        encounter.Combatants.Should().BeEmpty();
+        encounter.Board!.Tiles.Should().Equal(new MapTile(PlayerBoard.Fog, 6, 0, null, PlayerBoard.Fog));
+        encounter.Board.Zones.Should().BeEmpty();
+        encounter.Board.Tokens.Should().BeEmpty();
+        encounter.Board.Figures.Should().BeEmpty();
+
+        state.Encounter.RevealedAreas.Add("lair");
+        var revealed = PlayerViewProjector.Project("game", 1, state, null, [], catalog: catalog, scenario: scenario).Encounter!;
+        revealed.Combatants.Should().ContainSingle();
+        revealed.Board!.Tokens.Single().Id.Should().Be("t0", "the scenario's ids tell what is coming");
+        revealed.Board.Zones.Single().Id.Should().Be("z0");
+    }
+
+    [Fact]
     public void TheStore_ShowsItsCardsAtTheirPrice_OnlyDuringTheShopPhase()
     {
         Item Card(string id, string tier, int? cost, bool unique = false) =>

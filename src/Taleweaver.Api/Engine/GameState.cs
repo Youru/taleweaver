@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Taleweaver.Api.Common;
 using Taleweaver.Api.Content;
 
@@ -24,6 +25,15 @@ public sealed class GameState
 
     public EncounterState? Encounter { get; set; }
 
+    /// <summary>The optional rules of this game; null when it follows the rulebook as it is.</summary>
+    public GameOptions? Options { get; set; }
+
+    /// <summary>The game of Abraxis Battle Dice being played (rulebook p. 85).</summary>
+    public AbraxisGame? Abraxis { get; set; }
+
+    /// <summary>The party being made: nothing of the scenario is read until it sets out.</summary>
+    public PartyPreparation? Preparation { get; set; }
+
     /// <summary>The question the GM must answer before anything else can happen.</summary>
     public Prompt? Prompt { get; set; }
 
@@ -40,6 +50,8 @@ public sealed class GameState
         JsonSerializer.Deserialize<GameState>(JsonSerializer.SerializeToUtf8Bytes(this, JsonDefaults.Options), JsonDefaults.Options)!;
 }
 
+/// <summary>Written as a word (the front reads words); the saves that wrote a number are still read.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<GameStatus>))]
 public enum GameStatus
 {
     InProgress,
@@ -108,6 +120,21 @@ public sealed class CampaignState
 
     /// <summary>Item Upgrades unlocked (Adventure Sheet): for sale at every Shop and Train from now on (p. 28).</summary>
     public List<string> UnlockedUpgrades { get; set; } = [];
+
+    /// <summary>The Adventure Sheet's checklist of Achievements.</summary>
+    public List<CompletedAchievement> Achievements { get; set; } = [];
+
+    /// <summary>The adventurers who used their free Re-Spec (XP Leniency).</summary>
+    public List<string> FreeRespecs { get; set; } = [];
+
+    /// <summary>Loyal Espers between two encounters (p. 75).</summary>
+    public List<AllyState> KeptAllies { get; set; } = [];
+
+    /// <summary>Espers summoned since the last Restore: not available.</summary>
+    public List<string> SpentEspers { get; set; } = [];
+
+    /// <summary>How the story's allies left their last encounter, by id.</summary>
+    public Dictionary<string, AllyCondition> AllyConditions { get; set; } = [];
 }
 
 public sealed class BountyState
@@ -185,6 +212,15 @@ public sealed class AdventurerState
 
     /// <summary>Most SP the adventurer may hold (all dots of the bar). Computed from the card.</summary>
     public int StaminaMax { get; set; }
+
+    /// <summary>Summon tokens held (p. 75).</summary>
+    public int SummonTokens { get; set; }
+
+    /// <summary>Conduit cards earned (p. 77).</summary>
+    public List<string> Conduits { get; set; } = [];
+
+    /// <summary>The Conduit card in the place of the Adventurer Card.</summary>
+    public string? ConduitForm { get; set; }
 }
 
 /// <summary>
@@ -241,6 +277,20 @@ public sealed class EncounterState
 
     public List<CombatantState> Combatants { get; set; } = [];
 
+    /// <summary>
+    /// Combatants under the fog (§3.4): not in play (no figure, no card on the track) until their area is revealed.
+    /// </summary>
+    public List<WaitingCombatant> Waiting { get; set; } = [];
+
+    /// <summary>Command Combatants, on the adventurers' side.</summary>
+    public List<AllyState> Allies { get; set; } = [];
+
+    /// <summary>"summoning:Rook": Abilities used once per encounter.</summary>
+    public List<string> UsedSummons { get; set; } = [];
+
+    /// <summary>What the Assemblage Disciplines allow now. Computed.</summary>
+    public List<AllyOption> AllyOptions { get; set; } = [];
+
     public List<BoardToken> Tokens { get; set; } = [];
 
     public List<string> PlacedDiagrams { get; set; } = [];
@@ -295,6 +345,9 @@ public sealed class CombatantState
 
     public List<string> InitiativeCards { get; set; } = [];
 
+    /// <summary>Maximum HP when an option changes the card's (Tougher Mobs); null: the card's.</summary>
+    public int? Health { get; set; }
+
     public string? Figure { get; set; }
 
     /// <summary>Square of the figure: where the scenario placed it, then where the GM moved it (optional).</summary>
@@ -310,6 +363,19 @@ public sealed class CombatantState
     public bool Attacked { get; set; }
 
     public bool Defeated { get; set; }
+}
+
+/// <summary>One figure to come, and the fog area it waits for; its card and number are chosen when it appears.</summary>
+public sealed class WaitingCombatant
+{
+    public required string Area { get; set; }
+
+    public required ScenarioAction Action { get; set; }
+
+    public string? InitiativeCard { get; set; }
+
+    /// <summary>An Alternate or Variation card may come instead (never for the encounter's Placement Phase).</summary>
+    public bool PossibleSpawns { get; set; }
 }
 
 public sealed class AdventurerFigure
@@ -373,7 +439,7 @@ public sealed class Activation
 /// <summary>A question to the GM. The answer is one of <see cref="Options"/>, or a number when <see cref="Kind"/> is "number".</summary>
 public sealed class Prompt
 {
-    /// <summary>continue, choice, skillCheck, aiCondition, number, adventurer, spawnPossible, storyRound.</summary>
+    /// <summary>continue, choice, skillCheck, aiCondition, number, adventurer, spawnPossible, storyRound, abraxis.</summary>
     public required string Kind { get; set; }
 
     public LocalizedText? Question { get; set; }
@@ -395,3 +461,37 @@ public sealed record PromptOption(string Id, LocalizedText? Label = null);
 /// front needs to phrase the rest in the reader's language.
 /// </summary>
 public sealed record LogEntry(string Code, LocalizedText? Text = null, IReadOnlyDictionary<string, string>? Args = null);
+
+/// <summary>A line of the Adventure Sheet's Achievements.</summary>
+public sealed class CompletedAchievement
+{
+    public required string Id { get; set; }
+
+    public required string Scenario { get; set; }
+
+    public required string Node { get; set; }
+
+    public required string Adventurer { get; set; }
+
+    public Dictionary<string, string>? Name { get; set; }
+}
+
+public sealed class AbraxisGame
+{
+    public int Round { get; set; }
+
+    public Dictionary<string, string>? Name { get; set; }
+
+    /// <summary>The card's special rule.</summary>
+    public Dictionary<string, string>? Rule { get; set; }
+
+    public List<AbraxisPlayer> Players { get; set; } = [];
+}
+
+public sealed class AbraxisPlayer
+{
+    public required string Name { get; set; }
+
+    /// <summary>0: out of the game.</summary>
+    public int Points { get; set; }
+}

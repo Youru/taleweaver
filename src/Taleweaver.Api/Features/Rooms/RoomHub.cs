@@ -5,9 +5,9 @@ namespace Taleweaver.Api.Features.Rooms;
 /// <summary>
 /// /hubs/room: the server pushes, the clients only listen (every action goes through REST). A phone connects
 /// with ?code=KRVA&amp;access_token=&lt;seat token&gt;, the GM's device with ?game=&lt;id&gt;.
-/// Server → client: PlayerViewChanged(view), RoomClosed(); to the GM: RoomChanged(room), GameChanged(version).
+/// Server → client: PlayerViewChanged(view), RoomClosed(), SeatRemoved(), Shown(picture); to the GM: RoomChanged(room), GameChanged(version).
 /// </summary>
-public sealed class RoomHub(RoomService rooms) : Hub
+public sealed class RoomHub(RoomService rooms, CodeGuessLimiter guesses) : Hub
 {
     private const string SeatKey = "seat";
     private const string RoomKey = "room";
@@ -34,6 +34,11 @@ public sealed class RoomHub(RoomService rooms) : Hub
         var seat = await rooms.AuthenticateAsync(query["code"].ToString(), query["access_token"].ToString());
         if (!seat.IsSuccess)
         {
+            if (seat.Error!.Code == "Rooms.NotFound" && !Network.IsLocal(http))
+            {
+                guesses.Failed(Network.ClientAddress(http));
+            }
+
             throw new HubException(seat.Error!.Code);
         }
 

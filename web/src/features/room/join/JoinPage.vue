@@ -11,8 +11,8 @@ import { pick } from '@/shared/lib/localized'
 import { usePreferences } from '@/shared/lib/preferences'
 import { roomPlayerApi } from '../api/roomApi'
 import type { RoomSummary } from '../api/types'
-import { CODE_LENGTH, normalizeCode, seatColors } from '../lib/room'
-import { storeProfile, storeSeat, storedProfile, storedSeat } from '../lib/seatStorage'
+import { CODE_LENGTH, isCode, normalizeCode, seatColors } from '../lib/room'
+import { seatsOfGame, storeProfile, storeSeat, storedProfile, storedSeat } from '../lib/seatStorage'
 
 /** /join/:code?: one screen, a name and a colour (room-spec §4.2). A phone that already sat here goes straight back. */
 const props = defineProps<{ code?: string }>()
@@ -27,28 +27,46 @@ const color = ref(profile?.color ?? 'teal')
 const room = ref<RoomSummary>()
 const error = ref<string>()
 const busy = ref(false)
-const canJoin = computed(() => code.value.length === CODE_LENGTH && displayName.value.trim().length > 0 && !busy.value)
+const canJoin = computed(() => isCode(code.value) && displayName.value.trim().length > 0 && !busy.value)
 
 function message(e: unknown) {
   const codeOf = e instanceof ApiError ? e.code : undefined
   if (codeOf === 'Rooms.NotFound') return t('room.join.notFound')
   if (codeOf === 'Rooms.Closed') return t('room.join.closed')
   if (codeOf === 'Rooms.Full') return t('room.join.full')
+  if (codeOf === 'Rooms.TooManyTries') return t('room.join.tooManyTries')
   return (e as Error).message
 }
 
 async function find() {
   room.value = undefined
   error.value = undefined
-  if (code.value.length !== CODE_LENGTH) return
+  const asked = code.value
+  if (!isCode(asked)) return
   if (storedSeat(code.value)) {
     void router.replace({ name: 'player', params: { code: code.value } })
     return
   }
   try {
-    room.value = await roomPlayerApi.find(code.value)
+    const found = await roomPlayerApi.find(asked)
+    if (code.value !== asked) return
+    // Already seated before the GM closed and opened the room again: the same seat, under the new code
+    for (const seat of seatsOfGame(found.gameId)) {
+      try {
+        const mine = await roomPlayerApi.me(asked, seat.token)
+        if (mine.seat?.id !== seat.seatId) continue
+        storeSeat({ ...seat, code: asked, gameId: found.gameId })
+        void router.replace({ name: 'player', params: { code: asked } })
+        return
+      } catch {
+        // not a seat of this room
+      }
+    }
+    room.value = found
   } catch (e) {
-    error.value = message(e)
+    // 4 letters may be the start of a code being typed: only a whole one is said unknown
+    const typing = code.value !== asked || (asked.length < CODE_LENGTH && asked !== normalizeCode(props.code ?? ''))
+    if (!typing) error.value = message(e)
   }
 }
 
@@ -57,7 +75,7 @@ async function join() {
   error.value = undefined
   try {
     const joined = await roomPlayerApi.join(code.value, displayName.value.trim(), color.value)
-    storeSeat({ code: code.value, seatId: joined.seatId, token: joined.seatToken })
+    storeSeat({ code: code.value, gameId: joined.view.gameId, seatId: joined.seatId, token: joined.seatToken })
     storeProfile({ displayName: displayName.value.trim(), color: color.value })
     void router.replace({ name: 'player', params: { code: code.value } })
   } catch (e) {

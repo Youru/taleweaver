@@ -54,6 +54,47 @@ public sealed record GameCommand
     /// </summary>
     public string? By { get; init; }
 
+    /// <summary>Answer to an "abraxis" question: the symbols extra or missing of each player still in, in their order.</summary>
+    public IReadOnlyList<int>? Misses { get; init; }
+
+    /// <summary>ChooseAdventurer: who, and their kit and purchases.</summary>
+    public PartyChoice? Choice { get; init; }
+
+    /// <summary>Damage to a Loyal Esper: from an opponent (its summoner takes it too); null: yes.</summary>
+    public bool? FromOpponent { get; init; }
+
+    /// <summary>Damage to a Loyal Esper: Summon tokens discarded, 2 less Damage each.</summary>
+    public int? Tokens { get; init; }
+
+    public static GameCommand ChooseAdventurer(string adventurer, string? kit = null, IReadOnlyList<string>? items = null, IReadOnlyList<string>? disciplines = null) =>
+        new() { Type = GameCommands.ChooseAdventurer, Choice = new PartyChoice { Adventurer = adventurer, Kit = kit, Items = items, Disciplines = disciplines } };
+
+    public static GameCommand RemoveAdventurer(string adventurer) => new() { Type = GameCommands.RemoveAdventurer, Instance = adventurer };
+
+    public static GameCommand ShowHiddenAdventurers(bool shown) => new() { Type = GameCommands.ShowHiddenAdventurers, Active = shown };
+
+    public static GameCommand SetOut() => new() { Type = GameCommands.SetOut };
+
+    public static GameCommand Summon(string adventurer, string card, Cell? at = null) =>
+        new() { Type = GameCommands.Summon, Instance = adventurer, Card = card, To = at };
+
+    public static GameCommand AddAlly(string card, string? owner = null) => new() { Type = GameCommands.AddAlly, Instance = owner, Card = card };
+
+    /// <summary><paramref name="ignoreDamage"/>: instead of its summoner's Damage; it counts as Defeated.</summary>
+    public static GameCommand DismissAlly(string figure, bool ignoreDamage = false) =>
+        new() { Type = GameCommands.DismissAlly, Instance = figure, Active = ignoreDamage };
+
+    public static GameCommand EarnConduit(string adventurer, string card) => new() { Type = GameCommands.EarnConduit, Instance = adventurer, Card = card };
+
+    /// <summary>No card: the Adventurer Card again.</summary>
+    public static GameCommand ConduitForm(string adventurer, string? card) => new() { Type = GameCommands.ConduitForm, Instance = adventurer, Card = card };
+
+    public static GameCommand AnswerAbraxis(IReadOnlyList<int> misses, int penalty = 0) =>
+        new() { Type = GameCommands.Answer, Misses = misses, Value = penalty };
+
+    public static GameCommand CompleteAchievement(string achievement, string adventurer) =>
+        new() { Type = GameCommands.CompleteAchievement, Item = achievement, Instance = adventurer };
+
     /// <summary>SetActiveGroup: the adventurers chosen.</summary>
     public IReadOnlyList<string>? Adventurers { get; init; }
 
@@ -136,6 +177,7 @@ public static class GameCommands
 {
     public const string Answer = "answer";
     public const string NextTurn = "nextTurn";
+    public const string CompleteAchievement = "completeAchievement";
     public const string Damage = "damage";
     public const string SetEffect = "setEffect";
     public const string Defeat = "defeat";
@@ -158,6 +200,20 @@ public static class GameCommands
     public const string UnlockUpgrade = "unlockUpgrade";
     public const string AttachUpgrade = "attachUpgrade";
     public const string DetachUpgrade = "detachUpgrade";
+
+    public const string ChooseAdventurer = "chooseAdventurer";
+    public const string RemoveAdventurer = "removeAdventurer";
+    public const string ShowHiddenAdventurers = "showHiddenAdventurers";
+    public const string SetOut = "setOut";
+    public const string Summon = "summon";
+    public const string AddAlly = "addAlly";
+    public const string DismissAlly = "dismissAlly";
+    public const string EarnConduit = "earnConduit";
+    public const string ConduitForm = "conduitForm";
+
+    public static bool IsPreparationCommand(string type) => type is ChooseAdventurer or RemoveAdventurer or ShowHiddenAdventurers or SetOut;
+
+    public static bool IsAllyCommand(string type) => type is Summon or AddAlly or DismissAlly or EarnConduit or ConduitForm;
 
     /// <summary>Commands on the party's members: allowed out of encounters, whatever the question pending.</summary>
     public static bool IsPartyCommand(string type) => type is SetActiveGroup or SetAdventurerStatus or LearnDiscipline or ForgetDiscipline or Respec;

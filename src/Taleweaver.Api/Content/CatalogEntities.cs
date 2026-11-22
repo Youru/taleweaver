@@ -139,6 +139,9 @@ public sealed record Adventurer
 
     public AdventurerAbility? Ability { get; init; }
 
+    /// <summary>Still to unlock in the story (a spoiler): offered only when the scenario names them or the GM shows them.</summary>
+    public bool Hidden { get; init; }
+
     /// <summary>Figure key in the pack ("rook").</summary>
     public string? Figure { get; init; }
 

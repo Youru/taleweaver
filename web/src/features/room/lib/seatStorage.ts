@@ -1,5 +1,7 @@
 /** A phone's seat in a room, kept on the phone so that opening the link again reconnects it (room-spec §4.2). */
 export interface StoredSeat {
+  /** The game of the room: its code changes at each opening, not the seats. */
+  gameId?: string
   code: string
   seatId: string
   token: string
@@ -27,6 +29,11 @@ function write(key: string, value: unknown) {
 
 export function storedSeat(code: string): StoredSeat | undefined {
   return read<StoredSeat[]>(seatsKey, []).find((s) => s.code.toUpperCase() === code.toUpperCase())
+}
+
+/** The seats that may be this game's: opened again, its room has a new code (one saved before kept no game). */
+export function seatsOfGame(gameId: string): StoredSeat[] {
+  return read<StoredSeat[]>(seatsKey, []).filter((s) => !s.gameId || s.gameId === gameId)
 }
 
 /** Remembers the seat of this room (one per code, the last ten rooms). */

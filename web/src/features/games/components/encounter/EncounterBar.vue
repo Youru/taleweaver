@@ -13,19 +13,24 @@ import InitiativeTrack from './InitiativeTrack.vue'
  * The encounter at a glance: round, Urgency, the button that moves the game on, and below them the
  * initiative track of the round (larger on the table shown to the players).
  */
-defineProps<{
-  encounter: EncounterState
-  node: ScenarioNode | undefined
-  /** No next turn: a question is pending, a command is running, or the encounter is over. */
-  disabled?: boolean
-  /** Read-only (the table alone shows it without the button). */
-  readonly?: boolean
-  /** Cards can be moved on the track (an item, an ability): `busy` while a command runs. */
-  movable?: boolean
-  busy?: boolean
-  /** The phone holding each adventurer (room-spec §7.3). */
-  heldBy?: Record<string, HeldBy>
-}>()
+withDefaults(
+  defineProps<{
+    encounter: EncounterState
+    node: ScenarioNode | undefined
+    /** No next turn: a question is pending, a command is running, or the encounter is over. */
+    disabled?: boolean
+    /** Read-only (the table alone shows it without the button). */
+    readonly?: boolean
+    /** Cards can be moved on the track (an item, an ability): `busy` while a command runs. */
+    movable?: boolean
+    busy?: boolean
+    /** The phone holding each adventurer (room-spec §7.3). */
+    heldBy?: Record<string, HeldBy>
+    /** The Urgency token that loses (an option may make it 3 or 5). */
+    urgencyMax?: number
+  }>(),
+  { urgencyMax: 4, heldBy: undefined },
+)
 const emit = defineEmits<{ nextTurn: []; moveCard: [card: string, by: number] }>()
 
 const { t } = useI18n()
@@ -41,10 +46,15 @@ const { language } = storeToRefs(usePreferences())
     <span
       class="urgency"
       role="img"
-      :aria-label="t('play.urgency', { urgency: encounter.urgency })"
-      :title="t('play.urgency', { urgency: encounter.urgency })"
+      :aria-label="t('play.urgency', { urgency: encounter.urgency, max: urgencyMax })"
+      :title="t('play.urgency', { urgency: encounter.urgency, max: urgencyMax })"
     >
-      <span v-for="n in 4" :key="n" class="pip" :class="{ on: n <= encounter.urgency, last: n === 4 }" />
+      <span
+        v-for="n in urgencyMax"
+        :key="n"
+        class="pip"
+        :class="{ on: n <= encounter.urgency, last: n === urgencyMax }"
+      />
     </span>
     <Button
       v-if="!readonly"

@@ -6,6 +6,9 @@ namespace Taleweaver.Api.Features.Rooms;
 /// <summary>A card of the Store and its price (the card's cost): the phone never says what a card costs.</summary>
 public sealed record ShopItem(string Item, int Price);
 
+/// <summary>An Item Upgrade for sale, and what it costs by the tier of the card it goes on.</summary>
+public sealed record UpgradeOffer(string Upgrade, IReadOnlyDictionary<string, int> Prices);
+
 /// <summary>
 /// The Store a phone sees (room-spec §5.1, Histoire): during the Shop phase of a Story Round, out of an
 /// encounter, every non-unique card matching the node's Store, and the Unique Items drawn for it that are still
@@ -13,6 +16,23 @@ public sealed record ShopItem(string Item, int Price);
 /// </summary>
 public static class PlayerShop
 {
+    /// <summary>
+    /// The Item Upgrades a phone may ask for (rulebook p. 28): those unlocked, during Shop and Train, at the price of
+    /// each tier. One paid with a Material stays with the GM.
+    /// </summary>
+    public static IReadOnlyList<UpgradeOffer> UpgradesOf(GameState state, Catalog? catalog)
+    {
+        var campaign = state.Campaign;
+        if (catalog is null || state.Encounter is not null || campaign.StoryRound is not { Phase: StoryRoundPhases.Shop })
+        {
+            return [];
+        }
+
+        var prices = catalog.Packs.SelectMany(p => p.Rules?.LootDecks ?? [])
+            .Where(d => d.UpgradeCost is not null).GroupBy(d => d.LootLevel).ToDictionary(g => g.Key, g => g.Last().UpgradeCost!.Value);
+        return campaign.UnlockedUpgrades.Select(id => new UpgradeOffer(id, prices)).ToList();
+    }
+
     public static IReadOnlyList<ShopItem>? Of(GameState state, Scenario? scenario, Catalog? catalog)
     {
         var campaign = state.Campaign;

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Http.HttpResults;
 using Taleweaver.Api.Content;
+using Taleweaver.Api.Features.Rooms;
 
 namespace Taleweaver.Api.Features.Packs;
 
@@ -21,7 +22,10 @@ public static class GetItems
     }
 
     public static void Map(RouteGroupBuilder group) =>
-        group.MapGet("/items", async Task<Ok<IReadOnlyList<Item>>> (Handler handler, CancellationToken cancellationToken) =>
-                TypedResults.Ok(await handler.Handle(cancellationToken)))
+        group.MapGet("/items", async Task<Ok<IReadOnlyList<Item>>> (Handler handler, HttpContext http, PhoneCards phones, CancellationToken cancellationToken) =>
+            {
+                var items = await handler.Handle(cancellationToken);
+                return TypedResults.Ok<IReadOnlyList<Item>>(await phones.ForAsync(http, cancellationToken) is { } sight ? items.Where(sight.Sees).ToList() : items);
+            })
             .WithName("GetItems");
 }

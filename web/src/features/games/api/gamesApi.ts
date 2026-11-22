@@ -1,5 +1,16 @@
 import { http } from '@/shared/api/http'
-import type { Answer, EncounterCommand, GameSummary, GameView, ItemCommand, PartyCommand } from './types'
+import type { AllyCard } from './allies'
+import type { PreparationCommand } from './preparation'
+import type {
+  Answer,
+  EncounterCommand,
+  GameOptions,
+  GameSummary,
+  GameView,
+  HiddenCard,
+  ItemCommand,
+  PartyCommand,
+} from './types'
 
 const games = '/api/games'
 const e = encodeURIComponent
@@ -7,7 +18,12 @@ const e = encodeURIComponent
 export const gamesApi = {
   list: (signal?: AbortSignal) => http<GameSummary[]>(games, { signal }),
   get: (id: string, signal?: AbortSignal) => http<GameView>(`${games}/${e(id)}`, { signal }),
-  start: (scenario: string, party: string[]) => http<GameView>(games, { method: 'POST', body: { scenario, party } }),
+  start: (scenario: string, party: string[], options?: GameOptions) =>
+    http<GameView>(games, { method: 'POST', body: { scenario, party, options } }),
+  restart: (id: string, from: 'beginning' | 'lastEncounter') =>
+    http<GameView>(`${games}/${e(id)}/restart`, { method: 'POST', body: { from } }),
+  hiddenCards: (id: string, signal?: AbortSignal) => http<HiddenCard[]>(`${games}/${e(id)}/hidden-cards`, { signal }),
+  actExportUrl: (id: string) => `${games}/${e(id)}/act-export`,
   remove: (id: string) => http<void>(`${games}/${e(id)}`, { method: 'DELETE' }),
   answer: (id: string, answer: Answer) => http<GameView>(`${games}/${e(id)}/answer`, { method: 'POST', body: answer }),
   undo: (id: string) => http<GameView>(`${games}/${e(id)}/undo`, { method: 'POST' }),
@@ -16,10 +32,15 @@ export const gamesApi = {
     switch (command.type) {
       case 'nextTurn':
         return http<GameView>(`${base}/next-turn`, { method: 'POST' })
+      case 'achievement':
+        return http<GameView>(`${base}/achievements/${e(command.achievement)}`, {
+          method: 'POST',
+          body: { adventurer: command.adventurer },
+        })
       case 'damage':
         return http<GameView>(`${base}/combatants/${e(command.instance)}/damage`, {
           method: 'POST',
-          body: { amount: command.amount },
+          body: { amount: command.amount, fromOpponent: command.fromOpponent, tokens: command.tokens },
         })
       case 'effect':
         return http<GameView>(`${base}/combatants/${e(command.instance)}/effects`, {
@@ -41,11 +62,52 @@ export const gamesApi = {
           method: 'POST',
           body: { card: command.card, by: command.by },
         })
+      case 'summon':
+        return http<GameView>(`${games}/${e(id)}/allies/summons`, {
+          method: 'POST',
+          body: { adventurer: command.adventurer, card: command.card },
+        })
+      case 'addAlly':
+        return http<GameView>(`${games}/${e(id)}/allies`, {
+          method: 'POST',
+          body: { card: command.card, owner: command.owner },
+        })
+      case 'dismissAlly':
+        return http<GameView>(`${games}/${e(id)}/allies/${e(command.ally)}/dismissal`, {
+          method: 'POST',
+          body: { ignoreDamage: command.ignoreDamage ?? false },
+        })
+      case 'earnConduit':
+        return http<GameView>(`${games}/${e(id)}/allies/conduits/${e(command.adventurer)}`, {
+          method: 'POST',
+          body: { card: command.card },
+        })
+      case 'conduitForm':
+        return http<GameView>(`${games}/${e(id)}/allies/conduits/${e(command.adventurer)}/form`, {
+          method: 'PUT',
+          body: { card: command.card },
+        })
       case 'stamina':
         return http<GameView>(`${games}/${e(id)}/party/${e(command.adventurer)}/stamina`, {
           method: 'PUT',
           body: { value: command.value },
         })
+    }
+  },
+  allyCards: (signal?: AbortSignal) => http<AllyCard[]>('/api/catalog/allies', { signal }),
+  preparation: (id: string, command: PreparationCommand) => {
+    const base = `${games}/${e(id)}/preparation`
+    switch (command.type) {
+      case 'choose': {
+        const { adventurer, kit, items, disciplines } = command
+        return http<GameView>(`${base}/adventurers`, { method: 'PUT', body: { adventurer, kit, items, disciplines } })
+      }
+      case 'remove':
+        return http<GameView>(`${base}/adventurers/${e(command.adventurer)}`, { method: 'DELETE' })
+      case 'hidden':
+        return http<GameView>(`${base}/hidden`, { method: 'PUT', body: { shown: command.shown } })
+      case 'setOut':
+        return http<GameView>(`${base}/departure`, { method: 'POST' })
     }
   },
   party: (id: string, command: PartyCommand) => {

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Http.HttpResults;
 using Taleweaver.Api.Content;
+using Taleweaver.Api.Features.Rooms;
 
 namespace Taleweaver.Api.Features.Packs;
 
@@ -15,13 +16,19 @@ public static class GetUpgradesAndDisciplines
                 TypedResults.Ok<IReadOnlyList<ItemUpgrade>>((await catalogs.GetAsync(cancellationToken)).Packs
                     .SelectMany(p => p.ItemUpgrades).GroupBy(u => u.Id).Select(g => g.Last()).ToList()))
             .WithName("GetItemUpgrades");
-        group.MapGet("/disciplines", async Task<Ok<IReadOnlyList<Discipline>>> (CatalogProvider catalogs, CancellationToken cancellationToken) =>
-                TypedResults.Ok<IReadOnlyList<Discipline>>((await catalogs.GetAsync(cancellationToken)).Packs
-                    .SelectMany(p => p.Disciplines).GroupBy(d => d.Id).Select(g => g.Last()).ToList()))
+        group.MapGet("/disciplines", async Task<Ok<IReadOnlyList<Discipline>>> (
+                HttpContext http, CatalogProvider catalogs, PhoneCards phones, CancellationToken cancellationToken) =>
+            {
+                var cards = (await catalogs.GetAsync(cancellationToken)).Packs.SelectMany(p => p.Disciplines).GroupBy(d => d.Id).Select(g => g.Last()).ToList();
+                return TypedResults.Ok<IReadOnlyList<Discipline>>(await phones.ForAsync(http, cancellationToken) is { } sight ? cards.Where(sight.Sees).ToList() : cards);
+            })
             .WithName("GetDisciplines");
-        group.MapGet("/adventurers", async Task<Ok<IReadOnlyList<Adventurer>>> (CatalogProvider catalogs, CancellationToken cancellationToken) =>
-                TypedResults.Ok<IReadOnlyList<Adventurer>>((await catalogs.GetAsync(cancellationToken)).Packs
-                    .SelectMany(p => p.Adventurers).GroupBy(a => a.Id).Select(g => g.Last()).ToList()))
+        group.MapGet("/adventurers", async Task<Ok<IReadOnlyList<Adventurer>>> (
+                HttpContext http, CatalogProvider catalogs, PhoneCards phones, CancellationToken cancellationToken) =>
+            {
+                var cards = (await catalogs.GetAsync(cancellationToken)).Packs.SelectMany(p => p.Adventurers).GroupBy(a => a.Id).Select(g => g.Last()).ToList();
+                return TypedResults.Ok<IReadOnlyList<Adventurer>>(await phones.ForAsync(http, cancellationToken) is { } sight ? cards.Where(sight.Sees).ToList() : cards);
+            })
             .WithName("GetAdventurers");
     }
 }

@@ -1,12 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import { computed, toValue, type MaybeRefOrGetter } from 'vue'
 import { gamesApi } from './gamesApi'
-import type { Answer, EncounterCommand, GameView, ItemCommand, PartyCommand } from './types'
+import type { PreparationCommand } from './preparation'
+import type { Answer, EncounterCommand, GameOptions, GameView, ItemCommand, PartyCommand } from './types'
 
 export const gameKeys = {
   all: ['games'] as const,
   list: () => [...gameKeys.all, 'list'] as const,
   detail: (id: string) => [...gameKeys.all, 'detail', id] as const,
+  hiddenCards: (id: string) => [...gameKeys.all, 'hiddenCards', id] as const,
 }
 
 export function useGames() {
@@ -25,11 +27,43 @@ export function useGame(id: MaybeRefOrGetter<string>, options: { refreshEvery?: 
 export function useStartGame() {
   const client = useQueryClient()
   return useMutation({
-    mutationFn: ({ scenario, party }: { scenario: string; party: string[] }) => gamesApi.start(scenario, party),
+    mutationFn: ({ scenario, party, options }: { scenario: string; party: string[]; options?: GameOptions }) =>
+      gamesApi.start(scenario, party, options),
     onSuccess: (game) => {
       client.setQueryData(gameKeys.detail(game.id), game)
       void client.invalidateQueries({ queryKey: gameKeys.list() })
     },
+  })
+}
+
+/** After an Ending: a new game, the one that ended stays as it is. */
+export function useRestartGame(id: MaybeRefOrGetter<string>) {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (from: 'beginning' | 'lastEncounter') => gamesApi.restart(toValue(id), from),
+    onSuccess: (game) => {
+      client.setQueryData(gameKeys.detail(game.id), game)
+      void client.invalidateQueries({ queryKey: gameKeys.list() })
+    },
+  })
+}
+
+/** The Hidden Cards revealed; `count`: how many the game has, so that a new one is fetched. */
+export function useHiddenCards(id: MaybeRefOrGetter<string>, count: MaybeRefOrGetter<number>) {
+  return useQuery({
+    queryKey: computed(() => [...gameKeys.hiddenCards(toValue(id)), toValue(count)]),
+    queryFn: ({ signal }) => gamesApi.hiddenCards(toValue(id), signal),
+    enabled: computed(() => toValue(count) > 0),
+  })
+}
+
+/** The Command cards, fetched when the GM brings one by hand. */
+export function useAllyCards(wanted: MaybeRefOrGetter<boolean>) {
+  return useQuery({
+    queryKey: ['catalog', 'allies'] as const,
+    queryFn: ({ signal }) => gamesApi.allyCards(signal),
+    enabled: computed(() => toValue(wanted)),
+    staleTime: Infinity,
   })
 }
 
@@ -47,6 +81,7 @@ export type GameCommand =
   | { kind: 'encounter'; command: EncounterCommand }
   | { kind: 'items'; command: ItemCommand }
   | { kind: 'party'; command: PartyCommand }
+  | { kind: 'preparation'; command: PreparationCommand }
 
 /** Every game command returns the full new state: it replaces the cached game. */
 export function useGameCommand(id: MaybeRefOrGetter<string>) {
@@ -65,6 +100,8 @@ export function useGameCommand(id: MaybeRefOrGetter<string>) {
           return gamesApi.items(gameId, command.command)
         case 'party':
           return gamesApi.party(gameId, command.command)
+        case 'preparation':
+          return gamesApi.preparation(gameId, command.command)
       }
     },
     onSuccess: (game) => {

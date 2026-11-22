@@ -7,7 +7,9 @@ import Tag from 'primevue/tag'
 import type { ScenarioNode } from '@/features/scenarios'
 import { pick } from '@/shared/lib/localized'
 import { usePreferences } from '@/shared/lib/preferences'
-import type { EncounterCommand, EncounterState } from '../../api/types'
+import type { CampaignState, EncounterCommand, EncounterState, GameOptions } from '../../api/types'
+import { activeOptions, playedByHand } from '../../lib/options'
+import AchievementList from '../AchievementList.vue'
 
 /** What the encounter is about: how it ends, its tokens, its special rules. */
 const props = defineProps<{
@@ -15,7 +17,12 @@ const props = defineProps<{
   node: ScenarioNode | undefined
   /** Reports are refused right now. */
   locked: boolean
+  /** With the scenario read: the Achievements can be completed. */
+  campaign?: CampaignState
+  scenario?: string
+  options?: GameOptions | null
 }>()
+const reminders = computed(() => activeOptions(props.options).filter(playedByHand))
 const emit = defineEmits<{ command: [command: EncounterCommand] }>()
 
 const { t } = useI18n()
@@ -52,6 +59,24 @@ const tokens = computed(() => {
         />
       </li>
     </ul>
+
+    <AchievementList
+      v-if="node && campaign && scenario"
+      :node="node"
+      :scenario="scenario"
+      :campaign="campaign"
+      :locked="locked"
+      @complete="(achievement, adventurer) => emit('command', { type: 'achievement', achievement, adventurer })"
+    />
+    <template v-if="reminders.length">
+      <h3>{{ t('options.reminders') }}</h3>
+      <dl>
+        <template v-for="key in reminders" :key="key">
+          <dt>{{ t(`options.${key}.name`) }}</dt>
+          <dd>{{ t(`options.${key}.text`) }}</dd>
+        </template>
+      </dl>
+    </template>
 
     <h3>{{ t('play.tokens') }}</h3>
     <ul>

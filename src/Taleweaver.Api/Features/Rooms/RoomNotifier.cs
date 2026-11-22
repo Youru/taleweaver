@@ -17,19 +17,23 @@ public sealed class RoomNotifier : IGameObserver
     private readonly IServiceScopeFactory _scopes;
     private readonly IContentStore _content;
     private readonly CatalogProvider _catalog;
+    private readonly PhoneCards _cards;
 
-    public RoomNotifier(IHubContext<RoomHub> hub, RoomService rooms, IServiceScopeFactory scopes, IContentStore content, CatalogProvider catalog)
+    public RoomNotifier(IHubContext<RoomHub> hub, RoomService rooms, IServiceScopeFactory scopes, IContentStore content, CatalogProvider catalog, PhoneCards cards)
     {
         _hub = hub;
         _rooms = rooms;
         _scopes = scopes;
         _content = content;
         _catalog = catalog;
+        _cards = cards;
         rooms.Changed += RoomChangedAsync;
+        rooms.SeatRemoved += seat => _hub.Clients.Group(RoomHub.SeatGroup(seat)).SendAsync("SeatRemoved");
     }
 
     public async Task GameChangedAsync(Game game, CancellationToken cancellationToken)
     {
+        _cards.Changed();
         // The GM's other tabs (an adventurer played as a player) reload what they show.
         await _hub.Clients.Group(RoomHub.GmGroup(game.Id)).SendAsync("GameChanged", game.UpdatedAt.ToUnixTimeMilliseconds(), cancellationToken);
         if (await _rooms.GetAsync(game.Id) is not { IsOpen: true } room)
@@ -47,8 +51,10 @@ public sealed class RoomNotifier : IGameObserver
     }
 
     /// <summary>A picture pushed by the GM (room-spec §7.5): shown at once, not kept.</summary>
-    public async Task ShowAsync(IEnumerable<Seat> seats, string image, string? caption)
+    public async Task ShowAsync(string gameId, IEnumerable<Seat> seats, string image, string? caption)
     {
+        // Readable before the phone asks for it
+        _cards.Shown(gameId, image);
         foreach (var seat in seats)
         {
             await _hub.Clients.Group(RoomHub.SeatGroup(seat.Id)).SendAsync("Shown", new { image, caption });
@@ -59,12 +65,16 @@ public sealed class RoomNotifier : IGameObserver
     public async Task<PlayerView> ViewAsync(Game game, Room? room, Seat? seat, IReadOnlyCollection<string> adventurers, CancellationToken cancellationToken)
     {
         var scenario = await _content.GetScenarioAsync(game.Scenario, cancellationToken);
+        // During a Bounty, the encounter's map is in the Bounty's own scenario
+        var played = game.State.Bounty is { } bounty ? await _content.GetScenarioAsync(bounty.Scenario, cancellationToken) : scenario;
         var catalog = await _catalog.GetAsync(cancellationToken);
-        return PlayerViewProjector.Project(game.Id, game.UpdatedAt.ToUnixTimeMilliseconds(), game.State, scenario?.Title, adventurers, room, seat, catalog, scenario);
+        var view = PlayerViewProjector.Project(game.Id, game.UpdatedAt.ToUnixTimeMilliseconds(), game.State, scenario?.Title, adventurers, room, seat, catalog, scenario, played);
+        return view with { Cards = await _cards.FingerprintAsync(game, cancellationToken) };
     }
 
     private async Task RoomChangedAsync(Room room)
     {
+        _cards.Changed();
         await _hub.Clients.Group(RoomHub.GmGroup(room.GameId)).SendAsync("RoomChanged", _rooms.ViewOf(room));
         if (!room.IsOpen)
         {

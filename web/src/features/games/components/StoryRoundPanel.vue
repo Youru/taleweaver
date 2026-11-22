@@ -24,6 +24,7 @@ const props = defineProps<{
   campaign: CampaignState
   node?: ScenarioNode
   busy: boolean
+  xpLeniency?: boolean
 }>()
 const emit = defineEmits<{ party: [command: PartyCommand]; item: [command: ItemCommand]; shop: [] }>()
 
@@ -61,6 +62,8 @@ function learnable(adventurer: AdventurerState) {
 }
 /** Re-specing (p. 87): its price depends on the Store of this Story Round. */
 const respec = computed(() => respecPrice(props.node?.store))
+/** XP Leniency: each adventurer's first Re-Spec is free. */
+const respecFor = (name: string) => (props.xpLeniency && !props.campaign.freeRespecs?.includes(name) ? 0 : respec.value)
 const forgettable = (a: AdventurerState) =>
   (a.disciplines ?? []).some((d) => !disciplineCatalog.data.value?.find((c) => c.id === d.id)?.story)
 const knownCost = (name: string) =>
@@ -228,13 +231,13 @@ function toggleActive(name: string, on: boolean) {
           />
           <Button
             v-if="forgettable(a)"
-            :label="t('storyRound.respec', { price: respec })"
-            :title="t('storyRound.respecHint', { name: a.name, price: respec })"
+            :label="t('storyRound.respec', { price: respecFor(a.name) })"
+            :title="t('storyRound.respecHint', { name: a.name, price: respecFor(a.name) })"
             icon="pi pi-refresh"
             size="small"
             severity="secondary"
             outlined
-            :disabled="busy || campaign.gold < respec"
+            :disabled="busy || campaign.gold < respecFor(a.name)"
             @click="emit('party', { type: 'respec', adventurer: a.name })"
           />
         </div>

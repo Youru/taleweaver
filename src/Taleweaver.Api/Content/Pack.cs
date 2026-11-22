@@ -27,6 +27,9 @@ public sealed record PackManifest
 
     /// <summary>The round portrait the books draw a figure with on their diagrams, by family or name ("cave-sickle", "rook").</summary>
     public IReadOnlyDictionary<string, string> Portraits { get; init; } = new Dictionary<string, string>();
+
+    /// <summary>The Hidden Cards by "size:code" ("large:BP1"): the catalogue cards that code reveals.</summary>
+    public IReadOnlyDictionary<string, IReadOnlyList<string>> HiddenCards { get; init; } = new Dictionary<string, IReadOnlyList<string>>();
 }
 
 public sealed record PackFigure(string Image, string? BaseSize);

@@ -16,6 +16,8 @@ import { usePreferences } from '@/shared/lib/preferences'
 import type { HubStatus } from '../api/roomHub'
 import type { PlayerCommand, PlayerView } from '../api/types'
 import { nextAdventurer, seatColors, turnOf } from '../lib/room'
+import BoardTab from './BoardTab.vue'
+import ChooseAdventurer from './ChooseAdventurer.vue'
 import EquipmentTab from './EquipmentTab.vue'
 import HeroTab from './HeroTab.vue'
 import ShopTab from './ShopTab.vue'
@@ -47,13 +49,16 @@ const languages = [
 ]
 const cards = useAdventurers()
 
-type Tab = 'hero' | 'equipment' | 'turn' | 'shop' | 'journal'
+type Tab = 'hero' | 'equipment' | 'turn' | 'board' | 'shop' | 'journal'
 const chosen = ref<Tab>('hero')
 const fighting = computed(() => !!props.view.encounter && !props.view.encounter.ended)
+const hasBoard = computed(() => fighting.value && !!props.view.encounter?.board)
 /** The Tour tab exists only during an encounter: outside one, the hero's sheet shows instead. */
 const tab = computed<Tab>({
   get: () =>
-    (chosen.value === 'turn' && !fighting.value) || (chosen.value === 'shop' && !props.view.shop)
+    (chosen.value === 'turn' && !fighting.value) ||
+    (chosen.value === 'board' && !hasBoard.value) ||
+    (chosen.value === 'shop' && !props.view.shop)
       ? 'hero'
       : chosen.value,
   set: (value) => (chosen.value = value),
@@ -109,10 +114,12 @@ const ownedIds = computed(() =>
   ),
 )
 const received = ref<{ item?: string | null; owner: string } | null>(null)
-watch(ownedIds, (now, before) => {
-  if (!before) return
+watch([names, ownedIds], ([, now], [held, before]) => {
+  // Before the departure the cards are dealt again at each choice: nothing received
+  if (props.view.preparation) return
   const known = new Set(before.map((i) => i.id))
-  const fresh = now.find((i) => !known.has(i.id))
+  // An adventurer just given to the seat brings their cards: none of them is new
+  const fresh = now.find((i) => !known.has(i.id) && held.includes(i.owner))
   if (fresh) received.value = { item: fresh.item, owner: fresh.owner }
 })
 const receivedCard = computed(() =>
@@ -129,6 +136,8 @@ const asking = computed(
     ),
 )
 const askError = ref<string>()
+const askOpen = ref(false)
+const askable = computed(() => props.view.party.filter((member) => member.active && !member.mine))
 async function askFor(name: string) {
   askError.value = undefined
   try {
@@ -210,6 +219,15 @@ function touchEnd(event: TouchEvent) {
           <span>{{ adventurer.name }}</span>
         </button>
       </div>
+      <Button
+        v-if="act && !view.impersonated && !view.preparation && current && askable.length"
+        icon="pi pi-user-plus"
+        text
+        rounded
+        :aria-label="t('room.player.askAnother')"
+        :title="t('room.player.askAnother')"
+        @click="((askOpen = true), (askError = undefined))"
+      />
       <span class="who">
         <span class="dot" aria-hidden="true" />
         {{ view.impersonated ? t('room.player.gm') : view.seat?.displayName }}
@@ -223,7 +241,7 @@ function touchEnd(event: TouchEvent) {
         @click="settingsOpen = true"
       />
     </header>
-    <div v-if="current" class="strip" :class="hit" :aria-label="t('room.player.status')">
+    <div v-if="current && !view.preparation" class="strip" :class="hit" :aria-label="t('room.player.status')">
       <span class="health" :title="t('room.player.health')">
         <i class="pi pi-heart-fill" aria-hidden="true" />
         {{ healthLeft }}/{{ current.health ?? '?' }}
@@ -255,7 +273,14 @@ function touchEnd(event: TouchEvent) {
     }}</Message>
 
     <main @touchstart.passive="touchStart" @touchend.passive="touchEnd">
-      <div v-if="!current" class="waiting">
+      <ChooseAdventurer
+        v-if="view.preparation"
+        :view="view"
+        :preparation="view.preparation"
+        :act="view.impersonated ? undefined : act"
+        @follow="(name) => emit('follow', name)"
+      />
+      <div v-else-if="!current" class="waiting">
         <i class="pi pi-hourglass" aria-hidden="true" />
         <p>{{ t('room.player.waiting') }}</p>
         <p class="muted">{{ pick(view.scenarioTitle, language) }}</p>
@@ -276,6 +301,7 @@ function touchEnd(event: TouchEvent) {
       </div>
       <Transition v-else name="flip" mode="out-in">
         <TurnTab v-if="tab === 'turn'" key="turn" :view="view" :followed="current.name" :act="act" />
+        <BoardTab v-else-if="tab === 'board' && view.encounter" key="board" :encounter="view.encounter" />
         <ShopTab
           v-else-if="tab === 'shop' && view.shop"
           key="shop"
@@ -302,6 +328,7 @@ function touchEnd(event: TouchEvent) {
           :adventurer="current"
           :gold="view.gold"
           :stash="view.stash"
+          :upgrades="view.upgrades"
           :others="others"
           :requests="view.requests"
           :act="act"
@@ -310,7 +337,7 @@ function touchEnd(event: TouchEvent) {
       </Transition>
     </main>
 
-    <nav class="tabs" role="tablist">
+    <nav v-if="!view.preparation" class="tabs" role="tablist">
       <button type="button" role="tab" :aria-selected="tab === 'hero'" @click="tab = 'hero'">
         <i class="pi pi-user" aria-hidden="true" />
         <span>{{ t('room.player.heroTab') }}</span>
@@ -329,6 +356,10 @@ function touchEnd(event: TouchEvent) {
       >
         <i class="pi pi-bolt" aria-hidden="true" />
         <span>{{ t('room.player.turnTab') }}</span>
+      </button>
+      <button v-if="hasBoard" type="button" role="tab" :aria-selected="tab === 'board'" @click="tab = 'board'">
+        <i class="pi pi-map" aria-hidden="true" />
+        <span>{{ t('room.player.boardTab') }}</span>
       </button>
       <button v-if="view.shop" type="button" role="tab" :aria-selected="tab === 'shop'" @click="tab = 'shop'">
         <i class="pi pi-shopping-bag" aria-hidden="true" />
@@ -350,6 +381,20 @@ function touchEnd(event: TouchEvent) {
         <small>{{ t('room.player.tapToClose') }}</small>
       </button>
     </Transition>
+    <Dialog v-model:visible="askOpen" modal dismissable-mask :header="t('room.player.askAnother')">
+      <ul class="others ask">
+        <li v-for="member in askable" :key="member.name">
+          <span>{{ member.name }}</span>
+          <Button
+            :label="asking.has(member.name) ? t('room.request.waiting') : t('room.player.askFor')"
+            :severity="asking.has(member.name) ? 'secondary' : undefined"
+            :disabled="asking.has(member.name)"
+            @click="askFor(member.name)"
+          />
+        </li>
+      </ul>
+      <p v-if="askError" class="error">{{ askError }}</p>
+    </Dialog>
     <Dialog v-model:visible="settingsOpen" modal dismissable-mask :header="t('room.player.settings.title')">
       <div class="settings">
         <label><ToggleSwitch v-model="settings.vibrate" /> {{ t('room.player.settings.vibrate') }}</label>
@@ -440,6 +485,15 @@ function touchEnd(event: TouchEvent) {
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
+}
+.ask {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 15rem;
 }
 .error {
   color: #ef4444;

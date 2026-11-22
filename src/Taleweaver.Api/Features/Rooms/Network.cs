@@ -6,7 +6,8 @@ namespace Taleweaver.Api.Features.Rooms;
 
 /// <summary>
 /// Who is the GM: the device that hosts the app (localhost). Behind the Vite dev server, the proxy forwards the
-/// phone's address in X-Forwarded-For; it is trusted only when the request itself comes from this machine.
+/// phone's address in X-Forwarded-For; it is trusted only when the request itself comes from this machine, and
+/// only its last value: the proxy appends it after whatever the client wrote in the header itself.
 /// </summary>
 public static class Network
 {
@@ -18,8 +19,14 @@ public static class Network
             return remote;
         }
 
-        var forwarded = context.Request.Headers["X-Forwarded-For"].ToString().Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
-        return forwarded.Length > 0 && IPAddress.TryParse(forwarded[0], out var client) ? client : remote;
+        if (!context.Request.Headers.TryGetValue("X-Forwarded-For", out var header))
+        {
+            return remote;
+        }
+
+        // Unreadable: somebody else's address, never the GM's (fail closed)
+        var last = header.ToString().Split(',')[^1].Trim();
+        return IPAddress.TryParse(last, out var client) ? client : IPAddress.None;
     }
 
     /// <summary>A request from this machine (an in-process test server has no address: local too).</summary>
@@ -80,9 +87,31 @@ public static class Network
     /// </summary>
     public static IApplicationBuilder UseRoomGuard(this IApplicationBuilder app) => app.Use(async (context, next) =>
     {
-        if (IsLocal(context) || await AllowedFromAPhone(context) || await AllowedFromTheScreen(context))
+        if (IsLocal(context))
         {
             await next(context);
+            return;
+        }
+
+        var guesses = context.RequestServices.GetRequiredService<CodeGuessLimiter>();
+        var device = ClientAddress(context);
+        var namesARoom = context.Request.Path.StartsWithSegments("/api/rooms");
+        if ((namesARoom || context.Request.Path.StartsWithSegments("/hubs/room")) && guesses.IsBlocked(device))
+        {
+            context.Response.Headers.RetryAfter = ((int)CodeGuessLimiter.Window.TotalSeconds).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            await Results.Problem(statusCode: StatusCodes.Status429TooManyRequests, title: "Rooms.TooManyTries", detail: "Too many unknown codes: wait a minute.")
+                .ExecuteAsync(context);
+            return;
+        }
+
+        if (await AllowedFromAPhone(context) || await AllowedFromTheScreen(context))
+        {
+            await next(context);
+            if (namesARoom && context.Response.StatusCode == StatusCodes.Status404NotFound)
+            {
+                guesses.Failed(device);
+            }
+
             return;
         }
 
@@ -116,6 +145,12 @@ public static class Network
             || (HttpMethods.IsGet(context.Request.Method) && !path.StartsWithSegments("/api/games"));
     }
 
+    private static readonly string[] PhoneCatalog =
+    [
+        "/api/catalog/items", "/api/catalog/item-upgrades", "/api/catalog/disciplines", "/api/catalog/adventurers",
+        "/api/catalog/effects", "/api/catalog/initiative", "/api/catalog/board",
+    ];
+
     private static async Task<bool> AllowedFromAPhone(HttpContext context)
     {
         var path = context.Request.Path;
@@ -124,8 +159,9 @@ public static class Network
             return true;
         }
 
-        // The images and the catalogue (item cards, adventurer cards): nothing of the game in them.
-        return (path.StartsWithSegments("/api/assets") || path.StartsWithSegments("/api/catalog")) && HttpMethods.IsGet(context.Request.Method)
+        // The images and the tables a phone draws with: never the search of the whole catalogue (every combatant, the bosses too).
+        var readable = path.StartsWithSegments("/api/assets") || PhoneCatalog.Any(table => path.Equals(table, StringComparison.OrdinalIgnoreCase));
+        return readable && HttpMethods.IsGet(context.Request.Method)
             && (await context.RequestServices.GetRequiredService<RoomService>().OpenRoomsAsync()).Count > 0;
     }
 }

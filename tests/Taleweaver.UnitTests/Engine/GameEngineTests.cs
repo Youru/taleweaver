@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Taleweaver.Api.Content;
 using Taleweaver.Api.Engine;
 
@@ -582,7 +583,73 @@ public class GameEngineTests
         game.Encounter.Tokens.Single(t => t.Id == "random-loot").Key.Should().BeOneOf("loot:green", "loot:yellow");
     }
 
-    private static EngineDriver Game(ScenarioAction? spawn = null, Catalog? catalog = null)
+    [Fact]
+    public void ACombatantUnderTheFog_IsNotInPlay_UntilItsAreaIsRevealed()
+    {
+        var game = Game(hidden: new CombatantPlacement { Family = "imp", At = new Cell(7, 1) }).Continue();
+
+        game.Encounter.Combatants.Should().OnlyContain(c => c.Family == "brute");
+        game.Encounter.InitiativeTrack.Should().NotContain(c => c.Contains("imp"));
+        game.Encounter.Waiting.Should().ContainSingle(w => w.Area == "crypt");
+        game.State.Log.Should().NotContain(l => l.Code == "place" && l.Args!["instance"].StartsWith("imp"));
+
+        game.Do(GameCommand.RevealArea("crypt"));
+
+        var imp = game.Encounter.Combatants.Single(c => c.Family == "imp");
+        imp.Instance.Should().Be("imp-1");
+        imp.Position.Should().Be(new Cell(7, 1));
+        game.Encounter.InitiativeTrack.Should().Contain("hb:initiative/imp-1-3");
+        game.Encounter.Waiting.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void ACombatantRevealedDuringARound_PlaysRightAfterTheCardPlaying()
+    {
+        var game = Game(hidden: new CombatantPlacement { Family = "imp", At = new Cell(11, 5) }).Continue();
+        game.PlayRound();
+        game.Turn();
+
+        game.Do(GameCommand.RevealArea("crypt"));
+
+        game.Encounter.InitiativeTrack[game.Encounter.CurrentTurn + 1].Should().Be("hb:initiative/imp-1-3");
+        game.Encounter.RoundLog.Spawned.Should().Be(1);
+        var replayed = GameEngine.Replay(game.Context, game.Party, game.History);
+        replayed.Value.Should().BeEquivalentTo(game.State);
+    }
+
+    [Fact]
+    public void SpawningInAHiddenArea_WaitsTooButStillCountsAsLeftToDefeat()
+    {
+        var spawn = new ScenarioAction { Do = "spawn", Family = "imp", Count = 2, At = JsonSerializer.SerializeToElement(new { x = 6, y = 0 }) };
+        var none = new ScenarioAction
+        {
+            Do = "branch",
+            If = [new EventCondition { Var = "alive.imp", Op = "==", Value = JsonSerializer.SerializeToElement(0) }],
+            Then = [new ScenarioAction { Do = "showText", Text = En("None left.") }],
+        };
+        var game = Game(new ScenarioAction { Do = "branch", If = [], Then = [spawn, none] }).Continue();
+
+        game.Do(GameCommand.ActivateToken("totem:red"));
+
+        game.Encounter.Waiting.Should().HaveCount(2);
+        game.State.Log.Should().NotContain(l => l.Code == "spawn" || l.Code == "text");
+        game.Do(GameCommand.RevealArea("crypt"));
+        game.Encounter.Combatants.Where(c => c.Family == "imp").Select(c => c.Position).Should().Equal(new Cell(6, 0), null);
+    }
+
+    [Fact]
+    public void SpawningNextToATokenUnderTheFog_Waits()
+    {
+        var spawn = new ScenarioAction { Do = "spawn", Family = "imp", At = JsonSerializer.SerializeToElement(new { adjacentTo = "token:loot:purple" }) };
+        var place = new ScenarioAction { Do = "placeToken", Type = "loot", Color = "purple", At = JsonSerializer.SerializeToElement(new { x = 8, y = 2 }) };
+        var game = Game(new ScenarioAction { Do = "branch", If = [], Then = [place, spawn] }).Continue();
+
+        game.Do(GameCommand.ActivateToken("totem:red"));
+
+        game.Encounter.Waiting.Should().ContainSingle(w => w.Area == "crypt");
+    }
+
+    private static EngineDriver Game(ScenarioAction? spawn = null, Catalog? catalog = null, CombatantPlacement? hidden = null)
     {
         var scenario = new Scenario
         {
@@ -597,7 +664,11 @@ public class GameEngineTests
                     Id = "fight",
                     Type = Node.EncounterType,
                     LootLevel = "common",
-                    Setup = new Setup { Combatants = [new CombatantPlacement { Family = "brute", At = new Cell(1, 1) }], AdventurersStart = "start" },
+                    Setup = new Setup
+                    {
+                        Combatants = hidden is null ? [new CombatantPlacement { Family = "brute", At = new Cell(1, 1) }] : [new CombatantPlacement { Family = "brute", At = new Cell(1, 1) }, hidden],
+                        AdventurersStart = "start",
+                    },
                     Map = new BoardMap
                     {
                         Tiles = [new MapTile("hb:tile/meadow", 0, 0, 0, "hall"), new MapTile("hb:tile/meadow", 6, 0, 0, "crypt")],

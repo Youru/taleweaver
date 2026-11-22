@@ -15,6 +15,7 @@ import { usePreferences } from '@/shared/lib/preferences'
 import { useDice } from '../api/queries'
 import { partyEquipment } from '../lib/equipment'
 import { distance, fighters, type AdventurerSheet, type Fighter } from '../lib/fighters'
+import { commandSheet, withConduitForms } from '../lib/scaling'
 import { useAdventurerSheets } from '../lib/sheets'
 import AttackArena from './AttackArena.vue'
 import FighterHead from './FighterHead.vue'
@@ -50,13 +51,21 @@ const dice = useDice()
 const pieces = useBoardPieces()
 const { sheets, remember } = useAdventurerSheets(() => props.game)
 const items = useItems()
-const equipment = computed(() =>
-  partyEquipment(
-    props.party,
-    new Map<string, CatalogItem>((items.data.value ?? []).map((i) => [i.id, i])),
-    language.value,
-  ),
-)
+const equipment = computed(() => {
+  const catalog = new Map<string, CatalogItem>((items.data.value ?? []).map((i) => [i.id, i]))
+  const gear = partyEquipment(props.party, catalog, language.value)
+  const result = withConduitForms(gear, props.party, props.cards, catalog, language.value)
+  for (const ally of props.encounter.allies ?? []) {
+    const owner = props.party?.find((a) => a.name === ally.owner)
+    const card = props.cards.get(ally.card)
+    // An ally whose Defense nobody gives stays the GM's to enter
+    if (!card || (!owner && card.stats?.defense === '*')) continue
+    const name = owner?.name
+    const ownerSheet = name ? (gear[name.toLowerCase()] ?? sheets.value[name]) : undefined
+    result[`ally:${ally.id}`] = commandSheet(card, owner, ownerSheet, catalog, language.value)
+  }
+  return result
+})
 
 // The board as the table draws it: what lies under the fog is not on the table yet.
 const layout = computed(() => boardLayout(props.node, props.encounter, pieces.data.value))

@@ -22,6 +22,8 @@ import { chapterCaption, chaptersOf } from '../lib/chapters'
 import { choiceOf, exitsOf, setChoice, setExit, setText, text, withChoice } from '../lib/graph'
 import { addDiagram, diagramBoard, diagramsOf, removeDiagram, updateDiagram, type DraftDiagram } from '../lib/diagrams'
 import { mapOf, setupOf } from '../lib/map'
+import { achievementsOf } from '../lib/achievements'
+import AchievementsEditor from './AchievementsEditor.vue'
 import BoardRules from './BoardRules.vue'
 import { eventsOf } from '../lib/events'
 import { addHiddenRule, hiddenRulesOf, removeHiddenRule, updateHiddenRule } from '../lib/hiddenRules'
@@ -513,6 +515,11 @@ const hiddenRules = computed(() => {
             </li>
           </ol>
           <Button :label="t('workshop.addRule')" icon="pi pi-plus" size="small" text @click="addRule" />
+
+          <AchievementsEditor
+            :model-value="achievementsOf(node)"
+            @update:model-value="(list) => patch({ achievements: list.length ? list : undefined })"
+          />
 
           <h3>{{ t('workshop.diagrams') }}</h3>
           <p class="hint">{{ t('workshop.diagramsHint') }}</p>

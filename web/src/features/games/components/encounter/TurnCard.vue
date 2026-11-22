@@ -51,6 +51,8 @@ const heading = computed(() => {
       return t('play.turnBefore')
     case 'adventurer':
       return t('play.turnAdventurer', { name: value.who ?? '' })
+    case 'ally':
+      return t('play.turnAlly', { name: value.who ?? '' })
     case 'combatants':
       return t('play.turnCombatants', { name: value.acting ?? '', card: actingCard.value })
     case 'idle':
@@ -139,6 +141,7 @@ const lines = computed(() =>
   font-weight: 700;
   font-size: 1.05rem;
 }
+.heading.ally,
 .heading.adventurer {
   color: var(--p-blue-500);
 }

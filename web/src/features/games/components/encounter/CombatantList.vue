@@ -46,7 +46,7 @@ const alive = computed(() =>
 const defeated = computed(() => props.encounter.combatants.filter((c) => c.defeated))
 
 function health(figure: CombatantState): number | undefined {
-  const value = props.cards.get(figure.card)?.stats?.health
+  const value = figure.health ?? props.cards.get(figure.card)?.stats?.health
   return typeof value === 'number' ? value : undefined
 }
 
@@ -123,7 +123,7 @@ li {
   position: relative;
 }
 /* Room open: the card can be shown on the phones (room-spec §7.5), over the row's top corner */
-.show {
+li :deep(.show) {
   position: absolute;
   top: 0.1rem;
   right: 0.1rem;

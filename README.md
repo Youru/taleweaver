@@ -42,7 +42,7 @@ cd taleweaver/web && npm install && npm run dev
   - `TableView` assemble les deux et ne parle qu'en commandes de rencontre ; `lib/layout.ts` calcule ce qu'on voit (fonction pure, testée), `lib/viewport.ts` le zoom ;
   - déplacements facultatifs : glisser la figurine, ou la sélectionner puis toucher une case (pratique sur tablette) ; ce qui n'a pas de case est listé « À placer » et se glisse de la liste vers la carte. Pour ne rien dévoiler, les combattants à placer de la mise en place n'y sont pas nommés (sauf celui qui joue) : dans la vue MJ, le bouton « Combattants à placer » les affiche ; sur la table seule, ils n'apparaissent jamais. Ceux qui **apparaissent en cours de rencontre** (totem, événement : journal `spawn`, la case dite en mots, « adjacent au totem ») sont toujours proposés à placer, sur les deux vues, et listés dans Combattants avec « à placer » (`lib/arrivals.ts`) ;
   - zoom : molette, boutons, ou deux doigts sur tablette ; bouton plein écran ;
-  - brouillard : les tuiles d'une zone cachée sont grisées, et ce qui s'y trouve est masqué jusqu'à « Révéler la zone ».
+  - brouillard : les tuiles d'une zone cachée sont grisées, et ce qui s'y trouve est masqué jusqu'à « Révéler la zone ». Les combattants qui s'y trouvent ne sont **pas en jeu** (ni piste d'initiative, ni liste) : le moteur les fait apparaître à la révélation.
 - **Affrontement** (`src/features/duel/`), une attaque ou un sort avec les dés physiques de la table, dans **sa propre fenêtre** (modale, plein écran sur tablette ; Échap la ferme et rend la table telle quelle). Les **effets** notés sur les deux figurines sont comptés : Darkness (−1 au jet de l'attaquant ; la cible ne peut plus esquiver), Barrier (+1 Armure), Courage (+1 bouclier et +1 livre), Nemesis (+2 dégâts physiques), Wilt (+2 dégâts irréductibles) ; Paralyze, Tether, Wilt et Nemesis sur un sort sont rappelés au MJ. Poison, Condemn et Haste sont rappelés au début du tour de la figurine (journal). Elle s'ouvre par « Attaquer » sur une figurine sélectionnée, ou « Résoudre l'attaque » quand l'IA dit d'attaquer, depuis la vue MJ comme depuis la table seule :
   - à gauche l'attaquant (figurine, carte consultable en grand, dés de combat, Empower, tenaille, allié ou terrain gênant, bonus, perforant, capacités de symboles), à droite la cible (PV, Défense, Armure, esquive), bouton « Inverser » ;
   - sous la cible, **le plateau autour de l'affrontement** (la fenêtre cache la table) : la cible entourée en rouge, l'attaquant en orange, les autres figurines estompées. Toucher une figurine en fait la cible ; on peut y zoomer et s'y déplacer, mais rien n'y bouge ;
@@ -87,6 +87,8 @@ cd taleweaver/web && npm install && npm run dev
 - ⚠️ Les images appartiennent à Succubus Publishing : l'API les lit sur le disque local. Usage non commercial seulement (autorisation du créateur, 2026-11-20).
 - **Apparitions possibles** (moteur, règles ch. 9 p. 79-82) : une apparition qui demande une nouvelle carte, hors mise en place (totem, schéma, NAVIGATE), tire au hasard parmi le groupe de base suivant, ses Variations et les Alternates absentes du plateau dont les prérequis sont remplis (`spawnRule` du catalogue). Le journal dit quelle carte a été tirée.
 - **Butin des combattants** (moteur, `Engine/Session.Loot.cs`) : le paquet *Combatant Loot* du niveau de butin de la rencontre (`rules.json` du pack) ; chaque adversaire vaincu pioche une carte (AVARICE X : X de plus ; GILDED : son butin de monstre). L'or est mis de côté et ajouté à la fin de la rencontre, même en cas de défaite ; butin de monstre et objet unique sont tirés parmi ceux que le groupe n'a pas ; l'*Item Loot* laisse le jet des 2 dés blancs à la table. Les cartes piochées reviennent au *Restore*. Tout passe par le journal.
+- **Options de partie** (bouton Options au lancement, `Engine/GameOptions.cs`) : variantes et difficulté du ch. 11 ; celles que l'appli ne peut pas jouer sont rappelées dans l'onglet Rencontre.
+- **Feuille** (cartes cachées révélées, succès, options) et **Règles** (`src/features/reference/`, tableaux de `rules.json`) en haut de la partie. À la fin d'une aventure : reprendre, recommencer, exporter la fin d'acte.
 - Les textes de l'interface et la mise en forme du journal sont dans `src/shared/i18n/messages.ts`. Le contenu du jeu garde ses propres textes `{ en, fr }`.
 - **Journal** (`GameJournal.vue`) : une scène ou l'introduction d'une rencontre s'affiche comme une page des livres, avec le bandeau rouge et le papier du modèle Encounter (`assets/templates/encounter/top/red-header.png`, `print-background-right.jpg`), le titre en petites capitales, le texte en italique justifié par paragraphes et une lettrine. Les autres textes lus (texte caché, règle spéciale…) sont sur le même papier. Encre sombre dans les deux thèmes.
 - **Aventuriers sans place** (rencontre sans zone de départ, ou trop petite, comme celles du pilote de l'Acte 1) : un avis sous le tour en cours le dit et explique comment les poser (glisser un nom de « À placer » sur une case, ou le toucher puis toucher la case).
@@ -112,6 +114,27 @@ cd taleweaver && dotnet test
   - `ScenarioCheckerTests.Check_BlightOfRhamsted_SameResultAsCheckScenarioPy` garantit la parité avec `tools/check_scenario.py`.
   - `GetScenarioAsync_Blight_KeepsEveryFieldOfTheFile` vérifie que le modèle ne perd aucun champ du fichier.
 - **Tests d'intégration** : ils tournent sur un mini-pack maison (`tests/Taleweaver.IntegrationTests/Fixtures/`), plus un test sur le vrai contenu.
+
+## Pièges rencontrés
+
+| Problème | Solution |
+| Un téléphone lisait des cartes secrètes par le catalogue, le plateau (noms des familles) ou en devinant le chemin d'une image | Toute route ou image ouverte aux téléphones passe par `PhoneCards` (liste blanche). Une image neuve affichée au téléphone (404 chez lui, rien chez le MJ) est à ajouter à `CardSight`. L'essayer par l'adresse réseau : localhost est toujours le MJ |
+| Une famille de combattants porte le nom d'un aventurier (clé de figure identique) | Filtrer les familles par `SeesFamily`, jamais par `SeesFigure` |
+|---|---|
+| `X-Forwarded-For` : le client peut en écrire le début, le proxy ajoute la vraie adresse **à la fin** | Ne lire que la dernière valeur, refuser si illisible ; tester avec un en-tête à deux valeurs, pas une seule |
+| `dotnet build` échoue pendant que l'API de l'utilisateur tourne (fichiers verrouillés) | `--artifacts-path` **dans le dépôt** (`taleweaver/obj/side-build`) : ailleurs, les tests ne trouvent pas `packs/` |
+| Un `enum` part en nombre dans le JSON, le front compare à un mot (`status`) | `[JsonConverter(typeof(JsonStringEnumConverter<T>))]` sur l'enum : les anciennes sauvegardes en nombre se relisent |
+| Composant à plusieurs racines (bouton + menu) : `class` et styles `scoped` du parent perdus | `inheritAttrs: false` + `v-bind="$attrs"`, et `:deep()` chez le parent |
+| Nouvelle règle du moteur qui consomme moins de hasard | Augmenter `GameEngine.Version` ; l'ordre d'initiative des parties rejouées change : le dire |
+| Git Bash transforme un argument `/items` en chemin Windows | `MSYS_NO_PATHCONV=1` |
+| Une liste vide qui veut dire quelque chose (« rien d'acheté », « aucun nom ») disparaît des sauvegardes, qui omettent les listes vides : lue `null`, elle change le rejeu | `[KeptWhenEmpty]` sur la propriété (les propriétés `required` sont toujours écrites) ; tester le rejeu après un aller-retour par `JsonDefaults.FileOptions` |
+| Deux commandes simultanées sur une partie (plusieurs téléphones) : la dernière sauvegarde écrase l'autre | `GameRunner.ExecuteAsync` et `UndoAsync` passent l'une après l'autre par partie ; ne jamais prendre ce verrou dans `LoadAsync` (les observateurs chargent) |
+| Dans le navigateur de test, un onglet en arrière-plan ne finit pas ses transitions : les onglets du téléphone semblent bloqués | Mettre l'onglet au premier plan avant de cliquer |
+
+## Préparation du groupe et alliés
+
+- `POST /api/games` avec `party: []` prépare la partie. Routes MJ : `PUT|DELETE …/preparation/adventurers`, `PUT …/preparation/hidden`, `POST …/preparation/departure`. Avec des noms, la partie part aussitôt (tests, anciennes parties).
+- Alliés : `POST …/allies`, `…/allies/summons`, `…/allies/{ally:id}/dismissal`, `…/allies/conduits/{aventurier}` et `PUT …/form`. Dégâts, effets, SP et déplacements passent par les routes de la rencontre, la figurine étant `ally:<id>`.
 
 ## API
 

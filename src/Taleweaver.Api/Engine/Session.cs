@@ -21,12 +21,26 @@ internal sealed partial class Session(GameState state, GameContext context)
 
     private Catalog Catalog => context.Catalog;
 
+    private static readonly GameOptions NoOptions = new();
+
+    private GameOptions Options => State.Options ?? NoOptions;
+
     private EncounterState Encounter => State.Encounter ?? throw new InvalidOperationException("No encounter in progress.");
 
     private Node EncounterNode => Scenario.Nodes.First(n => n.Id == Encounter.Node);
 
     public Result Execute(GameCommand command)
     {
+        if (State.Preparation is not null)
+        {
+            return ExecutePreparation(command);
+        }
+
+        if (GameCommands.IsPreparationCommand(command.Type))
+        {
+            return PreparationErrors.SetOut;
+        }
+
         if (command.Type == GameCommands.Answer)
         {
             return State.Prompt is null ? GameEngine.Errors.NoQuestion : Answer(command);
@@ -42,6 +56,12 @@ internal sealed partial class Session(GameState state, GameContext context)
         if (GameCommands.IsPartyCommand(command.Type))
         {
             return State.Encounter is { Ended: false } ? GameEngine.Errors.InEncounter : ExecutePartyCommand(command);
+        }
+
+        // An Achievement may only be known once the encounter is won: allowed until it is left.
+        if (command.Type == GameCommands.CompleteAchievement && State.Encounter is { Ended: true })
+        {
+            return CompleteAchievement(command.Item, command.Instance);
         }
 
         // An adventurer's Damage and SP stay from one encounter to the next: the story may hurt or heal them too.
@@ -70,6 +90,12 @@ internal sealed partial class Session(GameState state, GameContext context)
         // While a figure goes through its AI steps, the GM may still report what happens on the board.
         // The AI question is set aside: its consequences run first, then the same step is asked again.
         var reportsAllowed = State.Prompt is null || State.Prompt.Kind == PromptKinds.AiCondition;
+        if (reportsAllowed && GameCommands.IsAllyCommand(command.Type))
+        {
+            State.Prompt = null;
+            return ExecuteAllyCommand(command);
+        }
+
         if (reportsAllowed && command.Type != GameCommands.NextTurn)
         {
             State.Prompt = null;
@@ -78,6 +104,10 @@ internal sealed partial class Session(GameState state, GameContext context)
         return command.Type switch
         {
             GameCommands.NextTurn => State.Prompt is null ? NextTurn() : GameEngine.Errors.AwaitingAnswer,
+            GameCommands.Damage when reportsAllowed && IsAlly(command.Instance) =>
+                DamageAlly(command.Instance, command.Value ?? 0, command.FromOpponent, Math.Max(0, command.Tokens ?? 0)),
+            GameCommands.Defeat when reportsAllowed && IsAlly(command.Instance) => DefeatAllyCommand(command.Instance),
+            GameCommands.SetStamina when reportsAllowed && IsAlly(command.Instance) => SetAllyStamina(command.Instance, command.Value ?? 0),
             GameCommands.Damage when reportsAllowed && IsAdventurer(command.Instance) => DamageAdventurer(command.Instance, command.Value ?? 0),
             GameCommands.Defeat when reportsAllowed && IsAdventurer(command.Instance) => DefeatAdventurerCommand(command.Instance),
             GameCommands.SetStamina when reportsAllowed => SetStamina(command.Instance, command.Value ?? 0),
@@ -87,8 +117,10 @@ internal sealed partial class Session(GameState state, GameContext context)
             GameCommands.ActivateToken when reportsAllowed => ActivateTokenCommand(command.Token),
             GameCommands.ReachEndCondition when reportsAllowed => ReachEndCondition(command.EndCondition),
             GameCommands.RevealArea when reportsAllowed => RevealAreaCommand(command.Area),
-            GameCommands.Damage or GameCommands.SetEffect or GameCommands.Defeat or GameCommands.SetStamina or GameCommands.ActivateToken or GameCommands.ReachEndCondition or GameCommands.RevealArea
+            GameCommands.CompleteAchievement when reportsAllowed => CompleteAchievement(command.Item, command.Instance),
+            GameCommands.CompleteAchievement or GameCommands.Damage or GameCommands.SetEffect or GameCommands.Defeat or GameCommands.SetStamina or GameCommands.ActivateToken or GameCommands.ReachEndCondition or GameCommands.RevealArea
                 => GameEngine.Errors.AwaitingAnswer,
+            _ when GameCommands.IsAllyCommand(command.Type) => GameEngine.Errors.AwaitingAnswer,
             _ => GameEngine.Errors.UnknownCommand(command.Type),
         };
     }
@@ -119,7 +151,7 @@ internal sealed partial class Session(GameState state, GameContext context)
     {
         // Leaving a node drops what was left of it (e.g. a scene's "next" after a choice that branched).
         State.PendingActions.Clear();
-        State.Encounter = null;
+        LeaveEncounter();
         // The end of a Bounty, whatever it says: back to the Story Round it was chosen from.
         if (State.Bounty is { } bounty && (target is null || target.StartsWith('@')))
         {
@@ -180,6 +212,11 @@ internal sealed partial class Session(GameState state, GameContext context)
     {
         var prompt = State.Prompt!;
         var option = command.Option;
+        if (prompt.Kind == PromptKinds.Abraxis)
+        {
+            return AnswerAbraxis(command, prompt);
+        }
+
         if (prompt.Kind != PromptKinds.Number && prompt.Options.All(o => o.Id != option))
         {
             return GameEngine.Errors.InvalidAnswer(option);
@@ -241,6 +278,16 @@ internal sealed partial class Session(GameState state, GameContext context)
         _ => GameEngine.Errors.UnknownCommand(command.Type),
     };
 
+    private Result ExecuteAllyCommand(GameCommand command) => command.Type switch
+    {
+        GameCommands.Summon => Summon(command),
+        GameCommands.AddAlly => AddAlly(command),
+        GameCommands.DismissAlly => DismissAlly(command),
+        GameCommands.EarnConduit => EarnConduit(command),
+        GameCommands.ConduitForm => TakeConduitForm(command),
+        _ => GameEngine.Errors.UnknownCommand(command.Type),
+    };
+
     private void Push(IEnumerable<ScenarioAction> actions) => State.PendingActions.InsertRange(0, actions);
 
     private void Ask(string kind, LocalizedText? question, IEnumerable<PromptOption> options, ScenarioAction? action = null, string? instance = null) =>
@@ -273,6 +320,7 @@ public static class PromptKinds
     public const string Number = "number";
     public const string Adventurer = "adventurer";
     public const string StoryRound = "storyRound";
+    public const string Abraxis = "abraxis";
 }
 
 internal static class InternalActions

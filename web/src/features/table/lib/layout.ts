@@ -105,6 +105,7 @@ export interface UnplacedFigure {
 }
 
 export const adventurerId = (name: string) => `adventurer:${name}`
+export const allyId = (id: string) => `ally:${id}`
 
 const DIRECTIONS: Record<string, number> = { east: 0, south: 90, west: 180, north: 270 }
 
@@ -229,7 +230,35 @@ export function boardLayout(
     ]
   })
 
+  const livingAllies = (encounter.allies ?? []).filter((a) => !a.defeated)
+  const allyName = (a: { id: string; name: { en?: string } }) => a.name.en ?? a.id
+  const allies = livingAllies.flatMap((a): FigureShape[] => {
+    if (!a.position || underFog(a.position.x, a.position.y)) return []
+    const art = figureArt(pieces, a.figure ?? undefined, a.family)
+    const piece = figurePiece(a.figure ?? undefined, a.family)
+    return [
+      {
+        id: allyId(a.id),
+        // Always on the adventurers' side (rulebook p. 58)
+        kind: 'adventurer',
+        name: allyName(a),
+        card: a.card,
+        label: (allyName(a)[0] ?? '?').toUpperCase(),
+        href: assetUrl(art.image),
+        portrait: art.portrait,
+        x: a.position.x,
+        y: a.position.y,
+        size: piece?.baseSize === '2x2' ? 2 : 1,
+        acting: false,
+        aggro: false,
+      },
+    ]
+  })
+
   const unplacedFigures: UnplacedFigure[] = [
+    ...livingAllies
+      .filter((a) => !a.position)
+      .map((a) => ({ id: allyId(a.id), kind: 'adventurer' as const, name: allyName(a) })),
     ...(encounter.adventurers ?? [])
       .filter((a) => !a.position && !a.defeated)
       .map((a) => ({ id: adventurerId(a.name), kind: 'adventurer' as const, name: a.name })),
@@ -238,7 +267,7 @@ export function boardLayout(
       .map((c) => ({ id: c.instance, kind: 'combatant' as const, name: c.instance })),
   ]
 
-  const figures = [...combatants, ...adventurers]
+  const figures = [...combatants, ...adventurers, ...allies]
   const extents = [
     ...tiles.values(),
     ...zones,

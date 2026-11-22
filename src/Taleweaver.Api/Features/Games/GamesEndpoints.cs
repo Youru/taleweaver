@@ -25,6 +25,9 @@ public static class GamesEndpoints
         DeleteGame.Map(group);
         ExportGame.Map(group);
         ImportGame.Map(group);
+        RestartGame.Map(group);
+        ExportAct.Map(group);
+        GetHiddenCards.Map(group);
         return app;
     }
 

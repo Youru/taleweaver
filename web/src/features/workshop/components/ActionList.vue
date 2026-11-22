@@ -8,11 +8,12 @@ import InputText from 'primevue/inputtext'
 import MultiSelect from 'primevue/multiselect'
 import Select from 'primevue/select'
 import ToggleSwitch from 'primevue/toggleswitch'
+import { useDisciplines } from '@/features/catalog'
 import type { BoardPieces } from '@/features/table'
 import { pick } from '@/shared/lib/localized'
 import { usePreferences } from '@/shared/lib/preferences'
 import type { DraftAction, DraftNode, DraftScenario } from '../api/types'
-import { atOf, isSimple, newAction, SIMPLE_ACTIONS, spotOf, type SimpleAction, type Spot } from '../lib/events'
+import { atOf, CARD_SIZES, isSimple, newAction, SIMPLE_ACTIONS, spotOf, type SimpleAction, type Spot } from '../lib/events'
 import { diagramsOf } from '../lib/diagrams'
 import { hiddenRulesOf } from '../lib/hiddenRules'
 import { mapOf, tokenKey } from '../lib/map'
@@ -73,6 +74,13 @@ const kindLabel = (kind: string) =>
   (SIMPLE_ACTIONS as readonly string[]).includes(kind) ? t(`workshop.events.do.${kind}`) : kind
 
 // What the fields offer, from the encounter and the catalogue
+const disciplines = useDisciplines()
+const disciplineOptions = computed(() =>
+  (disciplines.data.value ?? [])
+    .map((d) => ({ value: d.id, label: pick(d.name, language.value) || d.id }))
+    .sort((a, b) => a.label.localeCompare(b.label)),
+)
+const sizeOptions = computed(() => CARD_SIZES.map((value) => ({ value, label: t(`workshop.events.size.${value}`) })))
 const map = computed(() => mapOf(props.node))
 const areaOptions = computed(() =>
   map.value.areas.map((a) => ({ value: a.id, label: pick(a.name, language.value) || a.id })),
@@ -345,6 +353,44 @@ const num = (value: unknown) => (typeof value === 'number' ? value : undefined)
               input-class="num"
               :aria-label="t('workshop.events.count')"
               @update:model-value="(v) => patch(index, { count: v ?? 1 })"
+            />
+          </div>
+
+          <div v-else-if="action.do === 'revealHiddenCard'" class="row">
+            <Select
+              :model-value="str(action.size)"
+              :options="sizeOptions"
+              option-label="label"
+              option-value="value"
+              :aria-label="t('workshop.events.cardSize')"
+              @update:model-value="(v) => patch(index, { size: v })"
+            />
+            <InputText
+              :model-value="str(action.code) ?? ''"
+              size="small"
+              :aria-label="t('workshop.events.cardCode')"
+              :placeholder="t('workshop.events.cardCode')"
+              @update:model-value="(v) => patch(index, { code: v?.replace(/\s+/g, '').toUpperCase() })"
+            />
+          </div>
+
+          <div v-else-if="action.do === 'gainDiscipline'" class="row">
+            <Select
+              :model-value="str(action.ref)"
+              :options="disciplineOptions"
+              option-label="label"
+              option-value="value"
+              filter
+              :aria-label="t('workshop.events.discipline')"
+              :placeholder="t('workshop.events.discipline')"
+              @update:model-value="(v) => patch(index, { ref: v })"
+            />
+            <InputText
+              :model-value="str(action.adventurer) ?? ''"
+              size="small"
+              :aria-label="t('workshop.events.recipient')"
+              :placeholder="t('workshop.events.recipient')"
+              @update:model-value="(v) => patch(index, { adventurer: v })"
             />
           </div>
 

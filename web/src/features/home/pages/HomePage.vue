@@ -90,7 +90,7 @@ function remove(id: string) {
             <small>{{ t('home.updated') }} {{ d(new Date(game.updatedAt), 'short') }} · {{ game.currentNode }}</small>
           </div>
           <Tag
-            :value="game.status === 'Finished' ? t('home.finished') : t('home.inProgress')"
+            :value="game.status === 'Finished' ? t('home.finished') : game.preparing ? t('home.preparing') : t('home.inProgress')"
             :severity="game.status === 'Finished' ? 'success' : 'info'"
           />
           <Button

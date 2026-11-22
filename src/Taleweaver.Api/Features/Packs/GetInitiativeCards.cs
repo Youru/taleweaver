@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Http.HttpResults;
 using Taleweaver.Api.Content;
+using Taleweaver.Api.Features.Rooms;
 
 namespace Taleweaver.Api.Features.Packs;
 
@@ -19,7 +20,10 @@ public static class GetInitiativeCards
     }
 
     public static void Map(RouteGroupBuilder group) =>
-        group.MapGet("/initiative", async Task<Ok<IReadOnlyList<InitiativeCard>>> (Handler handler, CancellationToken cancellationToken) =>
-                TypedResults.Ok(await handler.Handle(cancellationToken)))
+        group.MapGet("/initiative", async Task<Ok<IReadOnlyList<InitiativeCard>>> (Handler handler, HttpContext http, PhoneCards phones, CancellationToken cancellationToken) =>
+            {
+                var cards = await handler.Handle(cancellationToken);
+                return TypedResults.Ok<IReadOnlyList<InitiativeCard>>(await phones.ForAsync(http, cancellationToken) is { } sight ? cards.Where(sight.Sees).ToList() : cards);
+            })
             .WithName("GetInitiativeCards");
 }

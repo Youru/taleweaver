@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import QRCode from 'qrcode'
+import { useQueryClient } from '@tanstack/vue-query'
 import Button from 'primevue/button'
 import Dialog from 'primevue/dialog'
 import Message from 'primevue/message'
@@ -9,7 +10,7 @@ import MultiSelect from 'primevue/multiselect'
 import Select from 'primevue/select'
 import Tag from 'primevue/tag'
 import { useDisciplines, useItems } from '@/features/catalog'
-import type { AdventurerState, HeldBy, OwnedItem } from '@/features/games'
+import { gameKeys, type AdventurerState, type HeldBy, type OwnedItem } from '@/features/games'
 import { pick } from '@/shared/lib/localized'
 import { usePreferences } from '@/shared/lib/preferences'
 import { storeToRefs } from 'pinia'
@@ -34,6 +35,14 @@ const props = defineProps<{
 const open = defineModel<boolean>('open', { required: true })
 const { t } = useI18n()
 
+const queries = useQueryClient()
+/** An accepted request, a player's own move, the tablet: the GM's page follows every change of the game. */
+function reloadGame() {
+  return Promise.all([
+    queries.invalidateQueries({ queryKey: gameKeys.detail(props.gameId) }),
+    queries.invalidateQueries({ queryKey: gameKeys.hiddenCards(props.gameId) }),
+  ])
+}
 const room = ref<RoomView>()
 const error = ref<string>()
 const busy = ref(false)
@@ -142,7 +151,12 @@ void load()
 watch(open, (value) => value && void load())
 
 /** Each held adventurer's seat (colour, phone connected), for the GM's initiative track (room-spec §7.3). */
-const emit = defineEmits<{ seats: [seats: Record<string, HeldBy>]; pending: [count: number]; open: [open: boolean] }>()
+const emit = defineEmits<{
+  seats: [seats: Record<string, HeldBy>]
+  players: [players: { id: string; name: string }[]]
+  pending: [count: number]
+  open: [open: boolean]
+}>()
 watch(isOpen, (value) => emit('open', value), { immediate: true })
 
 // The players' requests (room-spec §6.2): the queue, and how much they may do alone (§6.3)
@@ -155,7 +169,8 @@ const owned = computed(() => [
 ])
 const itemName = (id: string) => {
   const card = owned.value.find((i) => i.id === id)?.item
-  return pick(items.data.value?.find((i) => i.id === card)?.name, language.value) || id
+  // A purchase names the catalogue's card, not one the party holds
+  return pick(items.data.value?.find((i) => i.id === (card ?? id))?.name, language.value) || id
 }
 const disciplineName = (id: string) =>
   pick(disciplines.data.value?.find((d) => d.id === id)?.name, language.value) || id
@@ -188,10 +203,19 @@ watch(
   { immediate: true },
 )
 
+watch(room, (value) => emit('players', value?.seats.map((seat) => ({ id: seat.id, name: seat.displayName })) ?? []), {
+  immediate: true,
+})
 useRoomHub(
   `game=${encodeURIComponent(props.gameId)}`,
-  { RoomChanged: (next: RoomView) => (room.value = next) },
-  () => void load(),
+  {
+    RoomChanged: (next: RoomView) => (room.value = next),
+    GameChanged: () => void reloadGame(),
+  },
+  () => {
+    void load()
+    void reloadGame()
+  },
 )
 </script>
 

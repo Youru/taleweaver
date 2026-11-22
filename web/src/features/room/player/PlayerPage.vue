@@ -2,6 +2,7 @@
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import { useQueryClient } from '@tanstack/vue-query'
 import Button from 'primevue/button'
 import Message from 'primevue/message'
 import ProgressSpinner from 'primevue/progressspinner'
@@ -10,27 +11,47 @@ import { ApiError } from '@/shared/api/http'
 import { roomPlayerApi } from '../api/roomApi'
 import { useRoomHub } from '../api/roomHub'
 import type { PlayerCommand, PlayerView } from '../api/types'
-import { forgetSeat, storedSeat } from '../lib/seatStorage'
+import { forgetSeat, storeSeat, storedSeat } from '../lib/seatStorage'
 import PlayerLayout from './PlayerLayout.vue'
 
 /** /play/:code: a phone's seat, kept up to date by the hub (the whole view at each change, the newest wins). */
 const props = defineProps<{ code: string }>()
 const { t } = useI18n()
 const router = useRouter()
+const queries = useQueryClient()
 
 const seat = storedSeat(props.code)
 const view = ref<PlayerView>()
 const followed = ref<string>()
 const closed = ref(false)
+/** The GM sent this player away. */
+const removed = ref(false)
 /** A picture the GM shows the table (room-spec §7.5), until the player closes it. */
 const shown = ref<{ image: string; caption?: string | null } | null>(null)
 const error = ref<string>()
 
 function receive(next: PlayerView) {
+  // The GM opened the room again: the same seat, under its new code
+  if (seat && next.roomCode && next.roomCode.toUpperCase() !== props.code.toUpperCase()) {
+    storeSeat({ ...seat, code: next.roomCode, gameId: next.gameId })
+    window.location.replace(router.resolve({ name: 'player', params: { code: next.roomCode } }).href)
+    return
+  }
+  if (seat && !seat.gameId) {
+    seat.gameId = next.gameId
+    storeSeat(seat)
+  }
   if (view.value && next.version < view.value.version) return
+  // The server serves a phone only the cards it may see: there are others now
+  if (view.value && next.cards !== view.value.cards) void queries.invalidateQueries({ queryKey: ['catalog'] })
   view.value = next
   if (!followed.value || !next.adventurers.some((a) => a.name === followed.value))
     followed.value = next.seat?.followed ?? next.adventurers[0]?.name
+}
+
+function sentAway() {
+  removed.value = true
+  forgetSeat(props.code)
 }
 
 async function load() {
@@ -39,6 +60,7 @@ async function load() {
     receive(await roomPlayerApi.me(props.code, seat.token))
   } catch (e) {
     if (e instanceof ApiError && e.code === 'Rooms.Closed') closed.value = true
+    else if (e instanceof ApiError && e.code === 'Rooms.InvalidSeatToken' && view.value) sentAway()
     else if (e instanceof ApiError && e.code === 'Rooms.InvalidSeatToken') {
       forgetSeat(props.code)
       void router.replace({ name: 'join', params: { code: props.code } })
@@ -70,6 +92,7 @@ const hub = seat
       {
         PlayerViewChanged: (next: PlayerView) => receive(next),
         RoomClosed: () => (closed.value = true),
+        SeatRemoved: () => sentAway(),
         Shown: (picture: { image: string; caption?: string | null }) => (shown.value = picture),
       },
       () => void load(),
@@ -84,7 +107,12 @@ onMounted(() => {
 </script>
 
 <template>
-  <div v-if="closed" class="center">
+  <div v-if="removed" class="center">
+    <i class="pi pi-sign-out" aria-hidden="true" />
+    <p role="alert">{{ t('room.player.removed') }}</p>
+    <RouterLink :to="{ name: 'join', params: { code } }"><Button :label="t('room.join.submit')" text /></RouterLink>
+  </div>
+  <div v-else-if="closed" class="center">
     <i class="pi pi-moon" aria-hidden="true" />
     <p>{{ t('room.player.closed') }}</p>
     <RouterLink :to="{ name: 'join' }"><Button :label="t('room.join.another')" text /></RouterLink>
@@ -100,7 +128,7 @@ onMounted(() => {
     @follow="follow"
   />
   <div v-else class="center"><ProgressSpinner :aria-label="t('common.loading')" /></div>
-  <button v-if="shown" type="button" class="shown" @click="shown = null">
+  <button v-if="shown && !removed" type="button" class="shown" @click="shown = null">
     <span>{{ t('room.player.shownByGm') }}</span>
     <img :src="assetUrl(shown.image, 1280)" :alt="shown.caption ?? ''" />
     <strong v-if="shown.caption">{{ shown.caption }}</strong>

@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 import Button from 'primevue/button'
 import InputNumber from 'primevue/inputnumber'
+import InputText from 'primevue/inputtext'
 import MultiSelect from 'primevue/multiselect'
 import Select from 'primevue/select'
 import ToggleSwitch from 'primevue/toggleswitch'
@@ -11,7 +12,7 @@ import type { BoardPieces } from '@/features/table'
 import { pick } from '@/shared/lib/localized'
 import { usePreferences } from '@/shared/lib/preferences'
 import type { DraftAction, DraftNode, DraftScenario } from '../api/types'
-import { activatableKeys, TRIGGERS, triggerTokens, type DraftEvent, type DraftTrigger } from '../lib/events'
+import { activatableKeys, CARD_SIZES, hiddenCardCondition, TRIGGERS, triggerTokens, type DraftEvent, type DraftTrigger } from '../lib/events'
 import { hiddenRulesOf } from '../lib/hiddenRules'
 import { mapOf } from '../lib/map'
 import ActionList from './ActionList.vue'
@@ -44,6 +45,14 @@ function patchTrigger(fields: Partial<DraftTrigger>) {
   const next: Record<string, unknown> = { ...props.event.trigger, ...fields }
   for (const [k, v] of Object.entries(fields)) if (v === undefined || v === null || v === '') delete next[k]
   patch({ trigger: next as DraftTrigger })
+}
+
+const cardSize = ref<string>('medium')
+const cardCode = ref('')
+const sizeOptions = computed(() => CARD_SIZES.map((value) => ({ value, label: t(`workshop.events.size.${value}`) })))
+function requireCard() {
+  patch({ conditions: [...(props.event.conditions ?? []), hiddenCardCondition(cardSize.value, cardCode.value)] })
+  cardCode.value = ''
 }
 
 const triggerOptions = computed(() =>
@@ -176,6 +185,25 @@ const actions = computed({
       :rows="2"
       @update:model-value="(v) => patch({ conditions: Array.isArray(v) && v.length ? v : undefined })"
     />
+    <details>
+      <summary>{{ t('workshop.events.onlyIfRevealed') }}</summary>
+      <div class="row">
+        <Select
+          v-model="cardSize"
+          :options="sizeOptions"
+          option-label="label"
+          option-value="value"
+          :aria-label="t('workshop.events.cardSize')"
+        />
+        <InputText
+          v-model="cardCode"
+          size="small"
+          :aria-label="t('workshop.events.cardCode')"
+          :placeholder="t('workshop.events.cardCode')"
+        />
+        <Button :label="t('workshop.events.addCondition')" size="small" text :disabled="!cardCode.trim()" @click="requireCard" />
+      </div>
+    </details>
   </article>
 </template>
 

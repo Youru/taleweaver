@@ -21,6 +21,9 @@ public sealed record Game
 
     public int Seed { get; init; }
 
+    /// <summary>The optional rules chosen at the launch; null: none.</summary>
+    public GameOptions? Options { get; init; }
+
     public DateTimeOffset CreatedAt { get; init; }
 
     public DateTimeOffset UpdatedAt { get; init; }

@@ -23,6 +23,8 @@ export interface Combatant {
   image?: string
   passives?: { name: LocalizedText; text: LocalizedText }[]
   symbolAbilities?: SymbolAbilityCard[]
+  /** A Command card's, with their SP cost. */
+  abilities?: { name: LocalizedText; text: LocalizedText }[]
 }
 
 /** A symbol ability as printed: its cost ("book", "shield×2", "*star" for an Esper's symbols) and effect. */

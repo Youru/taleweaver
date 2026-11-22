@@ -89,9 +89,11 @@ internal sealed partial class Session
             "gold" => State.Campaign.Gold,
             "placed" => Encounter.PlacedDiagrams.Contains(rest),
             "activated" => Encounter.ActivatedTokens.Contains(rest),
+            "hiddenCard" => State.Campaign.RevealedHiddenCards.Contains(rest),
             "revealed" => Encounter.RevealedAreas.Contains(rest),
             "defeated" => Encounter.Combatants.Count(c => c.Defeated && (c.Family == rest || BaseFamilyOf(c) == rest)),
-            "alive" => Alive().Count(c => c.Family == rest || BaseFamilyOf(c) == rest),
+            // Those still under the fog are left to defeat: "none alive" is not true before they appeared
+            "alive" => Alive().Count(c => c.Family == rest || BaseFamilyOf(c) == rest) + Encounter.Waiting.Count(w => FamilyToCome(w.Action) == rest),
             _ => null,
         };
         if (value is not null)
@@ -101,6 +103,9 @@ internal sealed partial class Session
 
         return State.Campaign.Variables.TryGetValue(name, out var stored) ? stored : null;
     }
+
+    private string? FamilyToCome(ScenarioAction action) =>
+        action.Family ?? (action.Ref is { } id && Catalog.FindCombatant(id) is { } card && !AllyRules.IsCommand(card) ? card.Family : null);
 
     private static bool Compare(JsonElement? actual, string op, JsonElement? expected)
     {

@@ -57,6 +57,51 @@ public sealed class Catalog
 
     public Item? FindItem(string? id) => id is null ? null : Packs.SelectMany(p => p.Items).LastOrDefault(i => i.Id == id);
 
+    public Tile? FindTile(string? id) => id is null ? null : Packs.SelectMany(p => p.Tiles).LastOrDefault(t => t.Id == id);
+
+    /// <summary>No Scaling (p. 88): the family's lowest Loot LVL card, whatever the encounter's.</summary>
+    public Combatant? LowestCardFor(string family) =>
+        IntelligentCards(family)
+            .OrderBy(c => LootLevels.IsKnown(c.LootLevel) ? LootLevels.Rank(c.LootLevel) : int.MaxValue)
+            .ThenBy(c => FirstActivation(c.Activation))
+            .FirstOrDefault();
+
+    /// <summary>The cards behind a Hidden Card's code ("large:BP1"), as the packs map them.</summary>
+    public IReadOnlyList<(LocalizedText Name, string Image)> HiddenCard(string key)
+    {
+        var cards = new List<(LocalizedText, string)>();
+        foreach (var id in HiddenCardValues(key))
+        {
+            if (id.StartsWith("assets/", StringComparison.Ordinal))
+            {
+                // A card of no catalogue: only its picture, named by its code
+                cards.Add((new Dictionary<string, string> { ["en"] = key[(key.IndexOf(':') + 1)..] }, id));
+            }
+            else if (FindDiscipline(id) is { Image: { } face } discipline)
+            {
+                cards.Add((discipline.Name, face));
+            }
+            else if (FindCombatant(id) is { Image: { } board } combatant)
+            {
+                cards.Add((combatant.Name, board));
+            }
+            else if (FindItem(id) is { Image: { } picture } item)
+            {
+                cards.Add((item.Name, picture));
+            }
+            else if (Packs.SelectMany(p => p.InitiativeCards).LastOrDefault(c => c.Id == id) is { Image: { } track } initiative)
+            {
+                cards.Add((new Dictionary<string, string> { ["en"] = initiative.Label }, track));
+            }
+        }
+
+        return cards;
+    }
+
+    /// <summary>What a code reveals: catalogue ids, or pictures ("assets/…") of cards of no catalogue.</summary>
+    public IEnumerable<string> HiddenCardValues(string key) =>
+        Packs.SelectMany(p => p.Manifest.HiddenCards.TryGetValue(key, out var ids) ? ids : []);
+
     public TokenType? FindToken(string? id) => id is null ? null : Packs.SelectMany(p => p.Tokens).LastOrDefault(t => t.Id == id);
 
     /// <summary>The Intelligent cards of a family (empty when the family is unknown).</summary>

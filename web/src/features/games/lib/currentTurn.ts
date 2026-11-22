@@ -2,8 +2,8 @@ import type { EncounterState, LogEntry } from '../api/types'
 
 /** What the "current turn" card shows. */
 export interface CurrentTurn {
-  /** before: round 1 not started; adventurer: an adventurer plays; combatants: a group goes through its AI; idle: nobody left on this card. */
-  kind: 'before' | 'adventurer' | 'combatants' | 'idle'
+  /** before: round 1 not started; adventurer: an adventurer plays; ally: allies play; combatants: a group goes through its AI; idle: nobody left on this card. */
+  kind: 'before' | 'adventurer' | 'ally' | 'combatants' | 'idle'
   /** Adventurer's name, or the initiative card's id. */
   who?: string
   /** The figure going through its AI steps. */
@@ -29,6 +29,7 @@ export function currentTurn(encounter: EncounterState, log: LogEntry[]): Current
   const adventurer = turn?.args?.adventurer
 
   if (adventurer) return { kind: 'adventurer', who: adventurer, entries }
+  if (turn?.args?.ally) return { kind: 'ally', who: turn.args.ally, entries }
   const acting = encounter.activation?.figures[0]
   if (acting) return { kind: 'combatants', who: card, acting, entries }
   return { kind: 'idle', who: card, entries }

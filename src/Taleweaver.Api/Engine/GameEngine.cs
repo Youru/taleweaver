@@ -17,8 +17,12 @@ public static class GameEngine
     /// 7: Bounties played from a Story Round, Consumables discarded after Shop and Train, Item Upgrades, Disciplines.
     /// 8: Discipline costs from the catalogue (+1 per Discipline of the same level), level prerequisites, Re-specing.
     /// 9: the adventurers' Health (Damage kept between encounters, Defeat, Prepare Phase, Restore) and Stamina Points.
+    /// 10: combatants under the fog wait for their area to be revealed (no card on the track, no turn);
+    /// Achievements, launch options, Abraxis Battle Dice.
+    /// 11: the party prepared before it sets out; Command Combatants, summons and Conduits.
+    /// 12: gainDiscipline, the hiddenCard.&lt;size:code&gt; condition, a Hidden Card revealed once.
     /// </summary>
-    public const int Version = 9;
+    public const int Version = 12;
 
     public static class Errors
     {
@@ -47,13 +51,17 @@ public static class GameEngine
         public static Error UnknownCommand(string type) => Error.Validation("Games.UnknownCommand", $"Unknown command '{type}'.");
     }
 
-    /// <summary>A new game: the party sets out and the first node of the scenario is read.</summary>
+    /// <summary>
+    /// A new game. With names, the party sets out at once and the first node is read; without any, it is prepared
+    /// first, within the scenario's rules (roadmap §5.2).
+    /// </summary>
     public static GameState Start(GameContext context, IReadOnlyList<string> party)
     {
         var scenario = context.Scenario;
         var state = new GameState
         {
             Scenario = scenario.Id,
+            Options = context.Options,
             Campaign = new CampaignState
             {
                 Gold = scenario.Party?.StartingGold ?? 0,
@@ -61,6 +69,13 @@ public static class GameEngine
             },
         };
         var session = new Session(state, context);
+        if (party.Count == 0)
+        {
+            session.StartPreparation();
+            session.UpdateAdventurerStats();
+            return state;
+        }
+
         session.UpdateAdventurerStats();
         session.GoToNode(scenario.Start);
         session.Run();

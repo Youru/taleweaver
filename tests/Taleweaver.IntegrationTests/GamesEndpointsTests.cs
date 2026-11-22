@@ -208,6 +208,34 @@ public class GamesEndpointsTests(HomebrewFactory factory) : IClassFixture<Homebr
         (await store.GetAsync(game.Id, Token))!.EngineVersion.Should().Be(GameEngine.Version);
     }
 
+    [Fact]
+    public async Task AfterAnEnding_TheActIsExported_AndTheGameStartsAgainFromTheLastEncounterOrTheBeginning()
+    {
+        var game = await Read(await _client.PostAsJsonAsync(
+            "/api/games", new StartGame.Request("hb:scenario/meadow-ambush", ["Nightingale", "Rook"], new GameOptions { TougherMobs = true }), JsonDefaults.Options, Token));
+        game.State.Options!.TougherMobs.Should().BeTrue();
+        (await _client.GetAsync($"/api/games/{game.Id}/act-export", Token)).StatusCode.Should().Be(HttpStatusCode.Conflict);
+
+        game = await PostAsync($"/api/games/{game.Id}/answer", new AnswerQuestion.Request("continue", null));
+        game = await PostAsync($"/api/games/{game.Id}/encounter/end-conditions/win");
+        while (game.State.Status != GameStatus.Finished)
+        {
+            game = await PostAsync($"/api/games/{game.Id}/answer", new AnswerQuestion.Request(game.State.Prompt!.Options[0].Id, null));
+        }
+
+        var export = await _client.GetStringAsync($"/api/games/{game.Id}/act-export", Token);
+        export.Should().Contain(ExportAct.Format).And.Contain("Nightingale");
+
+        var retry = await Read(await _client.PostAsJsonAsync($"/api/games/{game.Id}/restart", new RestartGame.Request(RestartGame.FromLastEncounter), JsonDefaults.Options, Token));
+        retry.Id.Should().NotBe(game.Id);
+        retry.State.Encounter!.Ended.Should().BeFalse();
+        retry.State.Options!.TougherMobs.Should().BeTrue();
+
+        var again = await Read(await _client.PostAsJsonAsync($"/api/games/{game.Id}/restart", new RestartGame.Request(RestartGame.FromBeginning), JsonDefaults.Options, Token));
+        again.State.Encounter.Should().BeNull();
+        again.State.Options!.TougherMobs.Should().BeTrue();
+    }
+
     private async Task<GameView> StartAsync() =>
         await Read(await _client.PostAsJsonAsync("/api/games", new StartGame.Request("hb:scenario/meadow-ambush", ["Nightingale", "Rook"]), JsonDefaults.Options, Token));
 

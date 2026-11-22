@@ -5,13 +5,13 @@ import { storeToRefs } from 'pinia'
 import Button from 'primevue/button'
 import Dialog from 'primevue/dialog'
 import Message from 'primevue/message'
-import { useItems } from '@/features/catalog'
+import { useItems, useItemUpgrades } from '@/features/catalog'
 import type { AdventurerState, OwnedItem } from '@/features/games'
 import { ItemCard, PlayerMat } from '@/features/inventory'
 import { assetUrl } from '@/shared/api/assets'
 import { pick } from '@/shared/lib/localized'
 import { usePreferences } from '@/shared/lib/preferences'
-import type { PlayerCommand, PlayerRequest } from '../api/types'
+import type { PlayerCommand, PlayerRequest, PlayerView } from '../api/types'
 import RequestList from '../components/RequestList.vue'
 
 /**
@@ -23,6 +23,8 @@ const props = defineProps<{
   adventurer: AdventurerState
   gold: number
   stash: OwnedItem[]
+  /** The Item Upgrades for sale now. */
+  upgrades?: PlayerView['upgrades']
   /** The other members of the party, who may be handed a card. */
   others?: string[]
   /** The seat's requests (pending ones first to cancel). */
@@ -64,8 +66,18 @@ const itemName = (id: string) => {
   const owned = [...(props.adventurer.equipped ?? []), ...(props.adventurer.pack ?? []), ...props.stash].find(
     (i) => i.id === id,
   )
-  return pick(owned?.item ? catalog.value.get(owned.item)?.name : undefined, language.value) || id
+  return pick(catalog.value.get(owned?.item ?? id)?.name, language.value) || id
 }
+
+const upgradeCards = useItemUpgrades()
+const upgradeName = (id: string) =>
+  pick(upgradeCards.data.value?.find((u) => u.id === id)?.name, language.value) || (id.split('/').pop() ?? id)
+const offers = computed(() =>
+  (props.upgrades ?? []).flatMap(({ upgrade, prices }) => {
+    const price = prices[card.value?.tier ?? '']
+    return price === undefined || shown.value?.upgrades?.includes(upgrade) ? [] : [{ upgrade, price }]
+  }),
+)
 
 const busy = ref(false)
 const failure = ref<string>()
@@ -117,6 +129,9 @@ function move(owner: string, slot?: 'equipped' | 'pack') {
       @update:visible="(v: boolean) => !v && (shown = undefined)"
     >
       <img v-if="image" :src="image" :alt="pick(card?.name, language)" />
+      <p v-if="shown?.upgrades?.length" class="attached">
+        <i class="pi pi-wrench" aria-hidden="true" /> {{ shown.upgrades.map(upgradeName).join(', ') }}
+      </p>
       <Button
         v-if="card?.imageBack"
         icon="pi pi-sync"
@@ -166,6 +181,19 @@ function move(owner: string, slot?: 'equipped' | 'pack') {
           :disabled="busy || waiting"
           @click="ask({ type: 'useItem', item: shown.id, discard: true })"
         />
+        <template v-if="offers.length">
+          <p class="give">{{ t('room.request.upgradeTitle') }}</p>
+          <Button
+            v-for="offer in offers"
+            :key="offer.upgrade"
+            icon="pi pi-wrench"
+            :label="t('room.request.doUpgrade', { upgrade: upgradeName(offer.upgrade), price: offer.price })"
+            severity="secondary"
+            outlined
+            :disabled="busy || waiting || offer.price > gold"
+            @click="ask({ type: 'attachUpgrade', item: shown.id, upgrade: offer.upgrade, price: offer.price })"
+          />
+        </template>
         <template v-if="others?.length">
           <p class="give">{{ t('room.request.giveTo') }}</p>
           <div class="others">

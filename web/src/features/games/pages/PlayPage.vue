@@ -16,25 +16,35 @@ import { useAiAdvice } from '@/features/ai'
 import { useCombatants, useItems } from '@/features/catalog'
 import { DuelDialog } from '@/features/duel'
 import { RoomPanel, roomGmApi } from '@/features/room'
+import { ReferenceDialog } from '@/features/reference'
 import { showToPlayersKey, type ShowToPlayers } from '@/shared/lib/showToPlayers'
 import { InventoryDialog } from '@/features/inventory'
 import { useScenario } from '@/features/scenarios'
 import { boardLayout, TableSelection, TableView, useBoardPieces, type Selection } from '@/features/table'
-import { ApiError } from '@/shared/api/http'
 import { pick } from '@/shared/lib/localized'
 import { usePreferences } from '@/shared/lib/preferences'
 import { useGame, useGameCommand } from '../api/queries'
+import type { PreparationCommand } from '../api/preparation'
 import type { Answer, Cell, EncounterCommand, ItemCommand, PartyCommand } from '../api/types'
 import type { HeldBy } from '../lib/initiativeTrack'
 import CombatantList from '../components/encounter/CombatantList.vue'
 import EncounterBar from '../components/encounter/EncounterBar.vue'
 import EncounterGoals from '../components/encounter/EncounterGoals.vue'
 import TurnCard from '../components/encounter/TurnCard.vue'
+import AbraxisPanel from '../components/AbraxisPanel.vue'
+import AlliesPanel from '../components/encounter/AlliesPanel.vue'
+import PreparationPanel from '../components/preparation/PreparationPanel.vue'
+import AchievementList from '../components/AchievementList.vue'
+import AdventureSheetDialog from '../components/AdventureSheetDialog.vue'
+import EndingPanel from '../components/EndingPanel.vue'
 import GameJournal from '../components/GameJournal.vue'
 import PromptPanel from '../components/PromptPanel.vue'
 import StoryRoundPanel from '../components/StoryRoundPanel.vue'
 import { storeItems } from '../lib/storyRound'
 import { arrivedCombatants } from '../lib/arrivals'
+import { cardsInPlay } from '../lib/cardsInPlay'
+import { urgencyMax } from '../lib/options'
+import { useErrorText } from '../lib/useErrorText'
 import { encounterOver as isEncounterOver, storyPage } from '../lib/storyPage'
 
 /**
@@ -64,7 +74,9 @@ const encounterOver = computed(() => !!encounter.value && isEncounterOver(state.
 const scenario = useScenario(() => state.value?.bounty?.scenario ?? game.data.value?.scenario)
 const campaignScenario = useScenario(() => game.data.value?.scenario)
 const node = computed(() => scenario.data.value?.nodes.find((n) => n.id === encounter.value?.node))
-const cards = useCombatants(() => encounter.value?.combatants.map((c) => c.card) ?? [])
+const cards = useCombatants(() =>
+  encounter.value ? cardsInPlay(encounter.value, state.value?.campaign.party ?? []) : [],
+)
 
 const command = useGameCommand(() => props.id)
 
@@ -90,10 +102,12 @@ function tokenLabel(key: string) {
   const name = kind.charAt(0).toUpperCase() + kind.slice(1)
   return color ? t('workshop.print.tokenLabel', { name, color: t(`workshop.map.color.${color}`, color) }) : name
 }
-const commandError = computed(() => {
-  const error = command.error.value
-  return error instanceof ApiError ? error.message : error ? String(error) : null
-})
+const { textOf } = useErrorText()
+const commandError = computed(() => textOf(command.error.value))
+
+function preparationCommand(value: PreparationCommand) {
+  command.mutate({ kind: 'preparation', command: value })
+}
 
 function answer(value: Answer) {
   command.mutate({ kind: 'answer', answer: value })
@@ -147,10 +161,19 @@ const heldBy = ref<Record<string, HeldBy>>({})
 const pendingRequests = ref(0)
 /** While the room is open, the cards of the page can be shown on the phones (room-spec §7.5). */
 const roomIsOpen = ref(false)
+const players = ref<{ id: string; name: string }[]>([])
+const referenceOpen = ref(false)
+const sheetOpen = ref(false)
+/** The scenario being read: the Bounty's, during one. */
+const readScenario = computed(() => state.value?.bounty?.scenario ?? game.data.value?.scenario ?? '')
+/** Was there an encounter to try again? */
+const fought = computed(() => !!state.value?.log.some((line) => line.code === 'encounter'))
 provide(
   showToPlayersKey,
   computed<ShowToPlayers | null>(() =>
-    roomIsOpen.value ? (image, caption) => roomGmApi.show(props.id, image, caption) : null,
+    roomIsOpen.value
+      ? { players: players.value, show: (image, caption, player) => roomGmApi.show(props.id, image, caption, player) }
+      : null,
   ),
 )
 const toHandOut = computed(() => state.value?.campaign.unassigned?.length ?? 0)
@@ -215,6 +238,7 @@ function moveFigure(figure: string, to: Cell) {
           <template v-if="adventurer.unselectable"> · {{ t('storyRound.unselectable') }}</template>
         </span>
         <Button
+          v-if="!state.preparation"
           class="inventory-button"
           icon="pi pi-briefcase"
           :label="t('inventory.open')"
@@ -242,6 +266,23 @@ function moveFigure(figure: string, to: Cell) {
           text
           @click="roomOpen = true"
         />
+        <Button
+          icon="pi pi-file"
+          :label="t('sheet.open')"
+          :badge="
+            state.campaign.revealedHiddenCards.length ? String(state.campaign.revealedHiddenCards.length) : undefined
+          "
+          severity="secondary"
+          text
+          @click="sheetOpen = true"
+        />
+        <Button
+          icon="pi pi-question-circle"
+          :label="t('reference.open')"
+          severity="secondary"
+          text
+          @click="referenceOpen = true"
+        />
         <RouterLink v-if="encounter" :to="{ name: 'table', params: { id } }" target="_blank">
           <Button icon="pi pi-external-link" :label="t('table.openTable')" severity="secondary" text />
         </RouterLink>
@@ -255,6 +296,8 @@ function moveFigure(figure: string, to: Cell) {
         />
       </header>
       <Message v-if="commandError" severity="error" closable @close="command.reset()">{{ commandError }}</Message>
+      <ReferenceDialog v-model:open="referenceOpen" />
+      <AdventureSheetDialog :id="id" v-model:open="sheetOpen" :state="state" />
       <RoomPanel
         v-model:open="roomOpen"
         :game-id="id"
@@ -263,6 +306,7 @@ function moveFigure(figure: string, to: Cell) {
         :stash="[...state.campaign.stash, ...state.campaign.unassigned]"
         @seats="(seats) => (heldBy = seats)"
         @pending="(count) => (pendingRequests = count)"
+        @players="(list) => (players = list)"
         @open="(open) => (roomIsOpen = open)"
       />
       <InventoryDialog
@@ -276,14 +320,25 @@ function moveFigure(figure: string, to: Cell) {
         @command="itemCommand"
       />
 
+      <PreparationPanel
+        v-if="state.preparation"
+        :preparation="state.preparation"
+        :party="state.campaign.party"
+        :held-by="heldBy"
+        :room-open="roomIsOpen"
+        :busy="command.isPending.value"
+        @command="preparationCommand"
+        @room="roomOpen = true"
+      />
       <!-- Encounter: table in the middle, turn and tabs beside it -->
-      <template v-if="encounter && !encounterOver">
+      <template v-else-if="encounter && !encounterOver">
         <EncounterBar
           :encounter="encounter"
           :node="node"
           :disabled="!!state.prompt || command.isPending.value"
           movable
           :held-by="heldBy"
+          :urgency-max="urgencyMax(state.options)"
           :busy="command.isPending.value"
           @next-turn="encounterCommand({ type: 'nextTurn' })"
           @move-card="(card, by) => encounterCommand({ type: 'moveInitiative', card, by })"
@@ -303,7 +358,14 @@ function moveFigure(figure: string, to: Cell) {
             @duel="openDuel"
           />
           <aside class="side">
+            <AbraxisPanel
+              v-if="state.abraxis"
+              :game="state.abraxis"
+              :pending="command.isPending.value"
+              @answer="answer"
+            />
             <TurnCard
+              v-else
               class="turn"
               :encounter="encounter"
               :log="state.log"
@@ -337,6 +399,15 @@ function moveFigure(figure: string, to: Cell) {
               </TabList>
               <TabPanels>
                 <TabPanel value="combatants">
+                  <AlliesPanel
+                    :encounter="encounter"
+                    :party="state.campaign.party"
+                    :cards="cards"
+                    :selected="selected?.kind === 'figure' ? selected.id : undefined"
+                    :locked="reportsLocked"
+                    @command="encounterCommand"
+                    @select="selected = { kind: 'figure', id: $event }"
+                  />
                   <CombatantList
                     :encounter="encounter"
                     :cards="cards"
@@ -370,7 +441,9 @@ function moveFigure(figure: string, to: Cell) {
                     :encounter="encounter"
                     :node="node"
                     :locked="reportsLocked"
-                    :party="state.campaign.party"
+                    :campaign="state.campaign"
+                    :scenario="readScenario"
+                    :options="state.options"
                     @command="encounterCommand"
                   />
                 </TabPanel>
@@ -414,13 +487,23 @@ function moveFigure(figure: string, to: Cell) {
           class="story-panel"
           :campaign="state.campaign"
           :node="storyRoundNode"
+          :xp-leniency="state.options?.xpLeniency"
           :busy="command.isPending.value"
           @party="partyCommand"
           @item="itemCommand"
           @shop="inventoryOpen = true"
         />
+        <AchievementList
+          v-if="encounter && node"
+          :node="node"
+          :scenario="readScenario"
+          :campaign="state.campaign"
+          :locked="command.isPending.value"
+          @complete="(achievement, adventurer) => encounterCommand({ type: 'achievement', achievement, adventurer })"
+        />
+        <AbraxisPanel v-if="state.abraxis" :game="state.abraxis" :pending="command.isPending.value" @answer="answer" />
         <PromptPanel
-          v-if="state.prompt"
+          v-else-if="state.prompt"
           :key="state.log.length"
           :prompt="state.prompt"
           :pending="command.isPending.value"
@@ -429,6 +512,7 @@ function moveFigure(figure: string, to: Cell) {
         <Message v-if="state.status === 'Finished'" severity="success">
           {{ t('play.finished', { ending: endingLabel(state.ending) }) }}
         </Message>
+        <EndingPanel v-if="state.status === 'Finished'" :id="id" :fought="fought" />
       </div>
     </template>
   </main>

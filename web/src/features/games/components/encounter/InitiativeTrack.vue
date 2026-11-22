@@ -35,8 +35,13 @@ function describe(card: (typeof track.value)[number]) {
 }
 
 const thumbnail = useThumbnailWidth()
-const seatOf = (id: string) =>
-  id.startsWith('adventurer:') ? props.heldBy?.[id.slice('adventurer:'.length)] : undefined
+/** An ally is played by the phone of the adventurer who brought it. */
+function seatOf(id: string) {
+  const name = id.startsWith('adventurer:')
+    ? id.slice('adventurer:'.length)
+    : props.encounter.allies?.find((a) => !a.defeated && a.trackCard === id)?.owner
+  return name ? props.heldBy?.[name] : undefined
+}
 
 const selected = ref<string | null>(null)
 function toggle(card: string) {

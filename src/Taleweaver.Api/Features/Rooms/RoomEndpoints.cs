@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Http.HttpResults;
 using Taleweaver.Api.Common;
+using Taleweaver.Api.Content;
 using Taleweaver.Api.Features.Games;
 using Taleweaver.Api.Storage;
 
@@ -35,6 +36,8 @@ public static class RoomEndpoints
         services.AddSignalR().AddJsonProtocol(o => JsonDefaults.Configure(o.PayloadSerializerOptions));
         return services.AddSingleton<RoomStore>()
             .AddSingleton<RoomService>()
+            .AddSingleton<CodeGuessLimiter>()
+            .AddSingleton<PhoneCards>()
             .AddSingleton<RoomNotifier>()
             .AddSingleton<IGameObserver>(sp => sp.GetRequiredService<RoomNotifier>());
     }
@@ -124,7 +127,7 @@ public static class RoomEndpoints
                 }
 
                 var seats = room.Seats.Where(s => request.Seat is null || s.Id == request.Seat).ToList();
-                await notifier.ShowAsync(seats, request.Image, request.Caption);
+                await notifier.ShowAsync(id, seats, request.Image, request.Caption);
                 return TypedResults.NoContent();
             })
             .WithName("ShowToPlayers");
@@ -170,7 +173,7 @@ public static class RoomEndpoints
 
                 var game = await games.GetAsync(room.Value.GameId, ct);
                 var scenario = game is null ? null : await content.GetScenarioAsync(game.Scenario, ct);
-                return TypedResults.Ok(new RoomSummary(room.Value.Code, game?.Scenario ?? "", scenario?.Title, room.Value.Seats.Select(s => s.DisplayName).ToList()));
+                return TypedResults.Ok(new RoomSummary(room.Value.Code, room.Value.GameId, game?.Scenario ?? "", scenario?.Title, room.Value.Seats.Select(s => s.DisplayName).ToList()));
             })
             .WithName("FindRoom");
         group.MapPost("/seats", async Task<Results<Ok<JoinResponse>, ProblemHttpResult>> (
@@ -222,7 +225,8 @@ public static class RoomEndpoints
         // A request: checked now (the player knows at once if it cannot be), then waiting for the GM, or applied
         // at once when the room's autonomy allows it (room-spec §6.3).
         group.MapPost("/me/requests", async Task<Results<Ok<PlayerView>, ProblemHttpResult>> (
-                string code, PlayerCommand command, HttpContext http, RoomService rooms, GameRunner runner, RoomNotifier notifier, CancellationToken ct) =>
+                string code, PlayerCommand command, HttpContext http, RoomService rooms, GameRunner runner, RoomNotifier notifier,
+                CatalogProvider catalogs, PhoneCards phones, CancellationToken ct) =>
             {
                 var seat = await rooms.AuthenticateAsync(code, SeatToken(http));
                 if (!seat.IsSuccess)
@@ -237,9 +241,29 @@ public static class RoomEndpoints
                     return game.Error!.ToProblem();
                 }
 
-                if (PlayerCommands.Check(command, me.Adventurers, game.Value.State.Campaign) is { } refused)
+                if (command.Type is PlayerCommand.ChooseAdventurer or PlayerCommand.ReleaseAdventurer)
+                {
+                    var applied = await AdventurerChoices.ApplyAsync(room, me, command, runner, rooms, catalogs, ct);
+                    if (!applied.IsSuccess)
+                    {
+                        return applied.Error!.ToProblem();
+                    }
+
+                    var chosen = await ViewOf(room, me, runner, notifier, ct);
+                    return chosen.IsSuccess ? TypedResults.Ok(chosen.Value) : chosen.Error!.ToProblem();
+                }
+
+                if (PlayerCommands.Check(command, me.Adventurers, game.Value.State.Campaign, game.Value.State.Encounter) is { } refused)
                 {
                     return refused.ToProblem();
+                }
+
+                // A secret Discipline is not learnt by guessing its id: it costs no XP
+                if (command.Type == PlayerCommand.LearnDiscipline
+                    && (await catalogs.GetAsync(ct)).FindDiscipline(command.Discipline) is { } learnt
+                    && await phones.ForAsync(http, ct) is { } sight && !sight.Sees(learnt))
+                {
+                    return PlayerCommands.Errors.NotAllowed(command.Type).ToProblem();
                 }
 
                 // An adventurer asked for: free of any seat now; the GM decides (never applied alone)
@@ -265,6 +289,21 @@ public static class RoomEndpoints
                     }
 
                     command = command with { Price = sold.Price };
+                }
+
+                if (command.Type == PlayerCommand.AttachUpgrade)
+                {
+                    var campaign = game.Value.State.Campaign;
+                    var card = campaign.Party.SelectMany(a => a.Equipped.Concat(a.Pack)).Concat(campaign.Stash).FirstOrDefault(i => i.Id == command.Item)?.Item;
+                    var catalog = await catalogs.GetAsync(ct);
+                    var tier = catalog.FindItem(card)?.Tier;
+                    var offer = PlayerShop.UpgradesOf(game.Value.State, catalog).FirstOrDefault(o => o.Upgrade == command.Upgrade);
+                    if (offer is null || tier is null || !offer.Prices.TryGetValue(tier, out var price))
+                    {
+                        return PlayerCommands.Errors.UpgradeNotOffered(command.Upgrade ?? "").ToProblem();
+                    }
+
+                    command = command with { Price = price };
                 }
 
                 var engine = command.ToGameCommand(me.DisplayName);

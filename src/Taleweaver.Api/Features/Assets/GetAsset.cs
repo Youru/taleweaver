@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Extensions.Options;
 using SkiaSharp;
 using Taleweaver.Api.Common;
+using Taleweaver.Api.Features.Rooms;
 
 namespace Taleweaver.Api.Features.Assets;
 
@@ -77,6 +78,9 @@ public static class GetAsset
             }
         }
 
+        /// <summary>"assets/act1/tiles/um01.jpg": a file found, named as the catalogue names it.</summary>
+        public string NameOf(string file) => "assets/" + Path.GetRelativePath(_root, file).Replace('\\', '/');
+
         /// <summary>The file for a path relative to the assets folder; null when it is outside the folder, not an image or missing.</summary>
         public (string Path, string ContentType)? Find(string? path)
         {
@@ -99,9 +103,15 @@ public static class GetAsset
     }
 
     public static void Map(IEndpointRouteBuilder app) =>
-        app.MapGet("/api/assets/{**path}", async Task<Results<PhysicalFileHttpResult, NotFound>> (string path, int? w, Handler handler, HttpContext context, CancellationToken ct) =>
+        app.MapGet("/api/assets/{**path}", async Task<Results<PhysicalFileHttpResult, NotFound>> (string path, int? w, Handler handler, HttpContext context, PhoneCards phones, CancellationToken ct) =>
             {
                 if (handler.Find(path) is not { } file)
+                {
+                    return TypedResults.NotFound();
+                }
+
+                // A phone: only the pictures it may see (a path is easily guessed)
+                if (await phones.ForAsync(context, ct) is { } sight && !sight.SeesPicture(handler.NameOf(file.Path)))
                 {
                     return TypedResults.NotFound();
                 }

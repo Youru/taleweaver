@@ -1,6 +1,7 @@
 import { tokenImage, type BoardPieces } from '@/features/table'
 import { pick, type Language, type LocalizedText } from '@/shared/lib/localized'
 import type { DraftNode, DraftScenario } from '../api/types'
+import { printedAchievements } from './achievements'
 import { eventsOf, eventsOfToken, tokenRulesOf } from './events'
 import { captionOf } from './graph'
 import { mapOf, setupOf, tokenKey, type DraftMap, type DraftSetup } from './map'
@@ -23,6 +24,7 @@ export interface EncounterSheet {
   rules: { name: string; text: string }[]
   /** Curiously Hidden Rules: read only when an event says so (printed under the red filter). */
   hiddenRules: { name: string; text: string }[]
+  achievements?: { name: string; condition: string; hiddenText: string }[]
   hidden: HiddenSection[]
 }
 
@@ -190,6 +192,7 @@ export function encounterSheet(
     setup: lines,
     ends,
     rules,
+    achievements: printedAchievements(node, language),
     hiddenRules: ((node.hiddenRules as { name?: LocalizedText; text?: LocalizedText }[] | undefined) ?? []).map(
       (r) => ({ name: text(r.name), text: text(r.text) }),
     ),
