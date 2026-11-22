@@ -7,8 +7,8 @@ using Taleweaver.Api.Storage;
 namespace Taleweaver.Api.Features.Rooms;
 
 /// <summary>
-/// The room (room-spec §10.2, increment R1). GM routes under /api/games/{id}/room (this machine only, see
-/// <see cref="Network.UseRoomGuard"/>); phone routes under /api/rooms/{code}, the seat token in
+/// The room (room-spec §10.2, increment R1). GM routes under /api/games/{id}/room (this machine and, for those of
+/// <see cref="ScreenAccess"/>, the GM's tablet); phone routes under /api/rooms/{code}, the seat token in
 /// "Authorization: Seat &lt;token&gt;".
 /// </summary>
 public static class RoomEndpoints
@@ -16,9 +16,6 @@ public static class RoomEndpoints
     public sealed record JoinRequest(string DisplayName, string? Color);
 
     public sealed record JoinResponse(string SeatId, string SeatToken, PlayerView View);
-
-    /// <summary>The second screen's token, given once: it goes in the QR code the GM shows the tablet.</summary>
-    public sealed record ScreenResponse(string Token);
 
     public sealed record AssignRequest(IReadOnlyList<string> Adventurers);
 
@@ -50,6 +47,7 @@ public static class RoomEndpoints
     {
         app.MapHub<RoomHub>("/hubs/room");
         MapGm(app.MapGroup("/api/games/{id}/room").WithTags("Rooms"));
+        ScreenEndpoints.Map(app);
         MapPhone(app.MapGroup("/api/rooms/{code}").WithTags("Rooms"));
         return app;
     }
@@ -143,19 +141,14 @@ public static class RoomEndpoints
 
                 var seats = room.Seats.Where(s => request.Seat is null || s.Id == request.Seat).ToList();
                 await notifier.ShowAsync(id, seats, request.Image, request.Caption);
+                if (request.Seat is null)
+                {
+                    await notifier.ShowTablesAsync(room, request.Image, request.Caption);
+                }
+
                 return TypedResults.NoContent();
             })
             .WithName("ShowToPlayers");
-        group.MapPost("/screen", async Task<Results<Ok<ScreenResponse>, ProblemHttpResult>> (string id, RoomService rooms, CancellationToken ct) =>
-            {
-                var token = await rooms.CreateScreenAsync(id, ct);
-                return token.IsSuccess ? TypedResults.Ok(new ScreenResponse(token.Value)) : token.Error!.ToProblem();
-            })
-            .WithName("CreateScreen");
-        group.MapDelete("/screen", async Task<Results<Ok<RoomView>, ProblemHttpResult>> (string id, RoomService rooms, CancellationToken ct) =>
-                ToResponse(await rooms.RevokeScreenAsync(id, ct), rooms))
-            .WithName("RevokeScreen");
-
         // The GM plays an adventurer as a player, in a tab of their own (room-spec §7): no seat, no room needed.
         group.MapGet("/impersonate/{adventurer}", async Task<Results<Ok<PlayerView>, ProblemHttpResult>> (
                 string id, string adventurer, GameRunner runner, RoomService rooms, RoomNotifier notifier, CancellationToken ct) =>

@@ -537,7 +537,8 @@ internal sealed partial class Session
     /// Alternate and Variation cards may Spawn instead when a new card is required (rulebook p. 80): never during
     /// the encounter's Placement Phase, always otherwise (totems, diagrams, NAVIGATE).
     /// </param>
-    private void Spawn(ScenarioAction action, bool fromSetup, string? initiativeCard = null, bool? possibleSpawns = null)
+    /// <returns>False when not a single figure could come.</returns>
+    private bool Spawn(ScenarioAction action, bool fromSetup, string? initiativeCard = null, bool? possibleSpawns = null)
     {
         var lootLevel = action.LootLevel ?? EncounterNode.LootLevel;
         var count = action.Count ?? 1;
@@ -556,13 +557,13 @@ internal sealed partial class Session
                 });
             }
 
-            return;
+            return true;
         }
 
         if (action.Ref is { } named && Catalog.FindCombatant(named) is { } command && AllyRules.IsCommand(command))
         {
             SpawnAlly(action, command, fromSetup, initiativeCard);
-            return;
+            return true;
         }
 
         for (var i = 0; i < count; i++)
@@ -573,7 +574,7 @@ internal sealed partial class Session
             if (figure is null)
             {
                 Log("spawnImpossible", args: Args(("family", action.Family), ("ref", action.Ref)));
-                return;
+                return i > 0;
             }
 
             // The setup may give another initiative card (e.g. a story combatant played with another figure).
@@ -621,6 +622,8 @@ internal sealed partial class Session
             Log(fromSetup ? "place" : "spawn", args: Args(("instance", figure.Instance), ("card", figure.Card), ("number", Number(figure.Number)),
                 ("figure", figure.Figure), ("at", Json(action.At))));
         }
+
+        return true;
     }
 
     private CombatantState? NamedFigure(ScenarioAction action)

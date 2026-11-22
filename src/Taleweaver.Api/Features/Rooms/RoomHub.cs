@@ -4,8 +4,11 @@ namespace Taleweaver.Api.Features.Rooms;
 
 /// <summary>
 /// /hubs/room: the server pushes, the clients only listen (every action goes through REST). A phone connects
-/// with ?code=KRVA&amp;access_token=&lt;seat token&gt;, the GM's device with ?game=&lt;id&gt;.
-/// Server → client: PlayerViewChanged(view), RoomClosed(), SeatRemoved(), Shown(picture); to the GM: RoomChanged(room), GameChanged(version).
+/// with ?code=KRVA&amp;access_token=&lt;seat token&gt;, the GM's device with ?game=&lt;id&gt; (its tablet adds its
+/// screen_token), a table screen with ?table_token=&lt;token&gt;. A screen's group carries its token's hash: revoked,
+/// it hears nothing more even if it stays connected.
+/// Server → client: PlayerViewChanged(view), RoomClosed(), SeatRemoved(), Shown(picture); to the GM: RoomChanged(room), GameChanged(version); to a table screen: TableChanged(),
+/// with nothing in it; to both screens: ScreenRevoked().
 /// </summary>
 public sealed class RoomHub(RoomService rooms, CodeGuessLimiter guesses) : Hub
 {
@@ -13,6 +16,8 @@ public sealed class RoomHub(RoomService rooms, CodeGuessLimiter guesses) : Hub
     private const string RoomKey = "room";
 
     public static string GmGroup(string gameId) => $"gm:{gameId}";
+
+    public static string ScreenGroup(string tokenHash) => $"screen:{tokenHash}";
 
     public static string SeatGroup(string seatId) => $"seat:{seatId}";
 
@@ -22,12 +27,30 @@ public sealed class RoomHub(RoomService rooms, CodeGuessLimiter guesses) : Hub
         var query = http.Request.Query;
         if (query["game"].ToString() is { Length: > 0 } gameId)
         {
-            if (!Network.IsLocal(http) && await rooms.ScreenGameAsync(Network.ScreenToken(http)) != gameId)
+            var group = GmGroup(gameId);
+            if (!Network.IsLocal(http))
             {
-                throw new HubException(RoomService.Errors.GmOnly.Code);
+                var token = Network.ScreenToken(http);
+                if (await rooms.ScreenGameAsync(token) != gameId)
+                {
+                    throw new HubException(RoomService.Errors.GmOnly.Code);
+                }
+
+                group = ScreenGroup(RoomService.Hash(token!));
             }
 
-            await Groups.AddToGroupAsync(Context.ConnectionId, GmGroup(gameId));
+            await Groups.AddToGroupAsync(Context.ConnectionId, group);
+            return;
+        }
+
+        if (query["table_token"].ToString() is { Length: > 0 } tableToken)
+        {
+            if (!(await rooms.TableRoomAsync(tableToken)).IsSuccess)
+            {
+                throw new HubException(RoomService.Errors.ScreenUnlinked.Code);
+            }
+
+            await Groups.AddToGroupAsync(Context.ConnectionId, ScreenGroup(RoomService.Hash(tableToken)));
             return;
         }
 

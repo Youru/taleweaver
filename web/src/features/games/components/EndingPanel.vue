@@ -3,6 +3,7 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import Button from 'primevue/button'
 import Message from 'primevue/message'
+import { isHostDevice } from '@/shared/lib/screen'
 import { gamesApi } from '../api/gamesApi'
 import { useRestartGame } from '../api/queries'
 
@@ -10,6 +11,7 @@ import { useRestartGame } from '../api/queries'
 const props = defineProps<{ id: string; fought: boolean }>()
 const { t } = useI18n()
 const router = useRouter()
+const host = isHostDevice()
 const restart = useRestartGame(() => props.id)
 
 function again(from: 'beginning' | 'lastEncounter') {
@@ -20,7 +22,8 @@ function again(from: 'beginning' | 'lastEncounter') {
 <template>
   <section class="ending" :aria-label="t('ending.title')">
     <p>{{ t('ending.intro') }}</p>
-    <div class="buttons">
+    <p v-if="!host">{{ t('screens.endingOnHost') }}</p>
+    <div v-else class="buttons">
       <Button
         v-if="fought"
         icon="pi pi-replay"

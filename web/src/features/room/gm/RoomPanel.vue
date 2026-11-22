@@ -14,6 +14,8 @@ import { gameKeys, type AdventurerState, type HeldBy, type OwnedItem } from '@/f
 import { pick } from '@/shared/lib/localized'
 import { usePreferences } from '@/shared/lib/preferences'
 import { storeToRefs } from 'pinia'
+import { isHostDevice } from '@/shared/lib/screen'
+import ScreensDialog from './ScreensDialog.vue'
 import RequestList from '../components/RequestList.vue'
 import type { Autonomy } from '../api/types'
 import { roomGmApi } from '../api/roomApi'
@@ -33,6 +35,8 @@ const props = defineProps<{
   stash?: OwnedItem[]
 }>()
 const open = defineModel<boolean>('open', { required: true })
+const screensOpen = defineModel<boolean>('screens', { default: false })
+const host = isHostDevice()
 const { t } = useI18n()
 
 const queries = useQueryClient()
@@ -119,33 +123,6 @@ watch(
   },
   { immediate: true },
 )
-/**
- * The GM's second screen (room-spec §7): a QR code carrying a fresh token, on the same address as the phones'.
- * The token shows once; a new QR code replaces the previous screen.
- */
-const screenQr = ref<string>()
-async function createScreen() {
-  busy.value = true
-  error.value = undefined
-  try {
-    const { token } = await roomGmApi.createScreen(props.gameId)
-    const base = (url.value ?? '').replace(/\/join\/[^/]*$/, '')
-    screenQr.value = await QRCode.toDataURL(`${base}/screen/${encodeURIComponent(props.gameId)}/${token}`, {
-      margin: 1,
-      width: 480,
-    })
-    await load()
-  } catch (e) {
-    error.value = (e as Error).message
-  } finally {
-    busy.value = false
-  }
-}
-async function revokeScreen() {
-  screenQr.value = undefined
-  await run(() => roomGmApi.revokeScreen(props.gameId))
-}
-
 // Loaded at once (the seat colours show on the track), then again each time the panel opens.
 void load()
 watch(open, (value) => value && void load())
@@ -212,6 +189,7 @@ useRoomHub(
   {
     RoomChanged: (next: RoomView) => (room.value = next),
     GameChanged: () => void reloadGame(),
+    ScreenRevoked: () => void reloadGame(),
   },
   () => {
     void load()
@@ -221,6 +199,13 @@ useRoomHub(
 </script>
 
 <template>
+  <ScreensDialog
+    v-if="host"
+    v-model:open="screensOpen"
+    :game-id="gameId"
+    :room="room"
+    @changed="(next) => (room = next)"
+  />
   <Dialog
     v-model:visible="open"
     modal
@@ -232,6 +217,7 @@ useRoomHub(
     <div v-if="!isOpen" class="closed">
       <p>{{ t('room.gm.intro') }}</p>
       <Button
+        v-if="host"
         icon="pi pi-users"
         :label="t('room.gm.open')"
         :loading="busy"
@@ -263,6 +249,7 @@ useRoomHub(
               @click="share"
             />
             <Button
+              v-if="host"
               icon="pi pi-power-off"
               :label="t('room.gm.close')"
               severity="danger"
@@ -312,28 +299,8 @@ useRoomHub(
         />
       </section>
 
-      <section class="screen">
-        <h3>{{ t('room.gm.screen') }}</h3>
-        <p class="muted">{{ t('room.gm.screenIntro') }}</p>
-        <img v-if="screenQr" :src="screenQr" :alt="t('room.gm.screenQr')" class="screen-qr" />
-        <div class="buttons">
-          <Button
-            icon="pi pi-tablet"
-            :label="room.hasScreen ? t('room.gm.screenNew') : t('room.gm.screenCreate')"
-            severity="secondary"
-            :loading="busy"
-            @click="createScreen"
-          />
-          <Button
-            v-if="room.hasScreen"
-            icon="pi pi-ban"
-            :label="t('room.gm.screenRevoke')"
-            severity="danger"
-            text
-            :disabled="busy"
-            @click="revokeScreen"
-          />
-        </div>
+      <section v-if="host" class="screen">
+        <Button icon="pi pi-tablet" :label="t('screens.title')" severity="secondary" @click="screensOpen = true" />
       </section>
 
       <div class="columns">
@@ -434,16 +401,6 @@ useRoomHub(
 }
 .screen {
   margin-bottom: 1rem;
-}
-.screen h3 {
-  margin: 0 0 0.25rem;
-}
-.screen-qr {
-  display: block;
-  width: min(14rem, 60vw);
-  margin: 0.5rem 0;
-  background: #fff;
-  border-radius: 0.5rem;
 }
 .closed {
   text-align: center;

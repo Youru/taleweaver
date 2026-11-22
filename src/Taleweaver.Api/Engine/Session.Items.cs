@@ -343,10 +343,17 @@ internal sealed partial class Session
             Type = item is null ? type : null,
             Source = source,
         };
-        (to?.Pack ?? State.Campaign.Unassigned).Add(owned);
+        var list = to is null ? State.Campaign.Unassigned
+            : Catalog.FindItem(item) is { IsCompanion: true } ? CompanionSpace(to)
+            : to.Pack;
+        list.Add(owned);
         OfferReequip(to);
         return owned;
     }
+
+    /// <summary>A Companion never goes in the Pack (p. 71): its own space, else the Party Stash.</summary>
+    private List<OwnedItem> CompanionSpace(AdventurerState member) =>
+        member.Equipped.Any(o => Catalog.FindItem(o.Item) is { IsCompanion: true }) ? State.Campaign.Stash : member.Equipped;
 
     private bool InStoryRound() =>
         State.Campaign.StoryRound is { } round && round.Phase != StoryRoundPhases.SideQuest && State.Encounter is not { Ended: false };

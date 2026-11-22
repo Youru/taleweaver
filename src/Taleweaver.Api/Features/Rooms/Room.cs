@@ -16,10 +16,16 @@ public sealed class Room
     public List<Seat> Seats { get; set; } = [];
 
     /// <summary>
-    /// The GM's second screen (a tablet in the middle of the table): the hash of its token, which acts as the GM's
-    /// device for this game while the room is open. Null when there is none.
+    /// The GM's tablet: the hash of its token, which runs this game (<see cref="ScreenAccess"/>) while the room is
+    /// open. Not the former "screenTokenHash": that token sat on the players' table with the GM's rights.
     /// </summary>
-    public string? ScreenTokenHash { get; set; }
+    public string? GmScreenHash { get; set; }
+
+    /// <summary>The screens that show the table to the players: the hash of each one's token. Replaced, never edited in place.</summary>
+    public List<string> TableHashes { get; set; } = [];
+
+    /// <summary>The QR codes not scanned yet, one per role. Replaced, never edited in place.</summary>
+    public List<ScreenPairing> Pairings { get; set; } = [];
 
     /// <summary>What players may do without the GM (room-spec §6.3).</summary>
     public string Autonomy { get; set; } = RoomAutonomy.ValidateAll;
@@ -66,7 +72,7 @@ public sealed record RoomView(
     string Status,
     IReadOnlyList<SeatView> Seats,
     IReadOnlyList<string> LanAddresses,
-    bool HasScreen,
+    ScreensView Screens,
     string Autonomy,
     IReadOnlyList<PlayerRequest> Requests);
 

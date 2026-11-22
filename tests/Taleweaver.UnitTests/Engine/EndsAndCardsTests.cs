@@ -181,6 +181,41 @@ public class EndsAndCardsTests
         game.Encounter.LootDeck.Should().HaveCount(left);
     }
 
+    [Fact]
+    public void Spawn_FitsButNoCardLeft_PlaysTheFallback()
+    {
+        var spawn = """{"do":"spawn","family":"imp","fallback":[{"do":"gainGold","amount":9}]}""";
+        var game = Game(Fight([Win], imps: 3, start: spawn));
+        game.State.Prompt!.Kind.Should().Be(PromptKinds.SpawnPossible);
+
+        game.Answer("yes");
+
+        game.State.Campaign.Gold.Should().Be(9);
+        Replayed(game).Should().Be(Json(game.State));
+    }
+
+    [Fact]
+    public void Spawn_FitsWithACardLeft_DoesNotPlayTheFallback()
+    {
+        var spawn = """{"do":"spawn","family":"imp","fallback":[{"do":"gainGold","amount":9}]}""";
+        var game = Game(Fight([Win], imps: 2, start: spawn));
+
+        game.Answer("yes");
+
+        game.State.Campaign.Gold.Should().Be(0);
+    }
+
+    [Fact]
+    public void GainItem_Companion_GoesToItsOwnSpace_ThenToTheStash()
+    {
+        var game = Game(Scene("""{"do":"gainItem","ref":"hb:companion/pet","who":"A","count":2}"""));
+
+        var member = game.State.Campaign.Party[0];
+        member.Pack.Should().BeEmpty("a Companion cannot be Stored in the Pack (p. 71)");
+        member.Equipped.Should().ContainSingle();
+        game.State.Campaign.Stash.Should().ContainSingle();
+    }
+
     private static string EndOf(EngineDriver game) => game.State.Log.Last(l => l.Code == "encounterEnd").Args!["endCondition"];
 
     private static IEnumerable<OwnedItem> Owned(EngineDriver game) =>
@@ -238,6 +273,7 @@ public class EndsAndCardsTests
             [
                 Read<Item>("""{"id":"hb:item/flip","name":{"en":"Flip"},"type":"core","tier":"common","tags":["FLIP"]}"""),
                 Read<Item>("""{"id":"hb:item/double","name":{"en":"Double"},"type":"weapon","tier":"common","tags":["DOUBLE"]}"""),
+                Read<Item>("""{"id":"hb:companion/pet","name":{"en":"Pet"},"type":"companion","story":true,"tags":["COMPANION"]}"""),
             ],
             ItemUpgrades = [Read<ItemUpgrade>("""{"id":"hb:item-upgrade/vital","name":{"en":"Vital"},"tags":["UNIVERSAL UPGRADE"],"health":2}""")],
             Disciplines =

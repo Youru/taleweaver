@@ -2,7 +2,7 @@ import { HubConnectionBuilder, HubConnectionState, LogLevel, type HubConnection 
 import { onBeforeUnmount, ref } from 'vue'
 import { currentScreenToken } from '@/shared/lib/screen'
 
-/** The GM's second screen joins the GM's group with its token. */
+/** The GM's tablet proves itself with its token. */
 function withScreen(query: string) {
   const token = currentScreenToken()
   return token && query.startsWith('game=') ? `${query}&screen_token=${encodeURIComponent(token)}` : query
@@ -15,7 +15,8 @@ const retryDelays = [0, 2000, 5000, 10000, 30000]
 
 /**
  * A connection to /hubs/room for the life of the component: the server pushes, the page only listens.
- * `query`: "code=KRVA&access_token=…" for a phone, "game=<id>" for the GM's device.
+ * `query`: "code=KRVA&access_token=…" for a phone, "game=<id>" for the GM's
+ * device, "table_token=…" for a table screen. `onReconnected`: read again what may have been missed.
  */
 export function useRoomHub(
   query: string,
@@ -43,19 +44,42 @@ export function useRoomHub(
   connection.onclose(() => (status.value = 'closed'))
 
   let stopped = false
-  async function start() {
+  let starting = false
+  let retry: ReturnType<typeof setTimeout> | undefined
+  async function start(missed: boolean) {
+    if (stopped || starting) return
+    starting = true
+    clearTimeout(retry)
     try {
       await connection.start()
       status.value = 'connected'
+      if (missed) onReconnected?.()
     } catch {
-      if (stopped) return
-      status.value = 'reconnecting'
-      setTimeout(() => void start(), 5000)
+      if (!stopped) {
+        status.value = 'reconnecting'
+        retry = setTimeout(() => void start(true), 5000)
+      }
+    } finally {
+      starting = false
     }
   }
-  void start()
+  // A device back from sleep, or on the Wi-Fi again: not after the backoff's 30 s, now
+  async function wake() {
+    if (document.visibilityState !== 'visible') return
+    onReconnected?.()
+    if (starting || connection.state === HubConnectionState.Connected) return
+    await connection.stop()
+    await start(true)
+  }
+  const onWake = () => void wake()
+  document.addEventListener('visibilitychange', onWake)
+  window.addEventListener('online', onWake)
+  void start(false)
   onBeforeUnmount(() => {
     stopped = true
+    clearTimeout(retry)
+    document.removeEventListener('visibilitychange', onWake)
+    window.removeEventListener('online', onWake)
     if (connection.state !== HubConnectionState.Disconnected) void connection.stop()
   })
   return { status }

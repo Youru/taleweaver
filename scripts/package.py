@@ -54,7 +54,9 @@ LANCER
 
 TÉLÉPHONES ET TABLETTE
   Même Wi-Fi que le PC. Acceptez la demande du pare-feu pour les réseaux privés.
-  Dans la partie, bouton Room : les joueurs scannent le QR code ; « Relier une tablette » pour le second écran.
+  Dans la partie, bouton Room : les joueurs scannent le QR code. Bouton Écrans : un QR code pour mener
+  depuis une tablette (Android, iPad, Mac...), un autre pour montrer la table aux joueurs.
+  Ce PC doit rester allumé. Wi-Fi de confiance seulement : les échanges ne sont pas chiffrés.
   Sur le PC du MJ, gardez l'adresse localhost : c'est elle qui fait de vous le MJ.
 
 METTRE À JOUR : remplacez le fichier. Parties et scénarios sont gardés.
@@ -72,6 +74,8 @@ SPOILERS: it holds hidden cards and adventures, do not browse its content.
 START: run Taleweaver.exe (Windows: More info, then Run anyway) or ./Taleweaver (Linux, from a terminal).
        Keep the console window open while you play; close it to quit.
 PHONES AND TABLET: same Wi-Fi, accept the firewall prompt, then the Room button of the game.
+       Screens button: one QR code to run the game from a tablet (Android, iPad, Mac...), one to show the table.
+       Keep this computer on, use a trusted Wi-Fi (nothing is encrypted).
        On the GM's computer, stay on localhost.
 UPDATE: replace the file. Games and scenarios are kept.
 PDF: needs Edge, Chrome or Chromium.

@@ -40,6 +40,12 @@ public sealed record Item
     public string? ImageBack { get; init; }
 
     public string? Review { get; init; }
+
+    /// <summary>A Companion has its own space, one each, and is never Stored in the Pack (rulebook p. 71).</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool IsCompanion => Type == CompanionType || Tags.Contains("COMPANION");
+
+    public const string CompanionType = "companion";
 }
 
 public sealed record ItemSide(LocalizedText Name, IReadOnlyList<string> Tags, LocalizedText Text)

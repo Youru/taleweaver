@@ -1,29 +1,47 @@
 /**
- * The GM's second screen (room-spec §7): a tablet given a token by the QR code of the room panel. The token is
- * sent with every request and acts as the GM's device for that game while the room is open.
+ * A device linked by QR code (room-spec §7.6): the GM's tablet, whose token goes with every request and runs that
+ * game, or a screen that shows the table, whose token only reads the table's view. A device is one or the other.
  */
-const key = 'taleweaver.screen'
+export type ScreenLink = { role: 'gm' | 'table'; gameId: string; token: string }
 
-export function screenToken(): string | undefined {
+const key = 'taleweaver.device'
+let memory: ScreenLink | undefined
+
+export function storedScreen(): ScreenLink | undefined {
   try {
-    return localStorage.getItem(key) ?? undefined
+    const link = JSON.parse(localStorage.getItem(key) ?? 'null') as ScreenLink | null
+    if (link?.token && link.gameId && (link.role === 'gm' || link.role === 'table')) return link
   } catch {
-    return undefined
+    // unreadable, or no storage: the link of this page, if any
+  }
+  return memory
+}
+
+export function storeScreen(link: ScreenLink) {
+  memory = link
+  try {
+    localStorage.setItem(key, JSON.stringify(link))
+  } catch {
+    // Private window: the link lives as long as the page
   }
 }
 
-export function storeScreenToken(token: string) {
-  try {
-    localStorage.setItem(key, token)
-  } catch {
-    // Private window: the token lives as long as the page (kept below)
-  }
-  memory = token
-}
-
-let memory: string | undefined
-
-/** The token of this device, if it is a second screen. */
+/** The GM token of this device, if it is the GM's tablet: never a table's. */
 export function currentScreenToken(): string | undefined {
-  return memory ?? screenToken()
+  const link = storedScreen()
+  return link?.role === 'gm' ? link.token : undefined
+}
+
+/** The computer that hosts the app, the GM by itself: it alone manages the game, the room and the QR codes. */
+export function isHostDevice(hostname: string = window.location.hostname): boolean {
+  return hostname === 'localhost' || hostname === '[::1]' || hostname.startsWith('127.')
+}
+
+/** Where a linked device goes instead of a page that is not for it; undefined: the page is fine. */
+export function screenHome(path: string, link: ScreenLink | undefined, host: boolean): string | undefined {
+  if (host || !link) return undefined
+  const game = `/games/${link.gameId}`
+  const hostOnly = path === '/' || path.startsWith('/workshop')
+  if (link.role === 'table') return hostOnly || path.startsWith('/games/') ? '/table' : undefined
+  return hostOnly || (path.startsWith('/games/') && path !== game) ? game : undefined
 }

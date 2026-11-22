@@ -52,7 +52,7 @@ export const en: Manual = {
                 'On the home page, pick a scenario with [[home.play]], or a game with [[home.resume]].',
                 'For a new game, set [[options.button]] if needed (variants and difficulty), then [[start.prepare]]. These options cannot be changed later.',
                 'If the players will use phones, open [[room.gm.button]] and check that a phone on the same Wi-Fi can join.',
-                'For a tablet in the middle of the table, link it from the same panel.',
+                'To play on a tablet, or show the map to the players, open [[screens.title]] in the game’s banner.',
                 'When resuming, open [[comfort.tools.session]] from the ☰ menu: [[comfort.session.tab.next]] lists the material to take out, but reveals what comes next.',
               ],
             },
@@ -243,16 +243,19 @@ export const en: Manual = {
         },
         {
           id: 'table',
-          title: 'The board and the second screen',
+          title: 'The board and the screens',
           lead: 'The map serves to set up the encounter and, if you wish, to follow the moves.',
           parts: [
             {
               list: [
                 'Drag a figure, or touch it then touch a square. It is optional, but the AI suggestions depend on it.',
                 '[[table.showTable]] shows the map full screen or opens it in another window, for a second monitor.',
-                'For a tablet: [[room.gm.button]], [[room.gm.screenCreate]], then scan the QR code with it.',
+                'To run the game from a tablet: [[screens.title]], [[screens.gm.show]], then scan it with the tablet. The PC stays on and keeps its rights.',
+                'For a screen facing the players: [[screens.title]], [[screens.table.show]]. It shows, and allows nothing.',
+                'A QR code works once. Deleting, exporting, the workshop, the room and the QR codes stay on the PC.',
+                'Over HTTP a tablet may fall asleep: lengthen its sleep delay. Use a trusted Wi-Fi.',
               ],
-              note: 'The tablet and the second window have your rights on the game: whatever is touched there applies.',
+              note: 'The GM’s tablet and the PC’s second window have your rights: whatever is touched there applies. Leave only the table screen to the players.',
             },
           ],
         },

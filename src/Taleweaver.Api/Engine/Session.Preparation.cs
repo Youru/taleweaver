@@ -144,7 +144,8 @@ internal sealed partial class Session
     {
         var owned = new OwnedItem { Id = NewItemId(), Item = id, Source = source };
         State.Campaign.Items.Add(id);
-        var list = Catalog.FindItem(id) is { } card && FitsEquipped(member, card) ? member.Equipped
+        var list = Catalog.FindItem(id) is { IsCompanion: true } ? CompanionSpace(member)
+            : Catalog.FindItem(id) is { } card && FitsEquipped(member, card) ? member.Equipped
             : member.Pack.Count < 3 ? member.Pack
             : State.Campaign.Stash;
         list.Add(owned);

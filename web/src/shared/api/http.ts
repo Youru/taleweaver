@@ -74,7 +74,7 @@ export async function http<T>(path: string, options: RequestOptions = {}): Promi
       ...(options.body === undefined
         ? { Accept: 'application/json' }
         : { 'Content-Type': 'application/json', Accept: 'application/json' }),
-      // A second screen of the GM's (room-spec §7) proves it with its token
+      // The GM's tablet (room-spec §7.6) proves itself with its token
       ...(screen ? { Authorization: `Screen ${screen}` } : {}),
       ...options.headers,
     },

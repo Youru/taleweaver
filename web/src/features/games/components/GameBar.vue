@@ -7,6 +7,7 @@ import Badge from 'primevue/badge'
 import Menu from 'primevue/menu'
 import type { MenuItem } from 'primevue/menuitem'
 import vTooltip from 'primevue/tooltip'
+import { isHostDevice } from '@/shared/lib/screen'
 import { openRules } from '@/features/reference'
 import { usePreferences } from '@/shared/lib/preferences'
 
@@ -26,7 +27,8 @@ const props = defineProps<{
   undoBlocked: boolean
   tools: MenuItem[]
 }>()
-const emit = defineEmits<{ undo: []; inventory: []; room: []; sheet: [] }>()
+const emit = defineEmits<{ undo: []; inventory: []; room: []; screens: []; sheet: [] }>()
+const host = isHostDevice()
 
 const { t } = useI18n()
 const router = useRouter()
@@ -35,7 +37,9 @@ const menu = useTemplateRef<{ toggle: (event: Event) => void }>('menu')
 const items = computed<MenuItem[]>(() => [
   ...props.tools,
   { separator: true },
-  { label: t('app.workshop'), icon: 'pi pi-map', command: () => void router.push({ name: 'workshop' }) },
+  ...(host
+    ? [{ label: t('app.workshop'), icon: 'pi pi-map', command: () => void router.push({ name: 'workshop' }) }]
+    : [{ label: t('app.manual'), icon: 'pi pi-book', command: () => void router.push({ name: 'manual' }) }]),
   {
     label: language.value === 'fr' ? 'English' : 'Français',
     icon: 'pi pi-language',
@@ -85,6 +89,17 @@ const inventoryLabel = computed(() =>
       >
         <i class="pi pi-mobile" aria-hidden="true" />
         <Badge v-if="requests" class="count" :value="requests" severity="warn" />
+      </button>
+      <button
+        v-if="host"
+        v-tooltip.bottom="t('screens.title')"
+        type="button"
+        class="screens"
+        :aria-label="t('screens.title')"
+        @click="emit('screens')"
+      >
+        <i class="pi pi-tablet" aria-hidden="true" />
+        <span aria-hidden="true">{{ t('screens.short') }}</span>
       </button>
       <button v-tooltip.bottom="t('sheet.open')" type="button" :aria-label="t('sheet.open')" @click="emit('sheet')">
         <i class="pi pi-file" aria-hidden="true" />
@@ -157,6 +172,22 @@ button {
   background: transparent;
   color: var(--mid-cream);
   cursor: pointer;
+}
+.screens {
+  display: flex;
+  justify-content: center;
+  gap: 0.35rem;
+  width: auto;
+  min-width: 2.5rem;
+  padding: 0 0.6rem;
+  border-radius: 1.25rem;
+  font: inherit;
+  font-size: 0.85rem;
+}
+@media (max-width: 70rem) {
+  .screens span {
+    display: none;
+  }
 }
 button i {
   font-size: 1.1rem;

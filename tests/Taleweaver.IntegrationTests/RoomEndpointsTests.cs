@@ -158,26 +158,6 @@ public class RoomEndpointsTests(HomebrewFactory factory) : IClassFixture<Homebre
     }
 
     [Fact]
-    public async Task TheGmsSecondScreen_ActsAsTheGm_ForItsGameOnly_UntilRevoked()
-    {
-        var game = await StartGame();
-        var other = await StartGame();
-        await _gm.PostAsync($"/api/games/{game.Id}/room", null, Token);
-        var screen = await Read<RoomEndpoints.ScreenResponse>(await _gm.PostAsync($"/api/games/{game.Id}/room/screen", null, Token));
-
-        var tablet = Phone();
-        tablet.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Screen", screen.Token);
-        (await tablet.GetAsync($"/api/games/{game.Id}", Token)).StatusCode.Should().Be(HttpStatusCode.OK);
-        (await tablet.GetAsync($"/api/games/{other.Id}", Token)).StatusCode.Should().Be(HttpStatusCode.Forbidden);
-        (await tablet.GetAsync("/api/games", Token)).StatusCode.Should().Be(HttpStatusCode.Forbidden);
-        (await tablet.GetAsync("/api/scenarios", Token)).StatusCode.Should().Be(HttpStatusCode.OK);
-
-        var room = await Read<RoomView>(await _gm.DeleteAsync($"/api/games/{game.Id}/room/screen", Token));
-        room.HasScreen.Should().BeFalse();
-        (await tablet.GetAsync($"/api/games/{game.Id}", Token)).StatusCode.Should().Be(HttpStatusCode.Forbidden);
-    }
-
-    [Fact]
     public async Task APlayersRequest_WaitsForTheGm_ThenGoesIntoTheGameUnderTheirName()
     {
         var game = await StartGame();

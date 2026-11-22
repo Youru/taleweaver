@@ -26,8 +26,9 @@ public static class GameEngine
     /// 18: counters, the track arranged, sides, figures of the scenario, kept boards, effects for later, opposing Espers.
     /// 19: corrections, Ready, several figures at once, a turn ended by its player.
     /// 20: an Attack or a Spell validated as one action, AI actions resolved only once.
+    /// 21: Companions out of the Pack, the fallback of a Spawn with no card left.
     /// </summary>
-    public const int Version = 20;
+    public const int Version = 21;
 
     public static class Errors
     {

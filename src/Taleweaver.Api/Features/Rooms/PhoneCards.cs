@@ -214,7 +214,7 @@ public sealed class PhoneCards(RoomService rooms, IGameStore games, IContentStor
         Changed();
     }
 
-    /// <summary>Null: the GM's device or second screen, which reads everything.</summary>
+    /// <summary>Null: the GM's computer or tablet, which reads everything. A table screen reads as a phone.</summary>
     public async Task<CardSight?> ForAsync(HttpContext context, CancellationToken cancellationToken)
     {
         if (Network.IsLocal(context) || await rooms.ScreenGameAsync(Network.ScreenToken(context)) is not null)

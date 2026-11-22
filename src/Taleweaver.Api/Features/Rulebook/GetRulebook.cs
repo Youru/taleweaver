@@ -8,7 +8,7 @@ namespace Taleweaver.Api.Features.Rulebook;
 
 /// <summary>
 /// The cleaned rulebook, to read and to search (rules-spec), kept out of the web bundle. Whole for the GM and the
-/// second screen; a phone, while a room is open, gets <see cref="PlayerRulebook"/>.
+/// tablet; a phone or a table screen, while a room is open, gets <see cref="PlayerRulebook"/>.
 /// </summary>
 public static class GetRulebook
 {

@@ -25,7 +25,7 @@ public static class RequestGuards
 
     /// <summary>
     /// The GM has no token: being on this computer is enough, so a page of another site in the same browser must not
-    /// write nor open the hub. Phones and the second screen send tokens, which no other site has.
+    /// write nor open the hub. Phones and linked screens send tokens, which no other site has.
     /// </summary>
     public static bool IsOwnOrigin(string origin, HostString host) =>
         Uri.TryCreate(origin, UriKind.Absolute, out var from)

@@ -1,5 +1,15 @@
 import { http } from '@/shared/api/http'
-import type { Autonomy, JoinResponse, PlayerCommand, PlayerView, RoomSummary, RoomView } from './types'
+import type {
+  Autonomy,
+  JoinResponse,
+  PlayerCommand,
+  PlayerView,
+  RoomSummary,
+  RoomView,
+  ScreenRole,
+  TableScreenView,
+} from './types'
+import type { ScreenLink } from '@/shared/lib/screen'
 
 const e = encodeURIComponent
 const seat = (token: string) => ({ Authorization: `Seat ${token}` })
@@ -28,10 +38,19 @@ export const roomGmApi = {
     http<RoomView>(`/api/games/${e(gameId)}/room/settings`, { method: 'PUT', body: { autonomy } }),
   show: (gameId: string, image: string, caption?: string, seat?: string) =>
     http<void>(`/api/games/${e(gameId)}/room/show`, { method: 'POST', body: { image, caption, seat } }),
-  createScreen: (gameId: string) => http<{ token: string }>(`/api/games/${e(gameId)}/room/screen`, { method: 'POST' }),
-  revokeScreen: (gameId: string) => http<RoomView>(`/api/games/${e(gameId)}/room/screen`, { method: 'DELETE' }),
+  createScreen: (gameId: string, role: ScreenRole) =>
+    http<{ token: string }>(`/api/games/${e(gameId)}/room/screens/${role}`, { method: 'POST' }),
+  revokeScreens: (gameId: string, role: ScreenRole) =>
+    http<RoomView>(`/api/games/${e(gameId)}/room/screens/${role}`, { method: 'DELETE' }),
   impersonate: (gameId: string, adventurer: string, signal?: AbortSignal) =>
     http<PlayerView>(`/api/games/${e(gameId)}/room/impersonate/${e(adventurer)}`, { signal }),
+}
+
+/** A screen's routes: the QR code exchanged once, then the table's view with the device's token. */
+export const screenApi = {
+  claim: (token: string) => http<ScreenLink>('/api/screens/claim', { method: 'POST', body: { token } }),
+  table: (token: string) =>
+    http<TableScreenView>('/api/screens/table', { headers: { Authorization: `Table ${token}` } }),
 }
 
 /** A phone's routes: the seat token in the Authorization header. */

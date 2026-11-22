@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { isHostDevice, screenHome, storedScreen } from '@/shared/lib/screen'
 
 export const router = createRouter({
   history: createWebHistory(),
@@ -25,12 +26,19 @@ export const router = createRouter({
       props: true,
       meta: { bare: true },
     },
-    // The GM's second screen (a tablet): keeps the token of the QR code, then shows the table.
+    // A QR code of the screens (room-spec §7.6): exchanged once for this device's own link.
     {
-      path: '/screen/:gameId/:token',
+      path: '/screen/:token',
       name: 'screen',
       component: () => import('@/features/room/screen/ScreenPage.vue'),
       props: true,
+      meta: { bare: true },
+    },
+    // The table shown to the players: to look at.
+    {
+      path: '/table',
+      name: 'table-screen',
+      component: () => import('@/features/room/screen/TableScreenPage.vue'),
       meta: { bare: true },
     },
     { path: '/', name: 'home', component: () => import('@/features/home/pages/HomePage.vue') },
@@ -67,6 +75,8 @@ export const router = createRouter({
     },
   ],
 })
+
+router.beforeEach((to) => screenHome(to.path, storedScreen(), isHostDevice()) ?? true)
 
 declare module 'vue-router' {
   interface RouteMeta {

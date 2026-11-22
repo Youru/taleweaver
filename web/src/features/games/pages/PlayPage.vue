@@ -15,6 +15,8 @@ import { useAiAdvice } from '@/features/ai'
 import { useCombatants, useItems } from '@/features/catalog'
 import { DuelDialog } from '@/features/duel'
 import { RoomPanel, roomGmApi } from '@/features/room'
+import { ApiError } from '@/shared/api/http'
+import { isHostDevice } from '@/shared/lib/screen'
 import { showToPlayersKey, type ShowToPlayers } from '@/shared/lib/showToPlayers'
 import { InventoryDialog } from '@/features/inventory'
 import { useScenario } from '@/features/scenarios'
@@ -71,7 +73,20 @@ const props = defineProps<{ id: string }>()
 
 const { t } = useI18n()
 const { language } = storeToRefs(usePreferences())
-const game = useGame(() => props.id)
+const host = isHostDevice()
+// A tablet sleeps and loses the hub's pushes: it reads the game again by itself
+const game = useGame(() => props.id, host ? {} : { refreshEvery: 10_000 })
+/**
+ * An error that replaces the page: nothing to show, or no right to it any more. A lost network keeps the page, and
+ * what the GM was typing.
+ */
+const blocked = computed(() => {
+  const error = game.error.value
+  if (!game.isError.value) return false
+  return !game.data.value || (error instanceof ApiError && error.status < 500)
+})
+const unlinked = computed(() => !host && game.error.value instanceof ApiError && game.error.value.status === 403)
+const screensOpen = ref(false)
 const state = computed(() => game.data.value?.state)
 const encounter = computed(() => state.value?.encounter)
 /** Combatants that appeared during this encounter: shown to place, never kept secret. */
@@ -295,7 +310,8 @@ const hud = computed(() => ({
   waitedName: waitedName.value,
 }))
 const router = useRouter()
-const tableUrl = computed(() => router.resolve({ name: 'table', params: { id: props.id } }).href)
+// The second window is the computer's: on the tablet it would be one more view with the GM's rights
+const tableUrl = computed(() => (host ? router.resolve({ name: 'table', params: { id: props.id } }).href : undefined))
 
 function moveFigure(figure: string, to: Cell) {
   encounterCommand({ type: 'move', figure, to })
@@ -307,8 +323,8 @@ function moveFigure(figure: string, to: Cell) {
     <div v-if="game.isPending.value" class="center">
       <ProgressSpinner :aria-label="t('common.loading')" />
     </div>
-    <Message v-else-if="game.isError.value" severity="error">
-      {{ t('common.error', { message: game.error.value?.message ?? '' }) }}
+    <Message v-else-if="blocked" :severity="unlinked ? 'warn' : 'error'">
+      {{ unlinked ? t('screens.gmUnlinked') : t('common.error', { message: game.error.value?.message ?? '' }) }}
     </Message>
     <template v-else-if="state && game.data.value">
       <Teleport defer to="#app-bar">
@@ -329,9 +345,11 @@ function moveFigure(figure: string, to: Cell) {
           @undo="command.mutate({ kind: 'undo' })"
           @inventory="inventoryOpen = true"
           @room="roomOpen = true"
+          @screens="screensOpen = true"
           @sheet="sheetOpen = true"
         />
       </Teleport>
+      <Message v-if="game.isError.value" severity="warn" :closable="false">{{ t('screens.offline') }}</Message>
       <PartyHud v-if="!inFight || state.preparation" v-bind="hud" show-xp />
       <Message v-if="commandError" severity="error" closable @close="command.reset()">{{ commandError }}</Message>
       <ReequipNotice
@@ -399,6 +417,7 @@ function moveFigure(figure: string, to: Cell) {
       <AdventureSheetDialog :id="id" v-model:open="sheetOpen" :state="state" />
       <RoomPanel
         v-model:open="roomOpen"
+        v-model:screens="screensOpen"
         :game-id="id"
         :party="state.campaign.party"
         :active-group="state.campaign.activeGroup"
@@ -665,7 +684,7 @@ function moveFigure(figure: string, to: Cell) {
   gap: 0.6rem;
   box-sizing: border-box;
   /* The banner of a game (App.vue) and its margin */
-  height: calc(100vh - 3.75rem - 2px);
+  height: calc(100dvh - 3.75rem - 2px);
   padding: 0 1rem 1rem;
 }
 .center {

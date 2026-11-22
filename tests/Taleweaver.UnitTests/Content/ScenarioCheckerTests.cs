@@ -265,6 +265,20 @@ public class ScenarioCheckerTests
     }
 
     [Fact]
+    public void Check_TokenWithoutColour_IsKnownByItsType()
+    {
+        var encounter = Encounter() with
+        {
+            Map = Board() with { Tokens = [new MapToken { Id = "heart", Type = "hb:token/totem", X = 1, Y = 1 }] },
+            Tokens = new Dictionary<string, TokenRule> { ["totem"] = new() { Mode = "adjacent" } },
+        };
+
+        var report = ScenarioChecker.Check(Scenario(encounter), Catalog);
+
+        report.Warnings.Should().NotContain(w => w.Code == "Scenarios.TokenNeverPlaced");
+    }
+
+    [Fact]
     public void Check_TwoTokensSharingAHiddenText_ReportsWarning()
     {
         var encounter = Encounter() with

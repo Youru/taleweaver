@@ -40,3 +40,26 @@ h3 {
   color: var(--mid-crimson);
   letter-spacing: 0.02em;
 }
+
+/* A tablet (room-spec §7.6): 44px under the finger. Phones have their own layout, a mouse needs none of it. */
+@media (pointer: coarse) and (min-width: 700px) {
+  :root body :is(button, .p-button, .p-select, .p-multiselect, .p-inputtext, [role='tab']) {
+    min-height: 2.75rem;
+  }
+  :root body :is(button, .p-button, [role='tab']) {
+    min-width: 2.75rem;
+  }
+  :root body .p-select-label {
+    align-content: center;
+  }
+  :root body :is(.p-menu-item-link, .p-select-option, .p-multiselect-option) {
+    min-height: 2.75rem;
+    align-items: center;
+  }
+}
+/* Upright, the turn's question must be in sight under the board, without scrolling at each turn */
+@media (pointer: coarse) and (min-width: 700px) and (max-width: 1000px) {
+  main.play .encounter > .table {
+    height: min(42dvh, 70vw);
+  }
+}

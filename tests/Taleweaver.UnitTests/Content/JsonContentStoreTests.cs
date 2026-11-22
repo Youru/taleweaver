@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Taleweaver.Api.Common;
 using Taleweaver.Api.Content;
+using Taleweaver.Api.Features.Rooms;
 
 namespace Taleweaver.UnitTests.Content;
 
@@ -44,6 +45,31 @@ public class JsonContentStoreTests
         var scenarios = await store.ListScenariosAsync(TestContext.Current.CancellationToken);
 
         scenarios.Should().Contain(s => s.Id == "um1:scenario/blight-of-rhamsted" && s.Kind == "bounty");
+    }
+
+    [Theory]
+    [InlineData("um1:scenario/blight-of-rhamsted", 2)]
+    [InlineData("be1:scenario/the-cave-sickle-queen", 1)]
+    public async Task GetScenarioAsync_OfficialBounty_HasTheSkullsOfItsCover(string id, int skulls)
+    {
+        var scenario = await RepositoryContent.CreateStore().GetScenarioAsync(id, TestContext.Current.CancellationToken);
+
+        scenario!.Difficulty.Should().Be(skulls);
+    }
+
+    [Fact]
+    public async Task GetPacksAsync_Companion_IsASecretStoryCardNeverSold()
+    {
+        var catalog = await RepositoryContent.CatalogAsync();
+
+        var card = catalog.Packs.SelectMany(p => p.Items).Should().ContainSingle(i => i.IsCompanion).Subject;
+
+        card.Story.Should().BeTrue("no Store and no random draw offers a Story card");
+        (card.Unique, card.Tier, card.Cost).Should().Be((false, null, null));
+        var sight = new CardSight(catalog);
+        sight.Sees(card).Should().BeFalse();
+        sight.SeesPicture(card.Image!).Should().BeFalse();
+        sight.SeesPicture(card.ImageBack!).Should().BeFalse();
     }
 
     [Fact]

@@ -313,11 +313,8 @@ internal sealed partial class Session(GameState state, GameContext context)
                 AnswerAiCondition(option == "yes");
                 break;
             case PromptKinds.SpawnPossible:
-                if (option == "yes")
-                {
-                    Spawn(prompt.Action!, fromSetup: false);
-                }
-                else
+                // "Yes" speaks of the squares: without a card left, the fallback is played all the same
+                if (option != "yes" || !Spawn(prompt.Action!, fromSetup: false))
                 {
                     Push(prompt.Action!.Fallback ?? []);
                 }

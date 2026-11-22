@@ -52,7 +52,7 @@ export const fr: Manual = {
                 'Sur l’accueil, choisissez un scénario avec [[home.play]], ou une partie avec [[home.resume]].',
                 'Pour une nouvelle partie, réglez si besoin [[options.button]] (variantes et difficulté), puis [[start.prepare]]. Ces options ne se changent plus ensuite.',
                 'Si les joueurs auront leur téléphone, ouvrez [[room.gm.button]] et vérifiez qu’un téléphone du même Wi-Fi la rejoint.',
-                'Pour une tablette au milieu de la table, reliez-la depuis ce même panneau.',
+                'Pour jouer sur une tablette, ou montrer la carte aux joueurs, ouvrez [[screens.title]] dans le bandeau de la partie.',
                 'Pour une reprise, ouvrez [[comfort.tools.session]] dans le menu ☰ : [[comfort.session.tab.next]] donne le matériel à sortir, mais révèle la suite.',
               ],
             },
@@ -243,16 +243,19 @@ export const fr: Manual = {
         },
         {
           id: 'table',
-          title: 'Le plateau et le second écran',
+          title: 'Le plateau et les écrans',
           lead: 'La carte sert à installer la rencontre et, si vous le souhaitez, à suivre les déplacements.',
           parts: [
             {
               list: [
                 'Glissez une figurine, ou touchez-la puis touchez une case. C’est facultatif, mais les suggestions de l’IA en dépendent.',
                 '[[table.showTable]] met la carte en plein écran ou l’ouvre dans une autre fenêtre, pour un second moniteur.',
-                'Pour une tablette : [[room.gm.button]], [[room.gm.screenCreate]], puis scannez le QR code avec elle.',
+                'Pour mener depuis une tablette : [[screens.title]], [[screens.gm.show]], puis scannez-le avec elle. Le PC reste allumé et garde ses droits.',
+                'Pour un écran tourné vers les joueurs : [[screens.title]], [[screens.table.show]]. Il montre sans rien permettre.',
+                'Un QR code sert une fois. Suppression, export, atelier, room et QR codes restent sur le PC.',
+                'En HTTP, une tablette peut se mettre en veille : allongez son délai de veille. Le Wi-Fi doit être de confiance.',
               ],
-              note: 'La tablette et la seconde fenêtre ont vos droits sur la partie : ce qu’on y touche est appliqué.',
+              note: 'La tablette du MJ et la seconde fenêtre du PC ont vos droits : ce qu’on y touche est appliqué. Ne laissez aux joueurs que l’écran de table.',
             },
           ],
         },

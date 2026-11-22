@@ -454,7 +454,7 @@ public static partial class ScenarioChecker
                         Error("DuplicateToken", $"{id}/{name}", $"duplicate token '{token.Id}'");
                     }
 
-                    if (token.Color is not null)
+                    if (token.Color != "random")
                     {
                         tokenKeys.Add(TokenKey(token.Type, token.Color));
                     }
@@ -941,7 +941,9 @@ public static partial class ScenarioChecker
             }
         }
 
-        private static string TokenKey(string type, string color) => $"{type[(type.LastIndexOf('/') + 1)..]}:{color}";
+        /// <summary>The engine's key: "type:colour", the type alone without a colour.</summary>
+        private static string TokenKey(string type, string? color) =>
+            type[(type.LastIndexOf('/') + 1)..] + (color is null ? "" : $":{color}");
 
         private static IEnumerable<string> Strings(JsonElement element) => element.ValueKind switch
         {

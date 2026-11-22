@@ -28,6 +28,7 @@ public sealed class RoomNotifier : IGameObserver
         _catalog = catalog;
         _cards = cards;
         rooms.Changed += RoomChangedAsync;
+        rooms.ScreenRevoked += hash => _hub.Clients.Group(RoomHub.ScreenGroup(hash)).SendAsync("ScreenRevoked");
         rooms.SeatRemoved += seat => _hub.Clients.Group(RoomHub.SeatGroup(seat)).SendAsync("SeatRemoved");
     }
 
@@ -40,6 +41,13 @@ public sealed class RoomNotifier : IGameObserver
         {
             return;
         }
+
+        if (room.GmScreenHash is { } tablet)
+        {
+            await _hub.Clients.Group(RoomHub.ScreenGroup(tablet)).SendAsync("GameChanged", game.UpdatedAt.ToUnixTimeMilliseconds(), cancellationToken);
+        }
+
+        await TablesChangedAsync(room, cancellationToken);
 
         // An adventurer who left the party leaves the seats (this pushes the views again).
         if (await _rooms.DropMissingAsync(game.Id, game.State.Campaign.Party.Select(a => a.Name).ToList(), cancellationToken))
@@ -61,6 +69,29 @@ public sealed class RoomNotifier : IGameObserver
         }
     }
 
+    /// <summary>What is shown to every player is shown at the table too.</summary>
+    public async Task ShowTablesAsync(Room room, string image, string? caption)
+    {
+        _cards.Shown(room.GameId, image);
+        foreach (var table in room.TableHashes)
+        {
+            await _hub.Clients.Group(RoomHub.ScreenGroup(table)).SendAsync("Shown", new { image, caption });
+        }
+    }
+
+    /// <summary>What a table screen receives: the phones' view cut down to what everybody at the table sees.</summary>
+    public async Task<TableScreenView> TableViewAsync(Game game, Room room, CancellationToken cancellationToken) =>
+        TableScreenView.Of(await ViewAsync(game, room, null, [], cancellationToken));
+
+    // Only a signal: each screen reads its view again with its token
+    private async Task TablesChangedAsync(Room room, CancellationToken cancellationToken)
+    {
+        foreach (var table in room.TableHashes)
+        {
+            await _hub.Clients.Group(RoomHub.ScreenGroup(table)).SendAsync("TableChanged", cancellationToken);
+        }
+    }
+
     /// <summary>The view of a seat, from the game as it is now.</summary>
     public async Task<PlayerView> ViewAsync(Game game, Room? room, Seat? seat, IReadOnlyCollection<string> adventurers, CancellationToken cancellationToken)
     {
@@ -75,7 +106,14 @@ public sealed class RoomNotifier : IGameObserver
     private async Task RoomChangedAsync(Room room)
     {
         _cards.Changed();
-        await _hub.Clients.Group(RoomHub.GmGroup(room.GameId)).SendAsync("RoomChanged", _rooms.ViewOf(room));
+        var view = _rooms.ViewOf(room);
+        await _hub.Clients.Group(RoomHub.GmGroup(room.GameId)).SendAsync("RoomChanged", view);
+        if (room.GmScreenHash is { } tablet)
+        {
+            await _hub.Clients.Group(RoomHub.ScreenGroup(tablet)).SendAsync("RoomChanged", view);
+        }
+
+        await TablesChangedAsync(room, CancellationToken.None);
         if (!room.IsOpen)
         {
             foreach (var seat in room.Seats)

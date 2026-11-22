@@ -180,7 +180,7 @@ public sealed class JsonContentStore(IOptions<ContentOptions> options, IHostEnvi
         {
             Manifest = manifest,
             Combatants = combatants?.Combatants ?? [],
-            Items = items?.Items ?? [],
+            Items = [.. items?.Items ?? [], .. items?.Companions?.Select(c => c.AsItem()) ?? []],
             ItemUpgrades = items?.ItemUpgrades ?? [],
             Tiles = tiles?.Tiles ?? [],
             Tokens = tokens?.Tokens ?? [],
@@ -260,7 +260,19 @@ public sealed class JsonContentStore(IOptions<ContentOptions> options, IHostEnvi
     // Layout of the catalogue files (one top-level list per file).
     private sealed record CombatantsFile(IReadOnlyList<Combatant> Combatants);
 
-    private sealed record ItemsFile(IReadOnlyList<Item>? Items, IReadOnlyList<ItemUpgrade>? ItemUpgrades);
+    private sealed record ItemsFile(IReadOnlyList<Item>? Items, IReadOnlyList<ItemUpgrade>? ItemUpgrades, IReadOnlyList<CompanionCard>? Companions);
+
+    /// <summary>
+    /// A Companion is a Story card (rulebook p. 71): that keeps it out of the Stores, of the random draws and of the
+    /// phones until it is held.
+    /// </summary>
+    private sealed record CompanionCard(string Id, LocalizedText Name, IReadOnlyList<string>? Tags, LocalizedText? Text, string? Image, string? ImageBack)
+    {
+        public Item AsItem() => new()
+        {
+            Id = Id, Name = Name, Type = Item.CompanionType, Story = true, Tags = Tags ?? [], Text = Text, Image = Image, ImageBack = ImageBack,
+        };
+    }
 
     private sealed record DisciplinesFile(IReadOnlyList<Discipline> Disciplines);
 

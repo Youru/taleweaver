@@ -104,7 +104,7 @@ public static class Network
             return;
         }
 
-        if (await AllowedFromAPhone(context) || await AllowedFromTheScreen(context))
+        if (await AllowedFromAPhone(context) || await ScreenAccess.AllowsAsync(context))
         {
             await next(context);
             if (namesARoom && context.Response.StatusCode == StatusCodes.Status404NotFound)
@@ -119,30 +119,13 @@ public static class Network
         await problem.ExecuteAsync(context);
     });
 
-    /// <summary>The second screen's token: "Authorization: Screen &lt;token&gt;", or ?screen_token= for the hub.</summary>
+    /// <summary>The token of the GM's tablet: "Authorization: Screen &lt;token&gt;", or ?screen_token= for the hub.</summary>
     public static string? ScreenToken(HttpContext context)
     {
         var header = context.Request.Headers.Authorization.ToString();
         return header.StartsWith("Screen ", StringComparison.Ordinal)
             ? header["Screen ".Length..].Trim()
             : context.Request.Query["screen_token"].ToString() is { Length: > 0 } query ? query : null;
-    }
-
-    /// <summary>
-    /// The GM's second screen acts as the GM for its own game (and reads the catalogue, the scenarios, the images),
-    /// while the room is open; never for another game nor the list of games.
-    /// </summary>
-    private static async Task<bool> AllowedFromTheScreen(HttpContext context)
-    {
-        if (await context.RequestServices.GetRequiredService<RoomService>().ScreenGameAsync(ScreenToken(context)) is not { } gameId)
-        {
-            return false;
-        }
-
-        var path = context.Request.Path;
-        return path.StartsWithSegments($"/api/games/{gameId}")
-            || path.StartsWithSegments("/hubs/room")
-            || (HttpMethods.IsGet(context.Request.Method) && !path.StartsWithSegments("/api/games"));
     }
 
     private static readonly string[] PhoneCatalog =
@@ -155,7 +138,7 @@ public static class Network
     private static async Task<bool> AllowedFromAPhone(HttpContext context)
     {
         var path = context.Request.Path;
-        if (path.StartsWithSegments("/api/rooms") || path.StartsWithSegments("/hubs/room"))
+        if (path.StartsWithSegments("/api/rooms") || path.StartsWithSegments("/hubs/room") || path.StartsWithSegments(ScreenEndpoints.Path))
         {
             return true;
         }

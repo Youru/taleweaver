@@ -6,11 +6,13 @@ import { storeToRefs } from 'pinia'
 import ConfirmDialog from 'primevue/confirmdialog'
 import SelectButton from 'primevue/selectbutton'
 import { openRules, ReferenceDialog } from '@/features/reference'
+import { isHostDevice } from '@/shared/lib/screen'
 import { usePreferences } from '@/shared/lib/preferences'
 
 const { t, locale } = useI18n()
 const { language } = storeToRefs(usePreferences())
 const route = useRoute()
+const host = isHostDevice()
 watch(
   language,
   (value) => {
@@ -38,7 +40,7 @@ const languages = [
     <div v-show="route.meta.game" id="app-bar" class="slot" />
     <nav v-if="!route.meta.game" class="nav">
       <RouterLink :to="{ name: 'manual' }">{{ t('app.manual') }}</RouterLink>
-      <RouterLink :to="{ name: 'workshop' }">{{ t('app.workshop') }}</RouterLink>
+      <RouterLink v-if="host" :to="{ name: 'workshop' }">{{ t('app.workshop') }}</RouterLink>
       <a v-if="route.path.startsWith('/games/')" href="/rules" :title="t('reference.shortcut')" @click="toRules">
         {{ t('reference.open') }}
       </a>

@@ -19,11 +19,30 @@ export interface RoomView {
   seats: SeatView[]
   /** Private IPv4 addresses of the GM's machine: where the phones of the same Wi-Fi reach it. */
   lanAddresses: string[]
-  /** A second screen of the GM's has a token (room-spec §7). */
-  hasScreen: boolean
+  screens: ScreensView
   autonomy: Autonomy
   /** Every pending request, then the last answered ones, newest first. */
   requests: PlayerRequest[]
+}
+
+export type ScreenRole = 'gm' | 'table'
+
+/** The linked screens (room-spec §7.6); `waiting`: the roles whose QR code was not scanned yet. */
+export interface ScreensView {
+  gm: boolean
+  tables: number
+  waiting: ScreenRole[]
+}
+
+/** What a table screen receives (GET /api/screens/table). */
+export interface TableScreenView {
+  version: number
+  gameId: string
+  scenarioTitle?: LocalizedText | null
+  party: PlayerView['party']
+  encounter?: PlayerEncounter | null
+  cards?: string | null
+  paused: boolean
 }
 
 /** What players may do without the GM (room-spec §6.3). */

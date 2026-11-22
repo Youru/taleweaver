@@ -42,6 +42,14 @@ public sealed partial class RoomService(RoomStore store, TimeProvider time)
 
         public static Error NotInParty(string adventurer) => Error.Validation("Rooms.NotInParty", $"'{adventurer}' is not in the party.");
 
+        public static readonly Error ScreenUnlinked = Error.Forbidden("Rooms.ScreenUnlinked", "This screen is no longer linked: scan a new QR code.");
+
+        public static readonly Error ScreenLinkUsed = Error.Gone("Rooms.ScreenLinkUsed", "This QR code was used or has expired: ask for a new one.");
+
+        public static readonly Error UnknownRole = Error.Validation("Rooms.UnknownRole", "A screen is the GM's (gm) or the table's (table).");
+
+        public static readonly Error TooManyTables = Error.Conflict("Rooms.TooManyTables", $"The room already has {MaxTables} table screens.");
+
         public static readonly Error InvalidName = Error.Validation("Rooms.InvalidName", "A name of 1 to 24 characters is needed.");
     }
 
@@ -358,73 +366,12 @@ public sealed partial class RoomService(RoomStore store, TimeProvider time)
         room.Status,
         room.Seats.Select(s => new SeatView(s.Id, s.DisplayName, s.Color, s.Adventurers, s.Followed, s.LastSeen, IsConnected(s.Id), s.Trusted)).ToList(),
         Network.LanAddresses(),
-        room.ScreenTokenHash is not null,
+        ScreensOf(room),
         room.Autonomy,
         // Every pending request, then the last answered ones, newest first
         room.Requests.Where(r => r.Status == RequestStatus.Pending)
             .Concat(room.Requests.Where(r => r.Status != RequestStatus.Pending).TakeLast(15).Reverse())
             .ToList());
-
-    /// <summary>
-    /// A new token for the GM's second screen (room-spec §7): it replaces the previous one, if any. Returned once,
-    /// only its hash is kept.
-    /// </summary>
-    public async Task<Result<string>> CreateScreenAsync(string gameId, CancellationToken cancellationToken)
-    {
-        var token = NewToken();
-        var room = await Locked(rooms =>
-        {
-            if (rooms.GetValueOrDefault(gameId) is not { IsOpen: true } room)
-            {
-                return null;
-            }
-
-            room.ScreenTokenHash = Hash(token);
-            return room;
-        });
-        if (room is null)
-        {
-            return Errors.NoRoom(gameId);
-        }
-
-        await SaveAndNotify(room, cancellationToken);
-        return token;
-    }
-
-    /// <summary>The second screen stops working at once.</summary>
-    public async Task<Result<Room>> RevokeScreenAsync(string gameId, CancellationToken cancellationToken)
-    {
-        var room = await Locked(rooms =>
-        {
-            if (rooms.GetValueOrDefault(gameId) is not { } room)
-            {
-                return null;
-            }
-
-            room.ScreenTokenHash = null;
-            return room;
-        });
-        if (room is null)
-        {
-            return Errors.NoRoom(gameId);
-        }
-
-        await SaveAndNotify(room, cancellationToken);
-        return room;
-    }
-
-    /// <summary>The game whose open room has this second-screen token, or null.</summary>
-    public async Task<string?> ScreenGameAsync(string? token)
-    {
-        if (string.IsNullOrEmpty(token))
-        {
-            return null;
-        }
-
-        var hash = Encoding.ASCII.GetBytes(Hash(token));
-        return await Locked(rooms => rooms.Values.FirstOrDefault(r =>
-            r.IsOpen && r.ScreenTokenHash is { } known && CryptographicOperations.FixedTimeEquals(Encoding.ASCII.GetBytes(known), hash))?.GameId);
-    }
 
     /// <summary>Lets the hub tell the GM a phone came or went.</summary>
     public Task NotifyAsync(Room room) => Changed?.Invoke(room) ?? Task.CompletedTask;
@@ -457,7 +404,7 @@ public sealed partial class RoomService(RoomStore store, TimeProvider time)
 
     private static string NewToken() => Convert.ToBase64String(RandomNumberGenerator.GetBytes(16)).TrimEnd('=').Replace('+', '-').Replace('/', '_');
 
-    private static string Hash(string token) => "sha256:" + Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
+    internal static string Hash(string token) => "sha256:" + Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
 
     private async Task<T> Locked<T>(Func<Dictionary<string, Room>, T> action)
     {
