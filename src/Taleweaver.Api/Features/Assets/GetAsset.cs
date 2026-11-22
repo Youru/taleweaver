@@ -35,7 +35,7 @@ public static class GetAsset
         private readonly SemaphoreSlim _resizing = new(2);
 
         /// <summary>
-        /// The picture at most <paramref name="width"/> wide (JPEG stays JPEG, PNG stays PNG for its transparency);
+        /// The picture at most <paramref name="width"/> wide (each format stays itself: PNG and WebP keep their transparency);
         /// the original when it is already that small or cannot be read.
         /// </summary>
         public async Task<string> ResizedAsync(string original, int width, CancellationToken cancellationToken)
@@ -63,8 +63,13 @@ public static class GetAsset
                     return original;
                 }
 
-                var png = original.EndsWith(".png", StringComparison.OrdinalIgnoreCase);
-                using var data = resized.Encode(png ? SKEncodedImageFormat.Png : SKEncodedImageFormat.Jpeg, png ? 100 : 82);
+                var (format, quality) = Path.GetExtension(original).ToLowerInvariant() switch
+                {
+                    ".png" => (SKEncodedImageFormat.Png, 100),
+                    ".webp" => (SKEncodedImageFormat.Webp, 82),
+                    _ => (SKEncodedImageFormat.Jpeg, 82),
+                };
+                using var data = resized.Encode(format, quality);
                 Directory.CreateDirectory(Path.GetDirectoryName(target)!);
                 // Written aside then moved: a request at the same time never reads half a file
                 var temporary = target + "." + Guid.NewGuid().ToString("N") + ".tmp";
@@ -79,10 +84,14 @@ public static class GetAsset
         }
 
         /// <summary>"assets/act1/tiles/um01.jpg": a file found, named as the catalogue names it.</summary>
-        public string NameOf(string file) => "assets/" + Path.GetRelativePath(_root, file).Replace('\\', '/');
+        private string NameOf(string file) => "assets/" + Path.GetRelativePath(_root, file).Replace('\\', '/');
 
-        /// <summary>The file for a path relative to the assets folder; null when it is outside the folder, not an image or missing.</summary>
-        public (string Path, string ContentType)? Find(string? path)
+        /// <summary>
+        /// The file for a path relative to the assets folder; null when it is outside the folder, not an image or missing.
+        /// The packaged app holds most pictures as WebP of the same name: the catalogue and the saves keep theirs,
+        /// so Name stays the one that was asked.
+        /// </summary>
+        public (string Path, string ContentType, string Name)? Find(string? path)
         {
             if (string.IsNullOrWhiteSpace(path) || path.Contains("..", StringComparison.Ordinal))
             {
@@ -92,13 +101,18 @@ public static class GetAsset
             var full = Path.GetFullPath(Path.Combine(_root, path));
             if (!full.StartsWith(_root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
                 || !ContentTypes.TryGetContentType(full, out var contentType)
-                || !contentType.StartsWith("image/", StringComparison.Ordinal)
-                || !File.Exists(full))
+                || !contentType.StartsWith("image/", StringComparison.Ordinal))
             {
                 return null;
             }
 
-            return (full, contentType);
+            if (File.Exists(full))
+            {
+                return (full, contentType, NameOf(full));
+            }
+
+            var compressed = Path.ChangeExtension(full, ".webp");
+            return contentType is "image/jpeg" or "image/png" && File.Exists(compressed) ? (compressed, "image/webp", NameOf(full)) : null;
         }
     }
 
@@ -111,13 +125,13 @@ public static class GetAsset
                 }
 
                 // A phone: only the pictures it may see (a path is easily guessed)
-                if (await phones.ForAsync(context, ct) is { } sight && !sight.SeesPicture(handler.NameOf(file.Path)))
+                if (await phones.ForAsync(context, ct) is { } sight && !sight.SeesPicture(file.Name))
                 {
                     return TypedResults.NotFound();
                 }
 
                 // ?w=320: a smaller copy for the phones and the grids (room-spec §10.3); any other width, the original
-                var served = w is { } width && Widths.Contains(width) && file.ContentType is "image/jpeg" or "image/png"
+                var served = w is { } width && Widths.Contains(width) && file.ContentType is "image/jpeg" or "image/png" or "image/webp"
                     ? await handler.ResizedAsync(file.Path, width, ct)
                     : file.Path;
 

@@ -14,6 +14,19 @@ cd taleweaver && dotnet run --project src/Taleweaver.Api
 - Document OpenAPI sur `/openapi/v1.json` (Development).
 - Le contenu est lu depuis la racine du dépôt : section `Content` de `appsettings.json` (`RootPath`, `EnabledPacks` : vide = tous les packs de `packs/`, écartés si une dépendance manque ; un pack peut remplacer des cartes d'un autre via `overrides`).
 
+## Livrer (exe Windows, Linux)
+
+```bash
+python3 -I taleweaver/scripts/package.py            # les deux ; ou : win-x64, linux-x64
+python3 -I taleweaver/scripts/package.py --scenario scenarios/homebrew/<nom>.json   # avec un scénario maison
+```
+
+- Sortie dans `taleweaver/dist/` (ignoré par git) : `Taleweaver.exe` et `LISEZMOI.txt`, `Taleweaver-linux-x64.tar.gz`. Environ 2 min, demande Pillow. **À remettre à des personnes, jamais à mettre en ligne.**
+- Un seul fichier : front, contenu en liste blanche et images WebP sont dans l'exécutable (`Hosting/PackagedApp.cs`), dépliés au premier lancement dans `%LOCALAPPDATA%\Middara\app`. Parties et scénarios créés vont dans `%APPDATA%\Middara` (`saves`, `scenarios`).
+- Port 5180, ou le suivant libre. Variables : `TALEWEAVER_PORT`, `TALEWEAVER_DATA` (tout ranger ailleurs, **indispensable pour essayer sans toucher aux vraies parties**), `TALEWEAVER_NO_BROWSER`, `TALEWEAVER_ROOM_HOST`.
+- Les scénarios maison ne partent que nommés par `--scenario` ; ils arrivent en lecture seule.
+- Audit et limites : [distribution-audit.md](../docs/design/distribution-audit.md).
+
 ## Front (`web/`)
 
 Vue 3 + TypeScript strict, Vite, PrimeVue 4, TanStack Query, Pinia, vue-i18n (FR/EN). Standards : skill `vue-frontend`.
@@ -125,9 +138,12 @@ cd taleweaver && dotnet test
 ## Pièges rencontrés
 
 | Problème | Solution |
+|---|---|
+| L'exe livré ne trouve pas une image ajoutée au code | `package.py` ne prend que les chemins `assets/…` écrits en entier (et les dossiers de `WHOLE`) : un chemin construit par morceaux est à ajouter à `WHOLE` |
+| Serveur d'essai resté vivant après `script \| head` | `head` coupe le script avant son `kill` : ne pas tronquer un script qui lance un serveur, vérifier le port ensuite |
+| Linux : images réduites en erreur 500, ou arrêt faute de `libicu` | `SkiaSharp.NativeAssets.Linux.NoDependencies` (même version que SkiaSharp) et `InvariantGlobalization` à la publication, déjà faits |
 | Un téléphone lisait des cartes secrètes par le catalogue, le plateau (noms des familles) ou en devinant le chemin d'une image | Toute route ou image ouverte aux téléphones passe par `PhoneCards` (liste blanche). Une image neuve affichée au téléphone (404 chez lui, rien chez le MJ) est à ajouter à `CardSight`. L'essayer par l'adresse réseau : localhost est toujours le MJ |
 | Une famille de combattants porte le nom d'un aventurier (clé de figure identique) | Filtrer les familles par `SeesFamily`, jamais par `SeesFigure` |
-|---|---|
 | `X-Forwarded-For` : le client peut en écrire le début, le proxy ajoute la vraie adresse **à la fin** | Ne lire que la dernière valeur, refuser si illisible ; tester avec un en-tête à deux valeurs, pas une seule |
 | `dotnet build` échoue pendant que l'API de l'utilisateur tourne (fichiers verrouillés) | `--artifacts-path` **dans le dépôt** (`taleweaver/obj/side-build`) : ailleurs, les tests ne trouvent pas `packs/` |
 | Un `enum` part en nombre dans le JSON, le front compare à un mot (`status`) | `[JsonConverter(typeof(JsonStringEnumConverter<T>))]` sur l'enum : les anciennes sauvegardes en nombre se relisent |

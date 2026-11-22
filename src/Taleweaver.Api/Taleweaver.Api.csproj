@@ -5,6 +5,12 @@
     <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
     <PackageReference Include="SkiaSharp" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" />
+  </ItemGroup>
+
+  <!-- The app given away (scripts/package.py): front and content inside the executable -->
+  <ItemGroup Condition="'$(ContentBundle)' != ''">
+    <EmbeddedResource Include="$(ContentBundle)" LogicalName="content.zip" />
   </ItemGroup>
 
   <ItemGroup>

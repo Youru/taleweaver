@@ -14,9 +14,21 @@ using Taleweaver.Api.Features.Print;
 using Taleweaver.Api.Features.Rooms;
 using Taleweaver.Api.Features.Rulebook;
 using Taleweaver.Api.Features.Scenarios;
+using Taleweaver.Api.Hosting;
 using Taleweaver.Api.Storage;
 
-var builder = WebApplication.CreateBuilder(args);
+// Given away, the app carries its content and its settings (PackagedApp); from the repository, appsettings.json
+PackagedApp? packaged = null;
+if (PackagedApp.IsPackaged)
+{
+    packaged = PackagedApp.Start();
+    if (packaged is null)
+    {
+        return;
+    }
+}
+
+var builder = packaged?.CreateBuilder() ?? WebApplication.CreateBuilder(args);
 
 builder.Services.AddOptions<ContentOptions>().BindConfiguration(ContentOptions.Section);
 builder.Services.ConfigureHttpJsonOptions(o => JsonDefaults.Configure(o.SerializerOptions));
@@ -35,6 +47,13 @@ builder.Services.AddPacksFeature().AddScenariosFeature().AddGamesFeature().AddAs
 var app = builder.Build();
 
 app.UseExceptionHandler();
+if (packaged is not null)
+{
+    app.UseHostGuard();
+}
+
+app.UseWebFront();
+app.UseOriginGuard();
 app.UseRoomGuard();
 app.UseWebSockets();
 if (app.Environment.IsDevelopment())
@@ -61,6 +80,13 @@ app.Lifetime.ApplicationStarted.Register(() =>
         Network.HostVariable);
 });
 
-app.Run();
+if (packaged is not null)
+{
+    packaged.Run(app);
+}
+else
+{
+    app.Run();
+}
 
 public partial class Program;

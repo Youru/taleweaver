@@ -135,6 +135,9 @@ public sealed class BrowserPdfPrinter(IOptions<PrintOptions> options, ILogger<Br
         @"%LocalAppData%\Google\Chrome\Application\chrome.exe",
         "/usr/bin/microsoft-edge",
         "/usr/bin/google-chrome",
+        "/usr/bin/chromium",
+        "/usr/bin/chromium-browser",
+        "/snap/bin/chromium",
         "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
         "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
     ];

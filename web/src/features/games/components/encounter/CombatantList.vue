@@ -128,6 +128,9 @@ li :deep(.show) {
   top: 0.1rem;
   right: 0.1rem;
 }
+li:has(> .show) .row {
+  padding-right: 2.6rem;
+}
 ul {
   list-style: none;
   margin: 0;

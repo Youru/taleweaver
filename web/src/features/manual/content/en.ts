@@ -346,6 +346,7 @@ export const en: Manual = {
               list: [
                 'They are listed on the home page. The bin deletes them for good.',
                 'By default their files are in %APPDATA%\\Middara\\saves: copy that folder to back them up.',
+                'With Taleweaver.exe, your scenarios are in %APPDATA%\\Middara\\scenarios. On Linux, games and scenarios are in ~/.config/Middara. Replacing the app with a newer version keeps them.',
                 'At the end of an adventure, you can retry the last encounter or start over. The finished game is kept.',
               ],
             },
@@ -353,7 +354,7 @@ export const en: Manual = {
               title: 'A phone cannot join the room',
               list: [
                 'Check that it is on the same Wi-Fi, not on mobile data, and that the room is open.',
-                'Allow the app through the Windows firewall on private networks (it may be listed as Node.js).',
+                'Allow the app through the Windows firewall on private networks (it is listed as Taleweaver, or as Node.js when run from the code).',
                 'If the room offers several addresses, try another. Turn off any VPN.',
                 'The GM’s PC must stay on, with the app running.',
               ],

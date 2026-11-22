@@ -128,7 +128,8 @@ test('a GM sees the setup on the table and activates a totem from it', async ({ 
   await expect(tiles).toHaveCount(5)
   expect(await tiles.first().evaluate((img) => img.getAttribute('href'))).toBe('/api/assets/act1/tiles/um47.jpg')
   const loaded = await page.request.get('/api/assets/act1/tiles/um47.jpg')
-  expect(loaded.headers()['content-type']).toBe('image/jpeg')
+  // WebP of the same name in the packaged app
+  expect(loaded.headers()['content-type']).toMatch(/^image\/(jpeg|webp)$/)
   // 6 combatants, and the 2 adventurers in the starting zone
   await expect(board.locator('g.figure.combatant')).toHaveCount(6)
   await expect(board.locator('g.figure.adventurer')).toHaveCount(2)

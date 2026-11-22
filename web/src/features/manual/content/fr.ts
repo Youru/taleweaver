@@ -346,6 +346,7 @@ export const fr: Manual = {
               list: [
                 'Elles sont listées sur l’accueil. La corbeille les supprime définitivement.',
                 'Leurs fichiers sont par défaut dans %APPDATA%\\Middara\\saves : copiez ce dossier pour les sauvegarder.',
+                'Avec Taleweaver.exe, vos scénarios sont dans %APPDATA%\\Middara\\scenarios. Sous Linux, parties et scénarios sont dans ~/.config/Middara. Remplacer l’appli par une version plus récente les garde.',
                 'À la fin d’une aventure, vous pouvez reprendre à la dernière rencontre ou recommencer. La partie terminée est gardée.',
               ],
             },
@@ -353,7 +354,7 @@ export const fr: Manual = {
               title: 'Un téléphone ne rejoint pas la room',
               list: [
                 'Vérifiez qu’il est sur le même Wi-Fi, pas en données mobiles, et que la room est ouverte.',
-                'Autorisez l’appli dans le pare-feu Windows, pour les réseaux privés (il peut l’afficher sous le nom de Node.js).',
+                'Autorisez l’appli dans le pare-feu Windows, pour les réseaux privés (il l’affiche sous le nom de Taleweaver, ou de Node.js si vous la lancez depuis le code).',
                 'Si plusieurs adresses sont proposées dans la room, essayez-en une autre. Coupez un éventuel VPN.',
                 'Le PC du MJ doit rester allumé, avec l’appli lancée.',
               ],
