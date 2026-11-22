@@ -87,6 +87,10 @@ public sealed record GameCommand
     public static GameCommand Summon(string adventurer, string card, Cell? at = null) =>
         new() { Type = GameCommands.Summon, Instance = adventurer, Card = card, To = at };
 
+    /// <summary>Exalted Summoning (rulebook p. 76): an Exalted Esper's Ability, once per encounter.</summary>
+    public static GameCommand ExaltedSummon(string adventurer, string esper) =>
+        new() { Type = GameCommands.ExaltedSummon, Instance = adventurer, Card = esper };
+
     public static GameCommand AddAlly(string card, string? owner = null) => new() { Type = GameCommands.AddAlly, Instance = owner, Card = card };
 
     /// <summary><paramref name="ignoreDamage"/>: instead of its summoner's Damage; it counts as Defeated.</summary>
@@ -300,6 +304,7 @@ public static class GameCommands
     public const string ShowHiddenAdventurers = "showHiddenAdventurers";
     public const string SetOut = "setOut";
     public const string Summon = "summon";
+    public const string ExaltedSummon = "exaltedSummon";
     public const string AddAlly = "addAlly";
     public const string DismissAlly = "dismissAlly";
     public const string EarnConduit = "earnConduit";
@@ -307,7 +312,7 @@ public static class GameCommands
 
     public static bool IsPreparationCommand(string type) => type is ChooseAdventurer or RemoveAdventurer or ShowHiddenAdventurers or SetOut;
 
-    public static bool IsAllyCommand(string type) => type is Summon or AddAlly or DismissAlly or EarnConduit or ConduitForm;
+    public static bool IsAllyCommand(string type) => type is Summon or ExaltedSummon or AddAlly or DismissAlly or EarnConduit or ConduitForm;
 
     /// <summary>Commands on the party's members: allowed out of encounters, whatever the question pending.</summary>
     public static bool IsPartyCommand(string type) => type is SetActiveGroup or SetAdventurerStatus or LearnDiscipline or ForgetDiscipline or Respec;

@@ -231,6 +231,7 @@ export const fr: Manual = {
               steps: [
                 'Dans [[duel.title]], vérifiez l’attaquant, la cible, les dés et la situation.',
                 'Lancez les vrais dés et touchez les faces obtenues, ou utilisez [[duel.manual]].',
+                'Les capacités de symbole des armes équipées sont proposées comme celles des ennemis ; un COMBO dit s’il est actif.',
                 'Validez le résultat proposé : dégâts, raté ou résistance sont enregistrés en un geste.',
               ],
             },
@@ -328,6 +329,7 @@ export const fr: Manual = {
                 'Dessinez la carte de chaque rencontre avec [[workshop.map.open]] : tuiles, jetons, ennemis, départ et zones cachées.',
                 'Ajoutez événements, textes cachés et règles de départ du groupe.',
                 'Corrigez les problèmes signalés, puis [[workshop.test]]. Cet essai crée une partie, à supprimer ensuite depuis l’accueil.',
+                'Pour voir une rencontre telle qu’imprimée sans quitter sa fiche, ouvrez [[workshop.preview.open]].',
                 'Au besoin, imprimez le livret ou téléchargez-le en PDF.',
               ],
               note: 'Dupliquer ou imprimer un scénario officiel en révèle le contenu. Ces copies restent à usage personnel.',

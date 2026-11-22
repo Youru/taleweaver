@@ -28,7 +28,7 @@ import BoardRules from './BoardRules.vue'
 import { eventsOf } from '../lib/events'
 import { addHiddenRule, hiddenRulesOf, removeHiddenRule, updateHiddenRule } from '../lib/hiddenRules'
 import HiddenRuleCard from './HiddenRuleCard.vue'
-import JsonField from './JsonField.vue'
+import FiguresEditor from './FiguresEditor.vue'
 import StoryRoundFields from './StoryRoundFields.vue'
 import TargetSelect from './TargetSelect.vue'
 import TextField from './TextField.vue'
@@ -51,6 +51,7 @@ const emit = defineEmits<{
   /** Opens the map editor: on the encounter's board, or on one of its diagrams. */
   map: [diagram?: string]
   print: []
+  preview: []
 }>()
 
 const { t } = useI18n()
@@ -434,6 +435,15 @@ const hiddenRules = computed(() => {
               :title="t('workshop.print.encounterPage')"
               @click="emit('print')"
             />
+            <Button
+              icon="pi pi-eye"
+              size="small"
+              severity="secondary"
+              text
+              :aria-label="t('workshop.preview.open')"
+              :title="t('workshop.preview.open')"
+              @click="emit('preview')"
+            />
           </div>
           <div class="row">
             <div class="field">
@@ -483,15 +493,11 @@ const hiddenRules = computed(() => {
                 @update:model-value="(v) => patch({ keepBoardFrom: v ?? undefined })"
               />
             </div>
-            <JsonField
-              :model-value="node.figures"
-              :label="t('workshop.figures')"
-              @update:model-value="(v) => patch({ figures: v })"
-            />
-            <JsonField
-              :model-value="node.encounterEspers"
-              :label="t('workshop.encounterEspers')"
-              @update:model-value="(v) => patch({ encounterEspers: v })"
+            <FiguresEditor
+              :figures="node.figures as never"
+              :espers="node.encounterEspers as never"
+              @update:figures="(v) => patch({ figures: v })"
+              @update:espers="(v) => patch({ encounterEspers: v })"
             />
           </details>
 

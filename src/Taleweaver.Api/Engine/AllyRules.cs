@@ -9,6 +9,8 @@ internal static partial class AllyRules
     public const string Summoning = "summoning";
     public const string FelledAfterlife = "felled-afterlife";
     public const string ConduitSummoning = "conduit-summoning";
+    public const string Familiar = "familiar";
+    public const string ExaltedSummoning = "exalted-summoning";
     public const string EnslavedSpirit = "enslaved-spirit";
 
     private const string EsperTag = "LOYAL ESPER";

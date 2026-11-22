@@ -35,6 +35,9 @@ public sealed record Item
 
     public ItemSide? BackSide { get; init; }
 
+    /// <summary>The symbol abilities of the band at the bottom of the card (reference/act1/item-cards/symbols.json).</summary>
+    public IReadOnlyList<SymbolAbility>? SymbolAbilities { get; init; }
+
     public string? Image { get; init; }
 
     public string? ImageBack { get; init; }
@@ -51,6 +54,8 @@ public sealed record Item
 public sealed record ItemSide(LocalizedText Name, IReadOnlyList<string> Tags, LocalizedText Text)
 {
     public ItemStats? Stats { get; init; }
+
+    public IReadOnlyList<SymbolAbility>? SymbolAbilities { get; init; }
 }
 
 /// <summary>
@@ -105,7 +110,10 @@ public sealed record Discipline
 
     public required LocalizedText Name { get; init; }
 
-    /// <summary>assemblage, cruor, martial, sanctus, subterfuge, story.</summary>
+    /// <summary>
+    /// assemblage, cruor, martial, sanctus, subterfuge, story; and two kinds of card of the same format (rulebook p. 76):
+    /// familiar (chosen once with the Familiar Discipline), exalted (an Exalted Esper, used with Exalted Summoning).
+    /// </summary>
     public required string Tree { get; init; }
 
     public int? Level { get; init; }
@@ -120,6 +128,13 @@ public sealed record Discipline
 
     /// <summary>"+X Health, X equal to your highest LVL Discipline" of this tree.</summary>
     public string? HealthPerHighestLevel { get; init; }
+
+    /// <summary>The passive Movement icon (Tatva).</summary>
+    public int? Movement { get; init; }
+
+    public const string FamiliarTree = "familiar";
+
+    public const string ExaltedTree = "exalted";
 
     public string? Image { get; init; }
 }

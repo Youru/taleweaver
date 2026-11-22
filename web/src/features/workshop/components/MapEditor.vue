@@ -9,6 +9,7 @@ import Select from 'primevue/select'
 import SelectButton from 'primevue/selectbutton'
 import ToggleSwitch from 'primevue/toggleswitch'
 import { figureArt, tokenImage, tokenImages, type BoardPieces } from '@/features/table'
+import { useAllyCards } from '@/features/games'
 import { assetUrl } from '@/shared/api/assets'
 import { pick } from '@/shared/lib/localized'
 import { usePreferences } from '@/shared/lib/preferences'
@@ -40,6 +41,7 @@ import {
   type DraftSetup,
   type MapItem,
   type Rect,
+  type DraftPlacement,
 } from '../lib/map'
 import { BOARD_CATEGORIES, tokenChoices, variantLabel } from '../lib/palette'
 import MapCanvas, { type MapTool } from './MapCanvas.vue'
@@ -244,6 +246,29 @@ const zone = computed(() => {
 const combatant = computed(() =>
   selected.value?.kind === 'combatant' ? setup.value.combatants[selected.value.index] : undefined,
 )
+/**
+ * A figure of the setup may be an ally (rulebook p. 58): a Command card, fought on the adventurers' side. Its card
+ * sets the figure; hidden ones (spoilers) are listed too, the author knows the story.
+ */
+const allyCards = useAllyCards(() => selected.value?.kind === 'combatant')
+const allyOptions = computed(() =>
+  (allyCards.data.value ?? []).map((c) => ({ value: c.id, label: pick(c.name, language.value) || c.id })),
+)
+function setCombatant(patch: (c: DraftPlacement) => DraftPlacement) {
+  const index = (selected.value as { index: number }).index
+  commit((b) => ({
+    ...b,
+    setup: { ...b.setup, combatants: b.setup.combatants.map((c, i) => (i === index ? patch(c) : c)) },
+  }))
+}
+function setAlly(card: string | null) {
+  setCombatant((c) => {
+    const next: DraftPlacement = { ...c }
+    if (card) next.ref = card
+    else delete next.ref
+    return next
+  })
+}
 const selectedRect = computed(() => (selected.value ? rectOf(board.value, selected.value) : undefined))
 
 const tileName = (ref: string) => props.pieces?.tiles[ref]?.name ?? ref.split('/').pop() ?? ref
@@ -672,6 +697,22 @@ function newArea() {
             />
           </label>
           <p class="help">{{ t('workshop.map.familyHelp') }}</p>
+          <label class="field">
+            {{ t('workshop.map.ally') }}
+            <Select
+              :model-value="combatant.ref ?? null"
+              :options="allyOptions"
+              option-label="label"
+              option-value="value"
+              filter
+              show-clear
+              :placeholder="t('workshop.map.notAlly')"
+              :loading="allyCards.isPending.value"
+              :aria-label="t('workshop.map.ally')"
+              @update:model-value="(v: string | null) => setAlly(v)"
+            />
+          </label>
+          <p class="help">{{ t('workshop.map.allyHelp') }}</p>
         </template>
         <p class="help">{{ t('workshop.map.keys') }}</p>
       </template>

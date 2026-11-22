@@ -160,7 +160,7 @@ public static class PlayerViewProjector
         "lootGold", "lootItem", "lootMonster", "lootUnique", "lootNone",
         "upgradeUnlocked", "upgradeAttached", "upgradeDetached", "disciplineLearnt", "disciplineForgotten", "respec",
         "setOut", "allyPlaced", "allyJoined", "allyStays", "allySummoned", "allyDamage", "allyDefeated", "allyDismissed",
-        "summonToken", "conduitEarned", "conduitForm", "conduitLeft",
+        "summonToken", "exaltedSummoned", "conduitEarned", "conduitForm", "conduitLeft",
         "joinParty", "leaveParty", "activeGroup", "adventurerStatus",
         "storyRound", "storyRoundReturn", "storyRoundExplore", "sideQuest", "ventureForth", "storeUnique", "bountyStart", "bountyEnd",
     };
@@ -235,7 +235,8 @@ public static class PlayerViewProjector
         PlayerBoard.Of(e, played, catalog),
         e.Allies.Select(a => new PlayerAlly(a.Id, a.Family, a.Name, catalog?.FindCombatant(a.Card)?.Image, a.TrackCard, a.Owner, a.Esper,
             a.Damage, a.Health, a.Force, a.Stamina, a.StaminaMax, a.Effects.ToList(), a.Defeated)).ToList(),
-        e.AllyOptions.Where(o => mine.Contains(o.Adventurer))
+        // Exalted Summoning stays with the GM: the phones' requests do not have it
+        e.AllyOptions.Where(o => mine.Contains(o.Adventurer) && o.Kind != "exalted")
             .Select(o => new PlayerAllyOption(o.Adventurer, o.Kind, o.Cards.Select(id => new PlayerCard(id, catalog?.FindCombatant(id)?.Name, catalog?.FindCombatant(id)?.Image)).ToList()))
             .ToList());
     }

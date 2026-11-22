@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { CatalogItem } from '@/features/catalog'
-import type { CampaignState } from '../api/types'
+import type { AdventurerState, CampaignState } from '../api/types'
 import { activeMembers, disciplineBlock, disciplineCost, respecPrice, storeItems, xpLeft } from './storyRound'
 
 const item = (id: string, tier: string | null, type: string, extra: Partial<CatalogItem> = {}): CatalogItem => ({
@@ -24,7 +24,12 @@ const catalog = [
 
 describe('storeItems', () => {
   it('sells every card of the lines, the drawn unique first, never story items nor monster loot', () => {
-    const store = { items: [{ tiers: ['mundane'], types: [] }, { tiers: [], types: ['accessory'] }] }
+    const store = {
+      items: [
+        { tiers: ['mundane'], types: [] },
+        { tiers: [], types: ['accessory'] },
+      ],
+    }
 
     expect(storeItems(store, catalog, ['crown']).map((i) => i.id)).toEqual(['crown', 'sword', 'ring'])
   })
@@ -80,7 +85,33 @@ describe('xpLeft and disciplineCost', () => {
 describe('respecPrice', () => {
   it('costs 25 Gold, +25 per Loot Level beyond Mundane of the Store', () => {
     expect(respecPrice(undefined)).toBe(25)
-    expect(respecPrice({ items: [{ tiers: ['mundane'], types: [] }, { tiers: ['uncommon'], types: [] }] })).toBe(75)
+    expect(
+      respecPrice({
+        items: [
+          { tiers: ['mundane'], types: [] },
+          { tiers: ['uncommon'], types: [] },
+        ],
+      }),
+    ).toBe(75)
     expect(respecPrice({ items: [], unique: { tier: 'common', count: 1 } })).toBe(50)
+  })
+})
+
+describe('Familiars and Exalted Espers (p. 76)', () => {
+  const cards = [
+    { id: 'um1:discipline/familiar', name: { en: 'Familiar' }, tree: 'assemblage', level: 1, cost: 3 },
+    { id: 'um1:discipline/tatva', name: { en: 'Tatva' }, tree: 'familiar', story: true },
+    { id: 'um1:discipline/yuxa', name: { en: 'Yuxa' }, tree: 'familiar', story: true },
+    { id: 'um1:discipline/minos', name: { en: 'Minos' }, tree: 'exalted', story: true },
+  ]
+  const with_ = (...ids: string[]) => ({ disciplines: ids.map((id) => ({ id, xp: 0 })) }) as unknown as AdventurerState
+
+  it('a Familiar needs the Discipline, then only one is chosen; an Exalted Esper is never learnt', () => {
+    expect(disciplineBlock(cards[1]!, with_(), cards)).toEqual({ familiar: 'needed' })
+    expect(disciplineBlock(cards[1]!, with_('um1:discipline/familiar'), cards)).toBeNull()
+    expect(disciplineBlock(cards[2]!, with_('um1:discipline/familiar', 'um1:discipline/tatva'), cards)).toEqual({
+      familiar: 'chosen',
+    })
+    expect(disciplineBlock(cards[3]!, with_('um1:discipline/familiar'), cards)).toEqual({ exalted: true })
   })
 })

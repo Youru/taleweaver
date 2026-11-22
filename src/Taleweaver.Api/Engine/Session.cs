@@ -353,6 +353,7 @@ internal sealed partial class Session(GameState state, GameContext context)
     private Result ExecuteAllyCommand(GameCommand command) => command.Type switch
     {
         GameCommands.Summon => Summon(command),
+        GameCommands.ExaltedSummon => ExaltedSummon(command),
         GameCommands.AddAlly => AddAlly(command),
         GameCommands.DismissAlly => DismissAlly(command),
         GameCommands.EarnConduit => EarnConduit(command),

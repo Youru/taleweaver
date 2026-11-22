@@ -27,7 +27,7 @@ export interface AllyState {
   defeated: boolean
 }
 
-export type AllyOptionKind = 'summoning' | 'felledAfterlife' | 'earnConduit' | 'conduit'
+export type AllyOptionKind = 'summoning' | 'felledAfterlife' | 'earnConduit' | 'conduit' | 'exalted'
 
 export interface AllyOption {
   adventurer: string

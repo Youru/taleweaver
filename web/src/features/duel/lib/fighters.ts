@@ -66,7 +66,18 @@ export interface Fighter {
 /** What an adventurer's equipped cards give, by lower-case name (see equipment.ts). */
 export type Equipment = Record<
   string,
-  AdventurerSheet & { pierce: number; reminders: Reminder[]; items: string[]; variableDefense: string[] }
+  AdventurerSheet & {
+    pierce: number
+    reminders: Reminder[]
+    items: string[]
+    variableDefense: string[]
+    /** The symbol abilities of the equipped weapons, face up. */
+    abilities?: SymbolAbility[]
+    /** HEAVY cards equipped: -1 Movement and Agility each. */
+    heavy?: number
+    /** The COMBO blocks of the equipped cards, and whether another card meets their Tag. */
+    combos?: { name: string; tag: string; on: boolean }[]
+  }
 >
 
 /** A combatant's side (play-spec A13). */
@@ -137,8 +148,11 @@ export function fighters(
       armor: sheet.armor,
       conviction: sheet.conviction,
       casting: sheet.casting,
-      abilities: [],
-      reminders: gear?.reminders ?? [],
+      abilities: gear?.abilities ?? [],
+      reminders: [
+        ...(gear?.reminders ?? []),
+        ...(gear?.abilities ?? []).filter((a) => !a.boost).map((a) => ({ name: symbolsLabel(a), text: a.text })),
+      ],
       health: member?.health,
       damage: member?.damage ?? 0,
       position: a.position,

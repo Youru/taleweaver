@@ -231,6 +231,7 @@ export const en: Manual = {
               steps: [
                 'In [[duel.title]], check the attacker, target, dice and situation.',
                 'Roll the real dice and touch the faces rolled, or use [[duel.manual]].',
+                'The symbol abilities of the equipped weapons are offered like the enemies’ ones; a COMBO tells whether it is on.',
                 'Confirm the proposed result: damage, miss or resistance are recorded in one go.',
               ],
             },
@@ -328,6 +329,7 @@ export const en: Manual = {
                 'Draw each encounter’s map with [[workshop.map.open]]: tiles, tokens, enemies, start and hidden areas.',
                 'Add events, hidden texts and the party’s starting rules.',
                 'Fix the problems flagged, then [[workshop.test]]. This creates a game, to delete afterwards from the home page.',
+                'To see an encounter as printed without leaving its sheet, open [[workshop.preview.open]].',
                 'If needed, print the booklet or download it as a PDF.',
               ],
               note: 'Duplicating or printing an official scenario reveals its content. Such copies are for personal use only.',

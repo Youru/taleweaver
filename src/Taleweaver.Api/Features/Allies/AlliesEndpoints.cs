@@ -50,6 +50,11 @@ public static class AlliesEndpoints
                 (await runner.ExecuteAsync(id, GameCommand.Summon(request.Adventurer, request.Card), cancellationToken)).ToResponse())
             .WithValidation<SummonRequest>()
             .WithName("Summon");
+        group.MapPost("/exalted", async Task<Results<Ok<GameView>, ProblemHttpResult>> (
+                string id, SummonRequest request, GameRunner runner, CancellationToken cancellationToken) =>
+                (await runner.ExecuteAsync(id, GameCommand.ExaltedSummon(request.Adventurer, request.Card), cancellationToken)).ToResponse())
+            .WithValidation<SummonRequest>()
+            .WithName("ExaltedSummon");
         group.MapPost("/", async Task<Results<Ok<GameView>, ProblemHttpResult>> (
                 string id, AddRequest request, GameRunner runner, CancellationToken cancellationToken) =>
                 (await runner.ExecuteAsync(id, GameCommand.AddAlly(request.Card, request.Owner), cancellationToken)).ToResponse())

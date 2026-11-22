@@ -82,3 +82,51 @@ describe('passivePierce', () => {
     expect(passivePierce(undefined)).toBe(0)
   })
 })
+
+describe('symbols, COMBO and HEAVY', () => {
+  const items = new Map<string, CatalogItem>(
+    [
+      card('longsword', 'weapon', {
+        tags: ['SWORD'],
+        stats: { dice: ['white'], hands: 1, attack: 'melee' },
+        text: { en: '* PASSIVE\nCOMBO : LIGHT\nFINESSE : ORANGE\nEXHAUST\nDODGE' },
+        symbolAbilities: [
+          { cost: [{ symbol: 'shield×2' }], effect: { en: '+2 PHYSICAL DMG' } },
+          { cost: [{ symbol: 'book×2' }], effect: { en: 'FU: Move 1 space.' } },
+        ],
+      }),
+      card('katar', 'weapon', {
+        tags: ['LIGHT'],
+        stats: { dice: ['white'], hands: 1, attack: 'melee' },
+        text: { en: 'COMBO : MELEE\n+2 ARMOR PIERCING' },
+      }),
+      card('hammer', 'weapon', { tags: ['HEAVY'], stats: { dice: ['red'], hands: 2, attack: 'melee' } }),
+      card('plate', 'armor', { tags: ['HEAVY'], stats: { armor: 3 } }),
+    ].map((c) => [c.id, c]),
+  )
+
+  it('a COMBO whose Tag another card has swaps the die and adds its piercing', () => {
+    const sheet = equipmentSheet(adventurer([{ item: 'longsword' }, { item: 'katar' }]), items, 'en')
+    expect(sheet?.pool).toEqual(['orange', 'white'])
+    expect(sheet?.pierce).toBe(2)
+    expect(sheet?.combos).toEqual([
+      { name: 'longsword', tag: 'LIGHT', on: true },
+      { name: 'katar', tag: 'MELEE', on: true },
+    ])
+  })
+
+  it('alone, a COMBO gives nothing and says so', () => {
+    const sheet = equipmentSheet(adventurer([{ item: 'longsword' }]), items, 'en')
+    expect(sheet?.pool).toEqual(['white'])
+    expect(sheet?.reminders[0]?.name).toBe('longsword · COMBO : LIGHT ✗')
+  })
+
+  it('the band of a weapon is spent in the duel', () => {
+    const sheet = equipmentSheet(adventurer([{ item: 'longsword' }]), items, 'en')
+    expect(sheet?.abilities?.map((a) => a.boost)).toEqual([{ kind: 'physical', amount: 2 }, undefined])
+  })
+
+  it('counts every HEAVY card equipped', () => {
+    expect(equipmentSheet(adventurer([{ item: 'hammer' }, { item: 'plate' }]), items, 'en')?.heavy).toBe(2)
+  })
+})

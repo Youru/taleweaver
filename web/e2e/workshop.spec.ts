@@ -250,3 +250,30 @@ test('a GM adds a diagram to an encounter, draws it over the faded board and pri
   await expect(diagram.locator('.faded image')).toHaveCount(1)
   await expect(diagram.locator('g:not(.faded) > g > image')).toHaveCount(1)
 })
+
+test('a GM fills the lot 4 fields by form, then sees the step as printed beside its sheet', async ({ page }) => {
+  await page.goto('/workshop')
+  await page.getByRole('button', { name: 'Nouveau scénario' }).click()
+  await page.getByLabel('Titre du scénario').fill('Le Puits')
+  await page.getByRole('button', { name: 'Créer' }).click()
+  await page.getByRole('button', { name: 'Rencontre', exact: true }).click()
+  const fight = page.getByRole('region', { name: 'Fiche de encounter-1' })
+
+  // A figure the encounter describes, and an Esper its opponents may summon: no JSON to type
+  await fight.getByText('Autres règles de la rencontre').click()
+  await fight.getByRole('button', { name: 'Ajouter une figurine' }).click()
+  await fight.getByRole('spinbutton', { name: 'Défense' }).first().fill('11')
+  await fight.getByRole('spinbutton', { name: 'Défense' }).first().press('Tab')
+  await fight.getByRole('button', { name: 'Ajouter un Esper' }).click()
+  await fight.getByRole('textbox', { name: 'Son invocateur (instance)' }).fill('fragor-1')
+  await fight.getByRole('textbox', { name: 'Son invocateur (instance)' }).press('Tab')
+  await fight.getByText('Autres champs (JSON)').last().click()
+  await expect(fight.getByRole('textbox', { name: 'Figurines' }).last()).toHaveValue(/"defense": 11/)
+
+  // The printed page, beside the sheet
+  await fight.getByRole('button', { name: 'Aperçu imprimé, à côté de la fiche' }).click()
+  const frame = page.frameLocator('iframe[title="Aperçu imprimé"]')
+  await expect(frame.getByRole('heading').first()).toBeVisible()
+  await expect(frame.getByRole('button', { name: 'Télécharger le PDF' })).toHaveCount(0)
+  await expect(fight).toBeVisible()
+})

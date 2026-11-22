@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { onBeforeRouteLeave, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import Button from 'primevue/button'
+import Drawer from 'primevue/drawer'
 import Message from 'primevue/message'
 import Select from 'primevue/select'
 import ProgressSpinner from 'primevue/progressspinner'
@@ -168,6 +169,25 @@ function removeSelected() {
     accept: () => editor.remove(target.id),
   })
 }
+
+/**
+ * The step as it will be printed, beside its sheet (roadmap §2): the print page of the saved copy in a frame,
+ * saved first, then again each time the GM asks to refresh.
+ */
+const preview = ref<{ node: string; version: number } | null>(null)
+function showPreview(node: string) {
+  const open = () => (preview.value = { node, version: (preview.value?.version ?? 0) + 1 })
+  if (dirty.value) saveNow(open)
+  else open()
+}
+const previewUrl = computed(() =>
+  preview.value
+    ? router.resolve({
+        name: 'workshop-print',
+        query: { scenario: id.value, node: preview.value.node, embed: '1', v: String(preview.value.version) },
+      }).href
+    : undefined,
+)
 
 /** The scenario on paper (saved first: the print page reads the saved copy). */
 function printOut(node?: string) {
@@ -340,6 +360,7 @@ function started(game: GameView) {
             @start="editor.setStart(node!.id)"
             @map="(diagram) => (mapping = { node: node!.id, diagram })"
             @print="printOut(node!.id)"
+            @preview="showPreview(node!.id)"
           />
           <ScenarioSheet
             v-else
@@ -354,7 +375,27 @@ function started(game: GameView) {
       </div>
       <StartGameDialog :scenario="testing" @close="testing = null" @started="started" />
     </template>
-  </main>
+      <Drawer
+      :visible="!!preview"
+      position="right"
+      :modal="false"
+      :header="t('workshop.preview.title')"
+      class="print-preview"
+      :style="{ width: 'min(52rem, 55vw)' }"
+      @update:visible="(v) => !v && (preview = null)"
+    >
+      <Button
+        :label="t('workshop.preview.refresh')"
+        icon="pi pi-refresh"
+        size="small"
+        severity="secondary"
+        :loading="save.isPending.value"
+        @click="preview && showPreview(preview.node)"
+      />
+      <p class="hint">{{ t('workshop.preview.hint') }}</p>
+      <iframe v-if="previewUrl" :key="previewUrl" :src="previewUrl" :title="t('workshop.preview.title')" />
+    </Drawer>
+</main>
 </template>
 
 <style scoped>
@@ -424,5 +465,16 @@ h1 {
   .graph {
     height: 60vh;
   }
+}
+.print-preview iframe {
+  width: 100%;
+  height: calc(100% - 4rem);
+  border: 1px solid var(--p-content-border-color);
+  background: #fff;
+}
+.print-preview .hint {
+  margin: 0.4rem 0;
+  font-size: 0.85rem;
+  color: var(--p-text-muted-color);
 }
 </style>

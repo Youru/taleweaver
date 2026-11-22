@@ -47,6 +47,8 @@ const scenario = computed(() => draft.data.value)
 type What = 'booklet' | 'encounter' | 'cards'
 const what = computed<What>(() => (route.query.node ? 'encounter' : route.query.what === 'cards' ? 'cards' : 'booklet'))
 const veiled = ref(route.query.veiled !== '0')
+/** In the workshop's preview frame: the sheets alone. */
+const embedded = computed(() => route.query.embed === '1')
 watch(veiled, (v) => router.replace({ query: { ...route.query, veiled: v ? undefined : '0' } }))
 
 // The booklet of one chapter (campaign folder): its steps only, numbered on their own, so that an act
@@ -259,7 +261,7 @@ const backTo = computed(() =>
 
 <template>
   <main class="print">
-    <div class="toolbar no-print">
+    <div v-if="!embedded" class="toolbar no-print">
       <RouterLink :to="backTo" class="back"
         ><i class="pi pi-arrow-left" aria-hidden="true" /> {{ t('workshop.title') }}</RouterLink
       >
@@ -295,7 +297,7 @@ const backTo = computed(() =>
       />
       <Button :label="t('workshop.print.print')" icon="pi pi-print" severity="secondary" @click="print" />
     </div>
-    <p class="hint no-print">{{ t('workshop.print.hint') }}</p>
+    <p v-if="!embedded" class="hint no-print">{{ t('workshop.print.hint') }}</p>
     <Message v-if="pdf.error.value" severity="error" closable class="no-print" @close="pdf.reset()">
       {{ t('workshop.print.downloadFailed', { message: pdf.error.value.message }) }}
     </Message>

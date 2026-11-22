@@ -23,6 +23,12 @@ internal sealed partial class Session
     {
         public static Error UnknownAdventurer(string? name) => Error.NotFound("Party.UnknownAdventurer", $"No adventurer '{name}' in the party.");
 
+        public static Error NotLearnable(string? card) => Error.Validation("Party.NotLearnable", $"'{card}' is an Exalted Esper: it is used, not learnt.");
+
+        public static Error FamiliarNeeded(string name) => Error.Conflict("Party.FamiliarNeeded", $"{name} must learn the Familiar Discipline first.");
+
+        public static Error FamiliarChosen(string name) => Error.Conflict("Party.FamiliarChosen", $"{name} already has a Familiar: it cannot be changed.");
+
         public static Error NotSelectable(string name) => Error.Conflict("Party.NotSelectable", $"{name} is Injured or Unselectable: not in the Active Group.");
 
         public static readonly Error EmptyGroup = Error.Validation("Party.EmptyGroup", "The Active Group needs at least one adventurer.");
@@ -261,6 +267,25 @@ internal sealed partial class Session
         if (member.Disciplines.Any(d => d.Id == discipline))
         {
             return PartyErrors.AlreadyLearnt(member.Name, discipline);
+        }
+
+        if (card?.Tree == Discipline.ExaltedTree)
+        {
+            return PartyErrors.NotLearnable(discipline);
+        }
+
+        // A Familiar (rulebook p. 76): one, chosen after learning Familiar, never changed
+        if (card?.Tree == Discipline.FamiliarTree)
+        {
+            if (!AllyRules.Knows(member, AllyRules.Familiar))
+            {
+                return PartyErrors.FamiliarNeeded(member.Name);
+            }
+
+            if (member.Disciplines.Any(d => Catalog.FindDiscipline(d.Id)?.Tree == Discipline.FamiliarTree))
+            {
+                return PartyErrors.FamiliarChosen(member.Name);
+            }
         }
 
         var known = member.Disciplines.Select(d => d.Id).ToList();

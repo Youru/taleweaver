@@ -84,7 +84,15 @@ export interface CatalogItem {
   text?: LocalizedText | null
   /** The icons printed on the front; absent when it prints none. */
   stats?: ItemStats | null
-  backSide?: { name: LocalizedText; tags: string[]; text: LocalizedText; stats?: ItemStats | null } | null
+  backSide?: {
+    name: LocalizedText
+    tags: string[]
+    text: LocalizedText
+    stats?: ItemStats | null
+    symbolAbilities?: SymbolAbilityCard[] | null
+  } | null
+  /** The band at the bottom of a weapon: what its symbols buy. */
+  symbolAbilities?: SymbolAbilityCard[] | null
   image?: string | null
   imageBack?: string | null
 }
@@ -119,12 +127,18 @@ export interface CatalogUpgrade {
 export interface CatalogDiscipline {
   id: string
   name: LocalizedText
-  /** assemblage, cruor, martial, sanctus, subterfuge, story. */
+  /**
+   * assemblage, cruor, martial, sanctus, subterfuge, story; familiar (chosen once with the Familiar Discipline) and
+   * exalted (an Exalted Esper, used with Exalted Summoning): cards of the same format, never bought with XP.
+   */
   tree: string
   level?: number | null
   story?: boolean
   /** XP printed on the card, when known. */
   cost?: number | null
+  /** The passive Health and Movement icons. */
+  health?: number | null
+  movement?: number | null
   image?: string | null
 }
 

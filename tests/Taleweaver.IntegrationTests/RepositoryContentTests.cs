@@ -40,6 +40,37 @@ public class RepositoryContentTests(RepositoryFactory factory) : IClassFixture<R
         report.Warnings.Select(w => (w.Code, w.Where)).Should().Equal(("Scenarios.JumpNeeded", "the-mast-day-1/map"));
     }
 
+    /// <summary>reference/act1/item-cards/symbols.json, through tools/build_items.py: the weapons' band reaches the duel.</summary>
+    [Fact]
+    public async Task Weapons_CarryTheirSymbolAbilities()
+    {
+        var items = await _client.GetFromJsonAsync<List<Item>>("/api/catalog/items", JsonDefaults.Options, TestContext.Current.CancellationToken);
+
+        var weapons = items!.Where(i => i.Type == "weapon" && i.Id.StartsWith("um1:", StringComparison.Ordinal)).ToList();
+        weapons.Count(w => w.SymbolAbilities is { Count: > 0 }).Should().BeGreaterThan(100);
+        weapons.Count(w => w.BackSide?.SymbolAbilities is { Count: > 0 }).Should().BeGreaterThan(15);
+    }
+
+    /// <summary>tools/build_hidden_cards.py: every code points at a card of the catalogue, or at a picture that exists.</summary>
+    [Fact]
+    public async Task EveryHiddenCardCode_PointsAtACardOrAPicture()
+    {
+        var catalog = await factory.Services.GetRequiredService<CatalogProvider>().GetAsync(TestContext.Current.CancellationToken);
+        var root = new DirectoryInfo(AppContext.BaseDirectory);
+        while (!Directory.Exists(Path.Combine(root.FullName, "packs", "um1")))
+        {
+            root = root.Parent!;
+        }
+
+        var known = catalog.Packs.SelectMany(p => p.Combatants.Select(c => c.Id).Concat(p.Items.Select(i => i.Id)).Concat(p.Disciplines.Select(d => d.Id))
+            .Concat(p.InitiativeCards.Select(c => c.Id)).Concat(p.Adventurers.Select(a => a.Id))).ToHashSet();
+
+        var values = catalog.Packs.SelectMany(p => p.Manifest.HiddenCards.Values).SelectMany(v => v).ToList();
+
+        values.Should().HaveCountGreaterThan(200);
+        values.Where(v => !known.Contains(v) && !(v.StartsWith("assets/", StringComparison.Ordinal) && File.Exists(Path.Combine(root.FullName, v)))).Should().BeEmpty();
+    }
+
     [Fact]
     public async Task GetAdventurers_FromAPhone_LeavesOutThoseStillToUnlock()
     {

@@ -7,7 +7,7 @@ import Dialog from 'primevue/dialog'
 import Select from 'primevue/select'
 import Tag from 'primevue/tag'
 import ToggleSwitch from 'primevue/toggleswitch'
-import type { Combatant } from '@/features/catalog'
+import { useDisciplines, type Combatant } from '@/features/catalog'
 import { assetUrl } from '@/shared/api/assets'
 import ShowToPlayersButton from '@/shared/components/ShowToPlayersButton.vue'
 import { pick } from '@/shared/lib/localized'
@@ -30,7 +30,10 @@ const { t } = useI18n()
 const { language } = storeToRefs(usePreferences())
 const allies = computed(() => (props.encounter.allies ?? []).filter((a) => !a.defeated))
 const transformed = computed(() => props.party.filter((a) => a.conduitForm))
-const cardName = (id: string) => pick(props.cards.get(id)?.name, language.value) || id.split('/').pop() || id
+const disciplines = useDisciplines()
+const exalted = (id: string) => disciplines.data.value?.find((d) => d.id === id && d.tree === 'exalted')
+const cardName = (id: string) =>
+  pick(props.cards.get(id)?.name ?? exalted(id)?.name, language.value) || id.split('/').pop() || id
 
 const keyOf = (option: AllyOption) => `${option.adventurer}:${option.kind}`
 const chosen = reactive<Record<string, string>>({})
@@ -50,6 +53,7 @@ function run(option: (typeof options.value)[number]) {
   const card = picked.value
   if (option.kind === 'earnConduit') emit('command', { type: 'earnConduit', adventurer, card })
   else if (option.kind === 'conduit') emit('command', { type: 'conduitForm', adventurer, card })
+  else if (option.kind === 'exalted') emit('command', { type: 'exaltedSummon', adventurer, card })
   else emit('command', { type: 'summon', adventurer, card })
   delete chosen[option.key]
 }
@@ -133,6 +137,14 @@ function add() {
           @update:model-value="(value: string) => (chosen[option.key] = value)"
         />
         <span v-else>{{ option.cards[0]?.label }}</span>
+        <!-- The Exalted Esper's Ability is read on its card: the GM applies it -->
+        <a
+          v-if="option.kind === 'exalted'"
+          :href="assetUrl(exalted(chosen[option.key] ?? option.cards[0]?.value ?? '')?.image)"
+          target="_blank"
+          rel="noopener"
+          >{{ t('allies.readCard') }}</a
+        >
         <Button
           :label="t(`allies.run.${option.kind}`)"
           size="small"

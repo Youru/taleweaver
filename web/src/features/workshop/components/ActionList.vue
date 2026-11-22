@@ -18,6 +18,7 @@ import {
   atOf,
   CARD_SIZES,
   isAdvanced,
+  isFormed,
   isSimple,
   newAction,
   newAdvancedAction,
@@ -86,6 +87,23 @@ const kinds = computed(() => [
   ...Object.keys(ADVANCED_ACTIONS).map((value) => ({ value, label: t(`workshop.events.do.${value}`) })),
   { value: 'json', label: t('workshop.events.do.json') },
 ])
+// Lot 4 forms
+const delayMoments = computed(() => [
+  { value: 'end', label: t('workshop.events.roundEnd') },
+  { value: 'start', label: t('workshop.events.roundStart') },
+])
+const trackPlaces = computed(() => [
+  { value: 'front', label: t('workshop.events.trackFront') },
+  { value: 'back', label: t('workshop.events.trackBack') },
+])
+const figureStats = ['health', 'defense', 'armor', 'movement'] as const
+function withStat(stats: unknown, stat: string, value: number | null) {
+  const next: Record<string, unknown> = { ...((stats as Record<string, unknown> | undefined) ?? {}) }
+  if (value == null) delete next[stat]
+  else next[stat] = value
+  return next
+}
+
 const kindLabel = (kind: string) =>
   (SIMPLE_ACTIONS as readonly string[]).includes(kind) || isAdvanced(kind) ? t(`workshop.events.do.${kind}`) : kind
 
@@ -545,6 +563,169 @@ const num = (value: unknown) => (typeof value === 'number' ? value : undefined)
 
           <p v-else-if="action.do === 'restore'" class="empty">{{ t('workshop.events.restoreHelp') }}</p>
         </template>
+        <template v-else-if="isFormed(action)">
+          <div
+            v-if="action.do === 'setCounter' || action.do === 'addCounter' || action.do === 'removeCounter'"
+            class="row"
+          >
+            <InputText
+              :model-value="str(action.id) ?? ''"
+              size="small"
+              :placeholder="t('workshop.events.counterId')"
+              :aria-label="t('workshop.events.counterId')"
+              @change="(e) => patch(index, { id: (e.target as HTMLInputElement).value.trim() })"
+            />
+            <InputNumber
+              v-if="action.do !== 'removeCounter'"
+              :model-value="num(action.amount) ?? 0"
+              size="small"
+              input-class="num"
+              :aria-label="t('workshop.events.amount')"
+              @update:model-value="(v) => patch(index, { amount: v ?? 0 })"
+            />
+            <label v-if="action.do === 'setCounter'" class="inline">
+              <ToggleSwitch
+                :model-value="action.keep === true"
+                @update:model-value="(v) => patch(index, { keep: v || undefined })"
+              />
+              {{ t('workshop.events.keepCounter') }}
+            </label>
+          </div>
+
+          <div v-else-if="action.do === 'delay' || action.do === 'cancelDelay'" class="stack">
+            <div class="row">
+              <InputText
+                :model-value="str(action.id) ?? ''"
+                size="small"
+                :placeholder="t('workshop.events.delayId')"
+                :aria-label="t('workshop.events.delayId')"
+                @change="(e) => patch(index, { id: (e.target as HTMLInputElement).value.trim() })"
+              />
+              <template v-if="action.do === 'delay'">
+                <InputNumber
+                  :model-value="num(action.rounds) ?? 1"
+                  :min="0"
+                  size="small"
+                  input-class="num"
+                  :aria-label="t('workshop.events.inRounds')"
+                  @update:model-value="(v) => patch(index, { rounds: v ?? 1 })"
+                />
+                <Select
+                  :model-value="str(action.at) ?? 'end'"
+                  :options="delayMoments"
+                  option-label="label"
+                  option-value="value"
+                  size="small"
+                  :aria-label="t('workshop.events.delayAt')"
+                  @update:model-value="(v) => patch(index, { at: v === 'end' ? undefined : v })"
+                />
+              </template>
+            </div>
+            <ActionList
+              v-if="action.do === 'delay'"
+              :model-value="(action.actions as DraftAction[] | undefined) ?? []"
+              :scenario="scenario"
+              :node="node"
+              :pieces="pieces"
+              :label="t('workshop.events.delayed')"
+              @update:model-value="(v) => patch(index, { actions: v })"
+            />
+          </div>
+
+          <div
+            v-else-if="
+              action.do === 'moveInitiative' ||
+              action.do === 'addInitiativeCard' ||
+              action.do === 'removeInitiativeCard'
+            "
+            class="row"
+          >
+            <InputText
+              :model-value="str(action.instance) ?? ''"
+              size="small"
+              :placeholder="t('workshop.events.figureInstance')"
+              :aria-label="t('workshop.events.figureInstance')"
+              @change="(e) => patch(index, { instance: (e.target as HTMLInputElement).value.trim() })"
+            />
+            <Select
+              v-if="action.do === 'moveInitiative'"
+              :model-value="str(action.to) ?? num(action.to) ?? 'front'"
+              :options="trackPlaces"
+              option-label="label"
+              option-value="value"
+              size="small"
+              :aria-label="t('workshop.events.trackPlace')"
+              @update:model-value="(v) => patch(index, { to: v })"
+            />
+            <label v-if="action.do === 'addInitiativeCard'" class="inline">
+              <ToggleSwitch
+                :model-value="action.fixed === true"
+                @update:model-value="(v) => patch(index, { fixed: v || undefined })"
+              />
+              {{ t('workshop.events.fixedCard') }}
+            </label>
+          </div>
+
+          <div v-else-if="action.do === 'drawAdventurers'" class="row">
+            <InputText
+              :model-value="str(action.var) ?? ''"
+              size="small"
+              :placeholder="t('workshop.events.drawName')"
+              :aria-label="t('workshop.events.drawName')"
+              @change="(e) => patch(index, { var: (e.target as HTMLInputElement).value.trim() })"
+            />
+            <InputNumber
+              :model-value="num(action.count) ?? 1"
+              :min="1"
+              size="small"
+              input-class="num"
+              :aria-label="t('workshop.events.drawCount')"
+              @update:model-value="(v) => patch(index, { count: v ?? 1 })"
+            />
+          </div>
+
+          <div v-else-if="action.do === 'modifyFigure'" class="row">
+            <InputText
+              :model-value="str(action.instance) ?? ''"
+              size="small"
+              :placeholder="t('workshop.events.figureInstance')"
+              :aria-label="t('workshop.events.figureInstance')"
+              @change="(e) => patch(index, { instance: (e.target as HTMLInputElement).value.trim() || undefined })"
+            />
+            <Select
+              :model-value="str(action.family) ?? null"
+              :options="familyOptions"
+              option-label="label"
+              option-value="value"
+              filter
+              show-clear
+              size="small"
+              :placeholder="t('workshop.events.orFamily')"
+              :aria-label="t('workshop.events.orFamily')"
+              @update:model-value="(v) => patch(index, { family: v ?? undefined })"
+            />
+            <InputNumber
+              v-for="stat in figureStats"
+              :key="stat"
+              :model-value="num((action.stats as Record<string, unknown> | undefined)?.[stat])"
+              size="small"
+              input-class="num"
+              :placeholder="t(`workshop.events.stat.${stat}`)"
+              :aria-label="t(`workshop.events.stat.${stat}`)"
+              @update:model-value="(v) => patch(index, { stats: withStat(action.stats, stat, v) })"
+            />
+          </div>
+          <p v-else-if="action.do === 'dealInitiative'" class="empty">{{ t('workshop.events.dealHelp') }}</p>
+
+          <details class="more">
+            <summary>{{ t('workshop.events.moreJson') }}</summary>
+            <JsonField
+              :model-value="action"
+              :label="t('workshop.events.json')"
+              @update:model-value="(v) => replace(index, v)"
+            />
+          </details>
+        </template>
         <JsonField
           v-else
           :model-value="action"
@@ -610,6 +791,15 @@ header {
 }
 .row :deep(.num) {
   width: 5rem;
+}
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.more summary {
+  cursor: pointer;
+  font-size: 0.85rem;
 }
 .inline {
   display: flex;

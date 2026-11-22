@@ -381,6 +381,8 @@ export type EncounterCommand =
       author?: string | null
     }
   | { type: 'summon'; adventurer: string; card: string }
+  /** Exalted Summoning (p. 76): an Exalted Esper's Ability, once per encounter. */
+  | { type: 'exaltedSummon'; adventurer: string; card: string }
   | { type: 'addAlly'; card: string; owner?: string }
   | { type: 'dismissAlly'; ally: string; ignoreDamage?: boolean }
   | { type: 'earnConduit'; adventurer: string; card: string }

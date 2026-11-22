@@ -207,12 +207,48 @@ public class AlliesTests
         GameEngine.Replay(game.Context, game.Party, game.History).Value.Should().BeEquivalentTo(game.State);
     }
 
+    [Fact]
+    public void AFamiliar_NeedsTheDiscipline_IsChosenOnce_AndGivesItsHealth()
+    {
+        int? before = null;
+        string? refused = null, twice = null;
+        var game = Game(beforeSetOut: g =>
+        {
+            refused = Refused(g, GameCommand.LearnDiscipline("Shayliss", "hb:discipline/animism", 0));
+            before = Rook(g).Health;
+            g.Do(GameCommand.LearnDiscipline("Rook", "hb:discipline/familiar", 0)).Do(GameCommand.LearnDiscipline("Rook", "hb:discipline/animism", 0));
+            twice = Refused(g, GameCommand.LearnDiscipline("Rook", "hb:discipline/yuxa", 0));
+            return g;
+        });
+
+        refused.Should().Be("Party.FamiliarNeeded");
+        twice.Should().Be("Party.FamiliarChosen");
+        Rook(game).Disciplines.Single(d => d.Id == "hb:discipline/animism").Xp.Should().Be(0);
+        Rook(game).Health.Should().Be(before + 4);
+    }
+
+    [Fact]
+    public void ExaltedSummoning_IsOfferedThenUsedOncePerEncounter_AndBringsNoFigure()
+    {
+        var game = Game(beforeSetOut: g => g.Do(GameCommand.LearnDiscipline("Damocles", "hb:discipline/exalted-summoning", 0)));
+        game.Encounter.AllyOptions.Should().ContainSingle(o => o.Kind == "exalted" && o.Adventurer == "Damocles")
+            .Which.Cards.Should().Equal("hb:discipline/minos");
+
+        game.Do(GameCommand.ExaltedSummon("Damocles", "hb:discipline/minos"));
+
+        game.Codes.Should().Contain("exaltedSummoned");
+        game.Encounter.Allies.Should().BeEmpty();
+        game.Encounter.AllyOptions.Should().NotContain(o => o.Kind == "exalted");
+        Refused(game, GameCommand.ExaltedSummon("Damocles", "hb:discipline/minos")).Should().Be("Allies.UsedThisEncounter");
+        Refused(game, GameCommand.ExaltedSummon("Rook", "hb:discipline/minos")).Should().Be("Allies.DisciplineMissing");
+    }
+
     private static AdventurerState Rook(EngineDriver game) => game.State.Campaign.Party.Single(a => a.Name == "Rook");
 
     private static string? Refused(EngineDriver game, GameCommand command) => GameEngine.Apply(game.State, command, game.Context).Error?.Code;
 
     /// <summary>Rook knows Summoning and Conduit Summoning, Shayliss Felled Afterlife, Damocles nothing.</summary>
-    private static EngineDriver Game(IReadOnlyList<CombatantPlacement>? setup = null, bool restoreAfterFirst = false)
+    private static EngineDriver Game(IReadOnlyList<CombatantPlacement>? setup = null, bool restoreAfterFirst = false, Func<EngineDriver, EngineDriver>? beforeSetOut = null)
     {
         var start = new Node { Id = "camp", Type = "scene", Next = "first" };
         Node Fight(string id, string next) => new()
@@ -238,7 +274,7 @@ public class AlliesTests
         game.Do(GameCommand.LearnDiscipline("Rook", "hb:discipline/summoning", 0))
             .Do(GameCommand.LearnDiscipline("Rook", "hb:discipline/conduit-summoning", 0))
             .Do(GameCommand.LearnDiscipline("Shayliss", "hb:discipline/felled-afterlife", 0));
-        return game.Continue();
+        return (beforeSetOut?.Invoke(game) ?? game).Continue();
     }
 
     private static Catalog Catalog()
@@ -274,6 +310,11 @@ public class AlliesTests
                 new Discipline { Id = "hb:discipline/summoning", Name = En("Summoning"), Tree = "a", Level = 1, Cost = 1 },
                 new Discipline { Id = "hb:discipline/conduit-summoning", Name = En("Conduit Summoning"), Tree = "a", Level = 2, Cost = 1 },
                 new Discipline { Id = "hb:discipline/felled-afterlife", Name = En("Felled Afterlife"), Tree = "b", Level = 1, Cost = 1 },
+                new Discipline { Id = "hb:discipline/familiar", Name = En("Familiar"), Tree = "a", Level = 1, Cost = 1 },
+                new Discipline { Id = "hb:discipline/exalted-summoning", Name = En("Exalted Summoning"), Tree = "c", Level = 1, Cost = 1 },
+                new Discipline { Id = "hb:discipline/animism", Name = En("Animism"), Tree = Discipline.FamiliarTree, Story = true, Health = 4 },
+                new Discipline { Id = "hb:discipline/yuxa", Name = En("Yuxa"), Tree = Discipline.FamiliarTree, Story = true },
+                new Discipline { Id = "hb:discipline/minos", Name = En("Minos"), Tree = Discipline.ExaltedTree, Story = true },
             ],
         }]);
     }

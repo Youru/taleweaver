@@ -13,6 +13,7 @@ internal sealed partial class Session
     {
         public const string EarnConduit = "earnConduit";
         public const string Conduit = "conduit";
+        public const string Exalted = "exalted";
     }
 
     private Result Summon(GameCommand command)
@@ -69,6 +70,38 @@ internal sealed partial class Session
             member.SummonTokens++;
         }
 
+        return Result.Success();
+    }
+
+    /// <summary>
+    /// Exalted Summoning (rulebook p. 76): the adventurer uses an Exalted Esper's printed Ability, from their own
+    /// SOI, once per encounter. Nothing comes onto the board; the GM applies what the card says (damage, effects).
+    /// </summary>
+    private Result ExaltedSummon(GameCommand command)
+    {
+        if (ActiveParty.FirstOrDefault(a => a.Name == command.Instance) is not { Defeated: false } member)
+        {
+            return AllyErrors.UnknownAdventurer(command.Instance);
+        }
+
+        if (Catalog.FindDiscipline(command.Card ?? "") is not { Tree: Discipline.ExaltedTree } card)
+        {
+            return AllyErrors.NotACommandCard(command.Card);
+        }
+
+        if (!AllyRules.Knows(member, AllyRules.ExaltedSummoning))
+        {
+            return AllyErrors.DisciplineMissing(member.Name);
+        }
+
+        if (Encounter.UsedSummons.Contains($"{OptionKinds.Exalted}:{member.Name}"))
+        {
+            return AllyErrors.UsedThisEncounter(member.Name);
+        }
+
+        Encounter.UsedSummons.Add($"{OptionKinds.Exalted}:{member.Name}");
+
+        Log("exaltedSummoned", args: Args(("adventurer", member.Name), ("esper", card.Name["en"]), ("card", card.Id)));
         return Result.Success();
     }
 
@@ -228,6 +261,12 @@ internal sealed partial class Session
             if (free && AllyRules.Knows(member, AllyRules.FelledAfterlife) && !Encounter.UsedSummons.Contains($"{AllySources.FelledAfterlife}:{member.Name}"))
             {
                 Offer(AllySources.FelledAfterlife, Catalog.Combatants.Where(c => AllyRules.IsCommand(c) && c.Family == AllyRules.EnslavedSpirit).Select(c => c.Id));
+            }
+
+            // Not a Command Combatant: no limit of one at a time
+            if (AllyRules.Knows(member, AllyRules.ExaltedSummoning) && !Encounter.UsedSummons.Contains($"{OptionKinds.Exalted}:{member.Name}"))
+            {
+                Offer(OptionKinds.Exalted, Catalog.Packs.SelectMany(p => p.Disciplines).Where(d => d.Tree == Discipline.ExaltedTree).Select(d => d.Id));
             }
 
             if (AllyRules.Knows(member, AllyRules.ConduitSummoning))

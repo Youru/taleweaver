@@ -27,7 +27,9 @@ public class PhoneSecretsTests(RepositoryFactory factory) : IClassFixture<Reposi
         var packs = catalog.Packs;
 
         (await Read<Item>(phone, "items")).Should().NotBeEmpty().And.NotContain(i => i.Story || i.Tier == "monster");
-        (await Read<Discipline>(phone, "disciplines")).Should().NotBeEmpty().And.NotContain(d => d.Story);
+        // Familiars and Exalted Espers are cards of the box (rulebook p. 76), not of the story
+        (await Read<Discipline>(phone, "disciplines")).Should().NotBeEmpty()
+            .And.NotContain(d => d.Story && d.Tree != Discipline.FamiliarTree && d.Tree != Discipline.ExaltedTree);
         (await Read<InitiativeCard>(phone, "initiative")).Should().NotBeEmpty().And.OnlyContain(c => c.Adventurer);
         var board = await phone.GetFromJsonAsync<GetBoardPieces.Response>("/api/catalog/board", JsonDefaults.Options, Token);
         board!.Families.Should().BeEmpty();

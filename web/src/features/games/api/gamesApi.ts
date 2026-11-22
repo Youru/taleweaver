@@ -141,6 +141,11 @@ export const gamesApi = {
           method: 'POST',
           body: { adventurer: command.adventurer, card: command.card },
         })
+      case 'exaltedSummon':
+        return http<GameView>(`${games}/${e(id)}/allies/exalted`, {
+          method: 'POST',
+          body: { adventurer: command.adventurer, card: command.card },
+        })
       case 'addAlly':
         return http<GameView>(`${games}/${e(id)}/allies`, {
           method: 'POST',

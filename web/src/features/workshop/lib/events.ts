@@ -111,6 +111,22 @@ export const ADVANCED_ACTIONS = {
   modifyFigure: { instance: '', stats: {} },
 } as const
 export type AdvancedAction = keyof typeof ADVANCED_ACTIONS
+
+/** The lot 4 actions the workshop also edits field by field (the rest of their fields stays in JSON beneath). */
+export const FORMED_ACTIONS = [
+  'setCounter',
+  'addCounter',
+  'removeCounter',
+  'delay',
+  'cancelDelay',
+  'dealInitiative',
+  'moveInitiative',
+  'addInitiativeCard',
+  'removeInitiativeCard',
+  'drawAdventurers',
+  'modifyFigure',
+] as const
+export const isFormed = (action: DraftAction) => (FORMED_ACTIONS as readonly string[]).includes(action.do)
 export const isAdvanced = (kind: string): kind is AdvancedAction => kind in ADVANCED_ACTIONS
 export const newAdvancedAction = (kind: AdvancedAction): DraftAction =>
   JSON.parse(JSON.stringify({ do: kind, ...ADVANCED_ACTIONS[kind] })) as DraftAction

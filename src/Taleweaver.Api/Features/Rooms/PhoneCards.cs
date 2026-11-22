@@ -104,9 +104,11 @@ public sealed class CardSight
     /// <summary>Monster Loot is secret too: its name tells the monster.</summary>
     public bool Sees(Item item) => _seen.Contains(item.Id) || !(item.Story || item.Tier == "monster" || _mapped.Contains(item.Id));
 
-    public bool Sees(Discipline discipline) => _seen.Contains(discipline.Id) || !(discipline.Story || _mapped.Contains(discipline.Id));
+    /// <summary>Familiars and Exalted Espers are cards of the box, not of the story.</summary>
+    public bool Sees(Discipline discipline) =>
+        _seen.Contains(discipline.Id) || discipline.Tree is Discipline.FamiliarTree or Discipline.ExaltedTree || !(discipline.Story || _mapped.Contains(discipline.Id));
 
-    public bool Sees(Adventurer adventurer) => !adventurer.Hidden || adventurer.Name.Values.Any(_names.Contains);
+    public bool Sees(Adventurer adventurer) => !adventurer.Hidden || _seen.Contains(adventurer.Id) || adventurer.Name.Values.Any(_names.Contains);
 
     /// <summary>An opponent's card only in view; an adventurer's with the adventurer.</summary>
     public bool Sees(InitiativeCard card) =>

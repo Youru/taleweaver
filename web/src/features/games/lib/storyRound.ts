@@ -60,10 +60,20 @@ export function disciplineBlock(
   card: CatalogDiscipline,
   adventurer: AdventurerState,
   catalog: CatalogDiscipline[],
-): { learnt: true } | { missingLevel: number } | null {
+): { learnt: true } | { missingLevel: number } | { familiar: 'needed' | 'chosen' } | { exalted: true } | null {
   if ((adventurer.disciplines ?? []).some((d) => d.id === card.id)) return { learnt: true }
+  if (card.tree === 'exalted') return { exalted: true }
+  if (card.tree === 'familiar') {
+    const known = learnt(adventurer, catalog)
+    if (!known.some((d) => d.id.endsWith('/familiar'))) return { familiar: 'needed' }
+    return known.some((d) => d.tree === 'familiar') ? { familiar: 'chosen' } : null
+  }
   if (card.story || !card.level) return null
-  const known = new Set(learnt(adventurer, catalog).filter((d) => !d.story && d.tree === card.tree).map((d) => d.level))
+  const known = new Set(
+    learnt(adventurer, catalog)
+      .filter((d) => !d.story && d.tree === card.tree)
+      .map((d) => d.level),
+  )
   for (let level = 1; level < card.level; level++) if (!known.has(level)) return { missingLevel: level }
   return null
 }

@@ -50,9 +50,18 @@ const disciplineName = (id: string) =>
 /** The cards an adventurer may pick: those they cannot learn yet are shown greyed out, with the reason. */
 function learnable(adventurer: AdventurerState) {
   const all = disciplineCatalog.data.value ?? []
-  return all.map((d) => {
+  // An Exalted Esper is used in an encounter, not learnt
+  return all.filter((d) => d.tree !== 'exalted').map((d) => {
     const block = disciplineBlock(d, adventurer, all)
-    const why = !block ? '' : 'learnt' in block ? t('storyRound.alreadyLearnt') : t('storyRound.missingLevel', { level: block.missingLevel })
+    const why = !block
+      ? ''
+      : 'learnt' in block
+        ? t('storyRound.alreadyLearnt')
+        : 'familiar' in block
+          ? t(`storyRound.familiar.${block.familiar}`)
+          : 'missingLevel' in block
+            ? t('storyRound.missingLevel', { level: block.missingLevel })
+            : ''
     return {
       value: d.id,
       label: `${pick(d.name, language.value)} · ${t(`storyRound.trees.${d.tree}`, d.tree)} ${d.level ?? ''}${why ? ` (${why})` : ''}`,

@@ -6,7 +6,7 @@ import Button from 'primevue/button'
 import Dialog from 'primevue/dialog'
 import Message from 'primevue/message'
 import Tag from 'primevue/tag'
-import { useDisciplines, type CatalogAdventurer } from '@/features/catalog'
+import { useDisciplines, useItems, type CatalogAdventurer } from '@/features/catalog'
 import { disciplineBlock, disciplineCost, type AdventurerState } from '@/features/games'
 import type { PlayerCommand, PlayerRequest } from '../api/types'
 import { assetUrl } from '@/shared/api/assets'
@@ -27,6 +27,41 @@ const props = defineProps<{
 const { t } = useI18n()
 const { language } = storeToRefs(usePreferences())
 const disciplines = useDisciplines()
+const items = useItems()
+
+/**
+ * Movement and Agility with what is equipped, face up: the cards' Movement bonus, and HEAVY's -1 to both per card
+ * that has it (rulebook p. 93).
+ */
+const equippedSides = computed(() =>
+  (props.adventurer.equipped ?? []).flatMap((owned) => {
+    const item = items.data.value?.find((i) => i.id === owned.item)
+    if (!item) return []
+    const back = owned.flipped && item.backSide
+    return [
+      {
+        tags: back && item.backSide!.tags.length ? item.backSide!.tags : item.tags,
+        stats: back ? item.backSide!.stats : item.stats,
+      },
+    ]
+  }),
+)
+const heavy = computed(() => equippedSides.value.filter((s) => s.tags.includes('HEAVY')).length)
+// Tatva's +1 too, unless Flipped
+const disciplineMovement = computed(() =>
+  (props.adventurer.disciplines ?? [])
+    .filter((d) => !props.adventurer.flippedCards?.includes(d.id))
+    .reduce((sum, d) => sum + (disciplines.data.value?.find((c) => c.id === d.id)?.movement ?? 0), 0),
+)
+const movement = computed(() =>
+  props.card
+    ? props.card.movement +
+      equippedSides.value.reduce((sum, s) => sum + (s.stats?.movement ?? 0), 0) +
+      disciplineMovement.value -
+      heavy.value
+    : undefined,
+)
+const skillValue = (name: string) => (props.card?.skills[name] ?? 0) - (name === 'agility' ? heavy.value : 0)
 
 const learnt = computed(() =>
   (props.adventurer.disciplines ?? []).map((d) => ({
@@ -43,11 +78,14 @@ const failure = ref<string>()
 const left = computed(() => xpLeft(props.adventurer))
 const learnable = computed(() => {
   const catalog = disciplines.data.value ?? []
-  return catalog
-    .filter((c) => !c.story && disciplineBlock(c, props.adventurer, catalog) === null)
-    .map((c) => ({ card: c, cost: disciplineCost(c, props.adventurer, catalog) }))
-    .filter((d) => d.cost !== null && d.cost <= left.value)
-    .sort((a, b) => (a.card.level ?? 0) - (b.card.level ?? 0) || a.card.tree.localeCompare(b.card.tree))
+  return (
+    catalog
+      // A Familiar is chosen once the Familiar Discipline is learnt (p. 76)
+      .filter((c) => (!c.story || c.tree === 'familiar') && disciplineBlock(c, props.adventurer, catalog) === null)
+      .map((c) => ({ card: c, cost: disciplineCost(c, props.adventurer, catalog) }))
+      .filter((d) => d.cost !== null && d.cost <= left.value)
+      .sort((a, b) => (a.card.level ?? 0) - (b.card.level ?? 0) || a.card.tree.localeCompare(b.card.tree))
+  )
 })
 const asked = computed(
   () =>
@@ -97,7 +135,7 @@ const skills = ['presence', 'lore', 'agility', 'perception', 'strength']
       </div>
       <div v-if="card">
         <dt>{{ t('room.player.movement') }}</dt>
-        <dd>{{ card.movement }}</dd>
+        <dd :title="heavy ? t('inventory.warn.heavy', { count: heavy }) : undefined">{{ movement }}</dd>
       </div>
       <div>
         <dt>{{ t('room.player.xpLeft') }}</dt>
@@ -107,7 +145,7 @@ const skills = ['presence', 'lore', 'agility', 'perception', 'strength']
     <dl v-if="card && Object.keys(card.skills).length" class="stats skills">
       <div v-for="skill in skills" :key="skill">
         <dt>{{ t(`room.player.skills.${skill}`) }}</dt>
-        <dd>{{ card.skills[skill] ?? 0 }}</dd>
+        <dd>{{ skillValue(skill) }}</dd>
       </div>
     </dl>
     <p v-if="card?.ability" class="ability">

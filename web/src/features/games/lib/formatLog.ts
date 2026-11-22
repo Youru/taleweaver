@@ -114,6 +114,7 @@ const tones: Record<string, LogTone> = {
   scenarioEnd: 'reward',
   setOut: 'narrative',
   allySummoned: 'reward',
+  exaltedSummoned: 'reward',
   allyJoined: 'reward',
   allyStays: 'info',
   allyPlaced: 'info',
