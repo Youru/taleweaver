@@ -139,6 +139,7 @@ cd taleweaver && dotnet test
 
 | Problème | Solution |
 |---|---|
+| Des essais de l'exe ont écrit dans les vraies parties (2026-11-22) : l'exe de l'utilisateur tenait le port, celui de l'essai n'avait pas démarré | Une réponse sur le port ne prouve rien. Essayer avec `TALEWEAVER_DATA` jetable **et** `TALEWEAVER_PORT` à part (5290), lire le port dans `<données>/app.url` (le supprimer avant) et vérifier que ce port appartient au processus lancé, avant tout test qui écrit |
 | L'exe livré ne trouve pas une image ajoutée au code | `package.py` ne prend que les chemins `assets/…` écrits en entier (et les dossiers de `WHOLE`) : un chemin construit par morceaux est à ajouter à `WHOLE` |
 | Serveur d'essai resté vivant après `script \| head` | `head` coupe le script avant son `kill` : ne pas tronquer un script qui lance un serveur, vérifier le port ensuite |
 | Linux : images réduites en erreur 500, ou arrêt faute de `libicu` | `SkiaSharp.NativeAssets.Linux.NoDependencies` (même version que SkiaSharp) et `InvariantGlobalization` à la publication, déjà faits |

@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.IO.Compression;
 using System.Net;
+using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Reflection;
 using System.Security.Cryptography;
@@ -170,12 +171,14 @@ public sealed class PackagedApp
         return target;
     }
 
-    private static int FreePort(int first)
+    internal static int FreePort(int first)
     {
+        // Binding is not proof: Windows lets an IPv4 socket over a port held on [::] or on one address only,
+        // and Kestrel then fails. So any listener on the port, whatever its address, makes it taken.
+        var taken = IPGlobalProperties.GetIPGlobalProperties().GetActiveTcpListeners().Select(l => l.Port).ToHashSet();
         for (var port = first; port < first + PortsTried; port++)
         {
-            // Windows lets "every address" bind over a port another program holds on localhost only
-            if (CanListen(IPAddress.Loopback, port) && CanListen(IPAddress.Any, port))
+            if (!taken.Contains(port) && CanListen(IPAddress.Any, port))
             {
                 return port;
             }
