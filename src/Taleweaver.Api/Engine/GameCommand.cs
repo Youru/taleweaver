@@ -60,6 +60,9 @@ public sealed record GameCommand
     /// <summary>React, Tether: whom it is against, or on.</summary>
     public string? Against { get; init; }
 
+    /// <summary>Resolve: how the Attack or Spell of <see cref="Instance"/> on <see cref="Against"/> ended.</summary>
+    public Resolution? Resolution { get; init; }
+
     /// <summary>Answer to an "abraxis" question: the symbols extra or missing of each player still in, in their order.</summary>
     public IReadOnlyList<int>? Misses { get; init; }
 
@@ -208,6 +211,10 @@ public sealed record GameCommand
     /// <summary>The target of an opponent's Attack, Spell or Ability, hit or not (Aggro, p. 60).</summary>
     public static GameCommand Target(string instance) => new() { Type = GameCommands.Target, Instance = instance };
 
+    /// <summary>An Attack or a Spell validated from the duel, with its <paramref name="amount"/> of Damage.</summary>
+    public static GameCommand Resolve(string attacker, string target, int amount, Resolution resolution, int? tokens = null) =>
+        new() { Type = GameCommands.Resolve, Instance = attacker, Against = target, Value = amount, Resolution = resolution, Tokens = tokens };
+
     public static GameCommand Defeat(string instance) => new() { Type = GameCommands.Defeat, Instance = instance };
 
     public static GameCommand ActivateToken(string token) => new() { Type = GameCommands.ActivateToken, Token = token };
@@ -254,6 +261,7 @@ public static class GameCommands
     public const string SetEffect = "setEffect";
     public const string Defeat = "defeat";
     public const string Target = "target";
+    public const string Resolve = "resolve";
     public const string SetStamina = "setStamina";
     public const string ActivateToken = "activateToken";
     public const string ReachEndCondition = "reachEndCondition";

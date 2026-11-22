@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 import Button from 'primevue/button'
@@ -69,6 +69,11 @@ function openDuel(figure: string) {
   dueling.value = true
 }
 
+// The last blow may end the encounter before the duel closes
+watch(encounter, (now) => {
+  if (!now) dueling.value = false
+})
+
 function run(value: EncounterCommand) {
   command.mutate({ kind: 'encounter', command: value })
 }
@@ -130,6 +135,9 @@ function run(value: EncounterCommand) {
         :node="node"
         :cards="cards"
         :from="duel"
+        :party="state?.campaign.party"
+        :log="state?.log ?? []"
+        :error="commandError"
         :locked="locked"
         :hint="ai.hint.value"
         @command="run"

@@ -5,6 +5,7 @@ import type { BoardLayout } from '@/features/table'
 import { parseCondition, suggest, type Suggestion } from './conditions'
 import { key, printedElevation, printedTerrain, terrainOf, type Board, type BoardFigure, type Terrain } from './grid'
 import { planTurn, type Advice } from './instructions'
+import { isOpen, strikesOfTurn } from './strikes'
 import { seenTokens, type SeenToken } from './totems'
 
 /** What the table shows of the AI's plan: where the acting figure should go, and whom it targets. */
@@ -109,6 +110,8 @@ export function useAiAdvice(
     return parsed && acting ? suggest(parsed, b, acting, movementOf(acting.id)) : undefined
   })
 
+  const strikes = computed(() => strikesOfTurn(toValue(log)))
+
   /** The advice for each AI instruction of the current turn, by log entry. */
   const advice = computed(() => {
     const result = new Map<LogEntry, Advice[]>()
@@ -133,7 +136,12 @@ export function useAiAdvice(
       starts.set(startKey, from)
       const plan = planTurn(
         run.entries.map((e) => e.text?.en ?? ''),
-        { board: b, acting: { ...acting, position: from }, movement: movementOf(instance) },
+        {
+          board: b,
+          acting: { ...acting, position: from },
+          movement: movementOf(instance),
+          struck: run.entries.map((e) => strikes.value.filter((s) => s.entry === e).map((s) => s.done.at(-1))),
+        },
       )
       run.entries.forEach((entry, i) => result.set(entry, plan[i] ?? []))
     }
@@ -154,10 +162,16 @@ export function useAiAdvice(
       if (!figure) continue
       if (figure.id !== last) targets = []
       last = figure.id
+      const asked = strikes.value.filter((s) => s.entry === entry)
+      let part = 0
       for (const a of list) {
         const there = a.kind === 'move' && a.to.x === figure.position.x && a.to.y === figure.position.y
         if (a.kind === 'move' && !there) moves.push({ figure: figure.id, from: a.from, to: a.to, size: figure.size })
-        if (a.kind === 'attack') targets.push(...(a.each ? a.candidates : a.target ? [a.target] : []).map((c) => c.id))
+        if (a.kind === 'attack') {
+          const strike = asked[part++]
+          const ids = (a.each ? a.candidates : a.target ? [a.target] : []).map((c) => c.id)
+          targets.push(...ids.filter((id) => !strike || isOpen(strike, id)))
+        }
       }
     }
     return moves.length || targets.length ? { moves, targets } : undefined

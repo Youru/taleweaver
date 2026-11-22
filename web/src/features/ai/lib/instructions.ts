@@ -26,7 +26,7 @@ export type MoveRule =
 
 export type Action =
   /** `melee`: a Reach (or Adjacent), shortened by Elevation changes (rulebook p. 22). */
-  | { kind: 'attack'; spell: boolean; range: number; melee?: boolean; target: TargetRule }
+  | { kind: 'attack'; spell: boolean; range: number; melee?: boolean; times?: number; target: TargetRule }
   | { kind: 'move'; rule: MoveRule }
 
 /** The sentences of an instruction ("Make a [Melee] ATK. THEN: MOVE …"), questions left out. */
@@ -90,11 +90,14 @@ export function parseInstruction(text: string): Action[] {
       const reach = /reach (\d+)/.exec(s)
       const range = attack[1] === 'ranged' ? Number(attack[2] ?? 1) : reach ? Number(reach[1]) : 1
       const melee = attack[1] === 'melee'
+      // "Make 2 [Melee] ATKS"
+      const times = Number(/\b([2-9]) \[(?:melee|ranged)\][\s\d]*atks\b/.exec(s)?.[1] ?? 1)
       actions.push({
         kind: 'attack',
         spell: false,
         range,
         ...(melee && { melee }),
+        ...(times > 1 && { times }),
         target: targetRule(attack[3] ?? ''),
       })
       continue
@@ -145,6 +148,8 @@ export interface TurnContext {
   acting: BoardFigure
   /** The acting figure's Movement, when the card prints a number. */
   movement?: number
+  /** Whom each Attack was resolved against, by instruction then Attack: "the same target" is that one. */
+  struck?: (string | undefined)[][]
 }
 
 const candidate = ({ figure, range }: { figure: BoardFigure; range: number }): Candidate => ({
@@ -305,11 +310,13 @@ function moveAdvice(
 export function planTurn(texts: string[], context: TurnContext): Advice[][] {
   let acting = context.acting
   let previous: Candidate | undefined
-  return texts.map((text) =>
-    parseInstruction(text).flatMap((action): Advice[] => {
+  return texts.map((text, line) => {
+    let part = 0
+    return parseInstruction(text).flatMap((action): Advice[] => {
       if (action.kind === 'attack') {
         const advice = attackAdvice(action, context.board, acting, previous)
-        previous = advice.target ?? previous
+        const struck = context.struck?.[line]?.[part++]
+        previous = struck ? { id: struck, name: struck, range: 0 } : (advice.target ?? previous)
         return [advice]
       }
       const advice = moveAdvice(action.rule, context, acting, previous)
@@ -322,6 +329,6 @@ export function planTurn(texts: string[], context: TurnContext): Advice[][] {
         }
       }
       return [advice]
-    }),
-  )
+    })
+  })
 }

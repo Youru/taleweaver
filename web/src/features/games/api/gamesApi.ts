@@ -62,18 +62,29 @@ export const gamesApi = {
           body: { effect: command.effect, active: command.active },
         })
       case 'defeat':
-        return http<GameView>(`${base}/combatants/${e(command.instance)}/defeat${by(command.author)}`, { method: 'POST' })
+        return http<GameView>(`${base}/combatants/${e(command.instance)}/defeat${by(command.author)}`, {
+          method: 'POST',
+        })
       case 'target':
         return http<GameView>(`${base}/combatants/${e(command.instance)}/target`, { method: 'POST' })
       case 'activateToken':
         return http<GameView>(`${base}/tokens/${e(command.token)}/activation${by(command.author)}`, { method: 'POST' })
       case 'endCondition':
-        return http<GameView>(`${base}/end-conditions/${e(command.endCondition)}${by(command.author)}`, { method: 'POST' })
+        return http<GameView>(`${base}/end-conditions/${e(command.endCondition)}${by(command.author)}`, {
+          method: 'POST',
+        })
       case 'spend':
         return http<GameView>(`${play}/actions`, {
           method: 'POST',
           body: { figure: command.figure, action: command.action },
         })
+      case 'resolve': {
+        const { attacker, target, amount, resolution, tokens } = command
+        return http<GameView>(`${play}/resolutions`, {
+          method: 'POST',
+          body: { attacker, target, amount, resolution, tokens },
+        })
+      }
       case 'react':
         return http<GameView>(`${play}/reactions`, {
           method: 'POST',

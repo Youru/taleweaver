@@ -176,6 +176,9 @@ internal sealed partial class Session(GameState state, GameContext context)
             GameCommands.SetEffect when reportsAllowed => SetEffect(command.Instance, command.Effect, command.Active ?? true),
             GameCommands.Defeat when reportsAllowed => Defeat(command.Instance),
             GameCommands.Target when reportsAllowed => MarkTargeted(command.Instance),
+            GameCommands.Resolve when reportsAllowed =>
+                Resolve(command.Instance, command.Against, command.Value ?? 0, command.Resolution, Math.Max(0, command.Tokens ?? 0)),
+            GameCommands.Resolve => GameEngine.Errors.AwaitingAnswer,
             GameCommands.ActivateToken when reportsAllowed => ActivateTokenCommand(command.Token),
             GameCommands.ReachEndCondition when reportsAllowed => ReachEndCondition(command.EndCondition),
             GameCommands.RevealArea when reportsAllowed => RevealAreaCommand(command.Area),

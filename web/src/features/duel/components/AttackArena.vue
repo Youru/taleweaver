@@ -3,6 +3,8 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 import Button from 'primevue/button'
+import type { Situation } from '@/features/ai'
+import type { Resolution } from '@/features/games'
 import { usePreferences } from '@/shared/lib/preferences'
 import type { Dice } from '../api/types'
 import type { SymbolAbility } from '../lib/abilities'
@@ -18,6 +20,7 @@ import DiePicker from './DiePicker.vue'
 import GameIcon from './GameIcon.vue'
 import ManualRoll from './ManualRoll.vue'
 import OddsStrip from './OddsStrip.vue'
+import ResolveBar from './ResolveBar.vue'
 import CardReminders from './CardReminders.vue'
 import EffectNotes from './EffectNotes.vue'
 import StatField from './StatField.vue'
@@ -33,13 +36,14 @@ const props = defineProps<{
   dice: Dice | undefined
   showOdds: boolean
   locked: boolean
+  sending: boolean
+  /** What the board says: pre-ticked, until the GM ticks otherwise. */
+  situation?: Situation
+  summonTokens: number
 }>()
 const emit = defineEmits<{
-  apply: [instance: string, amount: number]
-  /** Targeted without Damage: it counts for Aggro. */
-  targeted: [instance: string]
+  resolve: [amount: number, resolution: Resolution, tokens?: number]
   remember: [fighter: Fighter, patch: Partial<AdventurerSheet>]
-  spend: [figure: Fighter, action: string]
 }>()
 
 const { t } = useI18n()
@@ -48,9 +52,18 @@ const { language } = storeToRefs(usePreferences())
 // Before the roll (the dialog re-creates the arena when the attacker or the target changes)
 const pool = ref([...props.attacker.pool])
 const empower = ref(false)
-const flank = ref(false)
-const throughAlly = ref(false)
-const hindering = ref(false)
+/** What the board says, unless the GM said otherwise. */
+function fromBoard(field: 'flank' | 'throughAlly' | 'hindering' | 'higher') {
+  const said = ref<boolean>()
+  return computed({
+    get: () => said.value ?? props.situation?.[field] ?? false,
+    set: (value: boolean) => (said.value = value),
+  })
+}
+const flank = fromBoard('flank')
+const throughAlly = fromBoard('throughAlly')
+const hindering = fromBoard('hindering')
+const higher = fromBoard('higher')
 const otherToHit = ref(0)
 const physical = ref(0)
 const pierce = ref(props.attacker.pierce ?? 0)
@@ -64,10 +77,11 @@ watch([defense, armor], ([d, a]) => emit('remember', props.target, { defense: d,
 const alwaysEmpowered = computed(() => hasBlackDie({ pool: pool.value }))
 /** What the Effects on both figures change (Darkness, Barrier, Courage, Nemesis, Wilt…). */
 const mods = computed(() => effectMods(props.attacker.effects, props.target.effects))
+const noDodge = computed(() => mods.value.noDodge || !!props.situation?.inWater)
 watch(
-  () => mods.value.noDodge,
-  (noDodge) => {
-    if (noDodge) dodge.value = false
+  noDodge,
+  (cannot) => {
+    if (cannot) dodge.value = false
   },
   { immediate: true },
 )
@@ -78,7 +92,8 @@ const setup = computed<AttackSetup | undefined>(() =>
         pool: pool.value,
         empower: empower.value || alwaysEmpowered.value,
         toHit:
-          (flank.value ? 1 : 0) -
+          (flank.value ? 1 : 0) +
+          (higher.value ? 1 : 0) -
           (throughAlly.value ? 1 : 0) -
           (hindering.value ? 1 : 0) +
           otherToHit.value +
@@ -88,7 +103,7 @@ const setup = computed<AttackSetup | undefined>(() =>
         abilities: props.attacker.abilities,
         defense: defense.value,
         armor: armor.value + mods.value.armor,
-        dodge: dodge.value && !mods.value.noDodge,
+        dodge: dodge.value && !noDodge.value,
         irreducible: mods.value.irreducible,
         symbols: mods.value.symbols,
       },
@@ -116,7 +131,6 @@ const faces = ref<(number | null)[]>([])
 const dodgeFace = ref<number | null>(null)
 const manual = ref(false)
 const typedRoll = ref<AttackRoll | null>(null)
-const applied = ref(false)
 watch(rolled, (list) => (faces.value = list.map(() => null)), { immediate: true })
 
 const roll = computed<AttackRoll | undefined>(() => {
@@ -149,37 +163,37 @@ function newRoll() {
   faces.value = rolled.value.map(() => null)
   dodgeFace.value = null
   typedRoll.value = null
-  applied.value = false
-  paid.value = false
 }
 
-/** Dodge and a paid Empower of this roll, and whether they are counted. */
-const paid = ref(false)
-const costs = computed(() => [
-  ...(empower.value && !alwaysEmpowered.value && props.attacker.kind === 'adventurer'
-    ? [{ figure: props.attacker, action: 'empower' }]
-    : []),
-  ...(dodge.value && !mods.value.noDodge && props.target.kind === 'adventurer'
-    ? [{ figure: props.target, action: 'dodge' }]
-    : []),
-])
-function pay() {
-  if (paid.value) return
-  costs.value.forEach(({ figure, action }) => emit('spend', figure, action))
-  paid.value = true
-}
-
-function apply() {
-  if (!outcome.value) return
-  pay()
-  emit('apply', props.target.id, outcome.value.final)
-  applied.value = true
-}
-
-function markTargeted() {
-  pay()
-  emit('targeted', props.target.id)
-  applied.value = true
+/** What will be dealt: the dice's, unless the GM corrects it. */
+const amount = ref(0)
+const token = ref(false)
+watch(
+  () => outcome.value?.final,
+  (final) => (amount.value = final ?? 0),
+  { immediate: true },
+)
+const confirmLabel = computed(() => {
+  if (!outcome.value?.hit) return t('duel.confirmMiss')
+  if (!amount.value) return t('duel.confirmBlocked')
+  const name = props.target.kind === 'combatant' ? props.target.id : props.target.name
+  return t('duel.confirmDamage', { n: amount.value, name }, amount.value)
+})
+/** The whole action at once: the SP of Dodge and Empower (p. 52), the target noted, its Damage. */
+function confirm() {
+  const result = outcome.value
+  if (!result) return
+  emit(
+    'resolve',
+    result.hit ? amount.value : 0,
+    {
+      outcome: result.hit ? 'hit' : 'miss',
+      difference: result.difference,
+      empower: empower.value && !alwaysEmpowered.value,
+      dodge: dodge.value && !noDodge.value,
+    },
+    token.value && props.summonTokens ? 1 : undefined,
+  )
 }
 
 function costIcons(ability: SymbolAbility): SymbolName[] {
@@ -209,7 +223,11 @@ function costIcons(ability: SymbolAbility): SymbolName[] {
         <ChipToggle v-model="flank" :label="t('duel.flank')" />
         <ChipToggle v-model="throughAlly" :label="t('duel.throughAlly')" />
         <ChipToggle v-model="hindering" :label="t('duel.hindering')" />
+        <ChipToggle v-model="higher" :label="t('duel.higher')" />
       </div>
+      <p v-if="situation" class="from-board" :class="{ blind: !situation.clear }">
+        {{ situation.clear ? t('duel.fromBoard') : t('duel.noSight') }}
+      </p>
       <StatField v-model="otherToHit" :label="t('duel.otherToHit')" :min="-10" :max="10" />
       <StatField v-model="physical" :label="t('duel.physical')" :max="20" />
       <StatField v-model="pierce" :label="t('duel.pierce')" :max="10" />
@@ -297,33 +315,20 @@ function costIcons(ability: SymbolAbility): SymbolName[] {
           <li v-if="!outcome.hit || outcome.final === 0" class="note">{{ t('duel.counter') }}</li>
           <li v-if="outcome.hit" class="note">{{ t('duel.difference', { n: outcome.difference }) }}</li>
         </ol>
-        <div class="actions">
-          <template v-if="target.kind === 'combatant' && (outcome.final > 0 || attacker.kind !== 'combatant')">
-            <Button
-              v-if="!applied && outcome.final === 0"
-              :label="t('duel.targeted')"
-              icon="pi pi-check"
-              :disabled="locked"
-              @click="markTargeted"
-            />
-            <Button
-              v-else-if="!applied"
-              :label="t('duel.apply', { n: outcome.final, name: target.id })"
-              icon="pi pi-check"
-              :disabled="locked"
-              @click="apply"
-            />
-            <span v-else class="done"
-              ><i class="pi pi-check" /> {{ t(outcome.final > 0 ? 'duel.applied' : 'duel.noted') }}</span
-            >
-          </template>
-          <span v-else-if="outcome.final > 0">{{
-            t('duel.adventurerTakes', { n: outcome.final, name: target.name })
-          }}</span>
-          <Button :label="t('duel.newRoll')" icon="pi pi-replay" severity="secondary" outlined @click="newRoll" />
-        </div>
       </section>
       <p v-else class="waiting">{{ t('duel.waiting') }}</p>
+      <ResolveBar
+        v-if="outcome"
+        v-model:amount="amount"
+        v-model:token="token"
+        :label="confirmLabel"
+        :editable="outcome.hit"
+        :tokens="summonTokens"
+        :locked="locked"
+        :sending="sending"
+        @confirm="confirm"
+        @reset="newRoll"
+      />
     </section>
 
     <section class="side right" :aria-label="t('duel.targetSide')">
@@ -331,11 +336,22 @@ function costIcons(ability: SymbolAbility): SymbolName[] {
       <StatField v-model="defense" :label="t('duel.defense')" :icon="statIcon('defense')" :max="40" nullable />
       <StatField v-model="armor" :label="t('duel.armor')" :icon="statIcon('armor')" :max="20" />
       <div class="chips">
-        <ChipToggle v-if="!mods.noDodge" v-model="dodge" :label="t('duel.dodge')" :icon="dieIcon('black')" />
+        <ChipToggle v-if="!noDodge" v-model="dodge" :label="t('duel.dodge')" :icon="dieIcon('black')" />
       </div>
+      <p v-if="situation?.inWater" class="from-board">{{ t('duel.inWater') }}</p>
       <CardReminders :fighter="target" />
     </section>
   </div>
 </template>
 
 <style scoped src="./arena.css"></style>
+<style scoped>
+.from-board {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--p-text-muted-color);
+}
+.from-board.blind {
+  color: var(--p-red-700);
+}
+</style>

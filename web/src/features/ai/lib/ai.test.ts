@@ -223,7 +223,7 @@ describe('line of sight', () => {
     // A Spell's SOI sees past figures
     expect(sight(board(sickle, rook, blocker), sickle, rook, true).clear).toBe(true)
     const ally = fig('sickle-2', 'combatant', 2, 2)
-    expect(sight(board(sickle, rook, ally), sickle, rook)).toEqual({ clear: true, penalty: -1 })
+    expect(sight(board(sickle, rook, ally), sickle, rook)).toEqual({ clear: true, penalty: -1, ally: true })
     expect(sight(withTerrain(board(sickle, rook, ally), { '3,2': 'hindering' }), sickle, rook).penalty).toBe(-2)
     // Off the tiles: no Line of Sight
     const far = fig('adventurer:Zeke', 'adventurer', 0, 5)

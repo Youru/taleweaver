@@ -175,9 +175,11 @@ watch(selected, async (now) => {
 const duel = ref<string | null>(null)
 const duelTarget = ref<string | null>(null)
 const duelSpell = ref(false)
+const duelStrike = ref<string>()
 const dueling = ref(false)
 
-function openDuel(figure: string, target?: string, spell = false) {
+function openDuel(figure: string, target?: string, spell = false, strike?: string) {
+  duelStrike.value = strike
   duel.value = figure
   duelTarget.value = target ?? null
   duelSpell.value = spell
@@ -247,6 +249,10 @@ const sessionOpen = ref(false)
 const readingOpen = ref(false)
 const revertLine = ref<number | null>(null)
 const inFight = computed(() => !!encounter.value && !encounterOver.value)
+// The last blow may end the encounter before the duel closes
+watch(inFight, (fighting) => {
+  if (!fighting) dueling.value = false
+})
 const tools = computed(() => [
   { label: t('comfort.tools.session'), icon: 'pi pi-calendar', command: () => (sessionOpen.value = true) },
   { label: t('comfort.tools.reading'), icon: 'pi pi-book', command: () => (readingOpen.value = true) },
@@ -592,6 +598,9 @@ function moveFigure(figure: string, to: Cell) {
           :from="duel"
           :to="duelTarget"
           :spell="duelSpell"
+          :strike="duelStrike"
+          :log="state.log"
+          :error="commandError"
           :locked="reportsLocked"
           @command="encounterCommand"
         />

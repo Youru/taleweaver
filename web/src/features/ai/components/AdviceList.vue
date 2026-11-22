@@ -3,6 +3,7 @@ import { useI18n } from 'vue-i18n'
 import Button from 'primevue/button'
 import type { Cell } from '@/features/games'
 import type { Advice, Candidate } from '../lib/instructions'
+import { isOpen, type Strike } from '../lib/strikes'
 
 /** What the board suggests for one AI instruction: whom to target, where to move. */
 const props = defineProps<{
@@ -10,8 +11,10 @@ const props = defineProps<{
   /** The acting figure: its name and where it stands now. */
   name: string
   position: Cell | undefined
+  /** The instruction's Attacks and Spells, in order. */
+  strikes?: Strike[]
 }>()
-const emit = defineEmits<{ duel: [target: string, spell: boolean]; move: [to: Cell] }>()
+const emit = defineEmits<{ duel: [target: string, spell: boolean, strike?: string]; move: [to: Cell] }>()
 
 const { t } = useI18n()
 
@@ -19,8 +22,19 @@ const list = (candidates: Candidate[]) => candidates.map((c) => `${c.name} (${c.
 const at = (a: Cell, b: Cell | undefined) => !!b && a.x === b.x && a.y === b.y
 /** The buttons of an Attack: its target, or every candidate when the GM settles it (at most four). */
 function choices(a: Extract<Advice, { kind: 'attack' }>): Candidate[] {
-  return (a.target ? [a.target] : a.candidates).slice(0, 4)
+  const strike = strikeOf(a)
+  const left = a.candidates.filter((c) => !strike || isOpen(strike, c.id))
+  return (a.target && left.includes(a.target) ? [a.target] : left).slice(0, 4)
 }
+function strikeOf(a: Advice): Strike | undefined {
+  return props.strikes?.[props.advice.filter((x) => x.kind === 'attack').findIndex((x) => x === a)]
+}
+/** Resolved: what was suggested gives way to what was done. */
+function finished(a: Extract<Advice, { kind: 'attack' }>): boolean {
+  const strike = strikeOf(a)
+  return !!strike?.done.length && (!isOpen(strike) || !choices(a).length)
+}
+const shortName = (id: string) => id.replace(/^(adventurer|ally):/, '')
 </script>
 
 <template>
@@ -28,26 +42,32 @@ function choices(a: Extract<Advice, { kind: 'attack' }>): Candidate[] {
     <li v-for="(a, index) in props.advice" :key="index">
       <template v-if="a.kind === 'attack'">
         <i class="pi" :class="a.spell ? 'pi-sparkles' : 'pi-bolt'" aria-hidden="true" />
-        <span v-if="!a.candidates.length">{{ t('ai.noTarget', { range: a.range }) }}</span>
-        <span v-else-if="a.target">
-          {{ t('ai.target', { name: a.target.name, n: a.target.range }) }}
-          <strong v-if="a.target.penalty" class="penalty">{{ t('ai.penalty', { n: a.target.penalty }) }}</strong>
-          <strong v-if="a.target.higher" class="higher">{{ t('ai.higher') }}</strong>
+        <span v-if="strikeOf(a)?.done.length" class="done">
+          <i class="pi pi-check" />
+          {{ t('ai.resolved', { names: strikeOf(a)!.done.map(shortName).join(', ') }) }}
         </span>
-        <span v-else-if="a.criterion">
-          {{ t('ai.targetCriterion', { criterion: a.criterion, list: list(a.candidates) }) }}
-        </span>
-        <span v-else>{{ t('ai.targetsEach', { list: list(a.candidates) }) }}</span>
-        <span v-if="a.candidates.length" class="buttons">
-          <Button
-            v-for="c in choices(a)"
-            :key="c.id"
-            :label="t('ai.resolve', { name: c.name })"
-            size="small"
-            text
-            @click="emit('duel', c.id, a.spell)"
-          />
-        </span>
+        <template v-if="!finished(a)">
+          <span v-if="!a.candidates.length">{{ t('ai.noTarget', { range: a.range }) }}</span>
+          <span v-else-if="a.target">
+            {{ t('ai.target', { name: a.target.name, n: a.target.range }) }}
+            <strong v-if="a.target.penalty" class="penalty">{{ t('ai.penalty', { n: a.target.penalty }) }}</strong>
+            <strong v-if="a.target.higher" class="higher">{{ t('ai.higher') }}</strong>
+          </span>
+          <span v-else-if="a.criterion">
+            {{ t('ai.targetCriterion', { criterion: a.criterion, list: list(a.candidates) }) }}
+          </span>
+          <span v-else>{{ t('ai.targetsEach', { list: list(a.candidates) }) }}</span>
+          <span v-if="a.candidates.length" class="buttons">
+            <Button
+              v-for="c in choices(a)"
+              :key="c.id"
+              :label="t('ai.resolve', { name: c.name })"
+              size="small"
+              text
+              @click="emit('duel', c.id, a.spell, strikeOf(a)?.id)"
+            />
+          </span>
+        </template>
       </template>
       <template v-else-if="a.kind === 'move'">
         <i class="pi pi-directions" aria-hidden="true" />

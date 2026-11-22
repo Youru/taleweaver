@@ -41,6 +41,23 @@ public static class PlayEndpoints
         }
     }
 
+    public sealed record ResolutionRequest(string Attacker, string Target, int Amount, Resolution Resolution, int? Tokens = null);
+
+    public sealed class ResolutionValidator : AbstractValidator<ResolutionRequest>
+    {
+        private static readonly string[] Outcomes = [Resolution.Hit, Resolution.Miss, Resolution.Affected, Resolution.Resisted, Resolution.Backfire];
+
+        public ResolutionValidator()
+        {
+            RuleFor(r => r.Attacker).NotEmpty();
+            RuleFor(r => r.Target).NotEmpty();
+            RuleFor(r => r.Amount).InclusiveBetween(0, 999);
+            RuleFor(r => r.Tokens).InclusiveBetween(0, 9);
+            RuleFor(r => r.Resolution).NotNull();
+            RuleFor(r => r.Resolution.Outcome).Must(o => Outcomes.Contains(o)).When(r => r.Resolution is not null);
+        }
+    }
+
     public sealed record EsperRequest(string Card, string Summoner, Cell? At = null);
 
     public sealed class TokenValidator : AbstractValidator<TokenRequest>
@@ -60,6 +77,8 @@ public static class PlayEndpoints
             Run(id, GameCommand.Spend(r.Figure, r.Action), runner, ct)).WithName("SpendStamina");
         group.MapPost("/reactions", (string id, ReactionRequest r, GameRunner runner, CancellationToken ct) =>
             Run(id, GameCommand.React(r.Figure, r.Kind, r.Against), runner, ct)).WithName("React");
+        group.MapPost("/resolutions", (string id, ResolutionRequest r, GameRunner runner, CancellationToken ct) =>
+            Run(id, GameCommand.Resolve(r.Attacker, r.Target, r.Amount, r.Resolution, r.Tokens), runner, ct)).WithValidation<ResolutionRequest>().WithName("Resolve");
         group.MapDelete("/reactions/current", (string id, GameRunner runner, CancellationToken ct) =>
             Run(id, GameCommand.EndReaction(), runner, ct)).WithName("EndReaction");
         group.MapPost("/no-instruction", (string id, GameRunner runner, CancellationToken ct) =>

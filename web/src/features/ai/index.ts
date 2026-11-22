@@ -1,5 +1,7 @@
-export { useAiAdvice, type TableHint } from './lib/advice'
+export { readBoard, useAiAdvice, type TableHint } from './lib/advice'
 export type { Suggestion } from './lib/conditions'
 export type { SeenToken } from './lib/totems'
+export { situationOf, type Situation, type Weapon } from './lib/situation'
+export { isOpen, stepKey, strikesOfTurn, type Strike } from './lib/strikes'
 export type { Advice } from './lib/instructions'
 export { default as AdviceList } from './components/AdviceList.vue'

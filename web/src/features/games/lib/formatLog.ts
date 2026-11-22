@@ -59,6 +59,12 @@ const tones: Record<string, LogTone> = {
   aiInstruction: 'ai',
   aggro: 'ai',
   targeted: 'muted',
+  attackResolved: 'alert',
+  attackBlocked: 'ai',
+  attackMissed: 'ai',
+  spellResolved: 'alert',
+  spellResisted: 'ai',
+  spellBackfired: 'alert',
   paralyzed: 'ai',
   paralyzeEnded: 'muted',
   effectImmune: 'alert',
@@ -163,7 +169,7 @@ function readableArgs(entry: LogEntry): Record<string, string> {
     const value = args[key]
     if (value) args[key] = shortId(value)
   }
-  for (const key of ['instance', 'figure', 'target']) {
+  for (const key of ['instance', 'figure', 'target', 'attacker']) {
     const value = args[key]
     if (value?.startsWith('adventurer:') || value?.startsWith('ally:')) args[key] = value.slice(value.indexOf(':') + 1)
   }
@@ -232,7 +238,7 @@ export function formatLog(
     entry.code === 'scene'
       ? args.title
       : entry.code === 'encounter' || entry.code === 'storyRound' || entry.code === 'storyRoundReturn'
-        ? args.name ?? args.node
+        ? (args.name ?? args.node)
         : undefined
   const lootLevelName = (level: string) =>
     hasMessage(`workshop.loot.${level}`) ? translate(`workshop.loot.${level}`, {}) : level

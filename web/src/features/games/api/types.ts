@@ -323,6 +323,16 @@ export interface Prompt {
   action?: { effects?: string[] | null } | null
 }
 
+/** Mirrors Taleweaver.Api.Engine.Resolution. */
+export interface Resolution {
+  outcome: 'hit' | 'miss' | 'affected' | 'resisted' | 'backfire'
+  difference?: number
+  empower?: boolean
+  dodge?: boolean
+  /** The AI action resolved (see strikes.ts). */
+  step?: string
+}
+
 export interface LogEntry {
   code: string
   text?: LocalizedText
@@ -362,7 +372,14 @@ export type Answer =
 export type EncounterCommand =
   | { type: 'nextTurn' }
   /** fromOpponent, tokens: a Loyal Esper's Damage (its summoner takes it too; Summon tokens discarded). */
-  | { type: 'damage'; instance: string; amount: number; fromOpponent?: boolean; tokens?: number; author?: string | null }
+  | {
+      type: 'damage'
+      instance: string
+      amount: number
+      fromOpponent?: boolean
+      tokens?: number
+      author?: string | null
+    }
   | { type: 'summon'; adventurer: string; card: string }
   | { type: 'addAlly'; card: string; owner?: string }
   | { type: 'dismissAlly'; ally: string; ignoreDamage?: boolean }
@@ -377,6 +394,8 @@ export type EncounterCommand =
   | { type: 'spend'; figure: string; action: string }
   | { type: 'react'; figure: string; kind: string; against?: string }
   | { type: 'endReaction' }
+  /** An Attack or a Spell validated from the duel, as one action. */
+  | { type: 'resolve'; attacker: string; target: string; amount: number; resolution: Resolution; tokens?: number }
   | { type: 'noInstruction' }
   | { type: 'card'; figure: string; card: string; mark: 'exhausted' | 'used' | 'flipped'; value: boolean }
   | { type: 'abilityToken'; figure: string; token: string; value: number }

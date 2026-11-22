@@ -218,6 +218,9 @@ export interface Sight {
   penalty: number
   /** The viewer stands higher than the target: +1 to its Attack rolls (rulebook p. 22). */
   higher?: boolean
+  /** What the penalty comes from. */
+  hindering?: boolean
+  ally?: boolean
 }
 
 /**
@@ -316,7 +319,13 @@ export function sight(board: Board, viewer: BoardFigure, target: BoardFigure, so
       const penalty = 0 - Number(hindering) - Number(ally)
       const higher = !soi && up > down
       const score = (s: Sight) => s.penalty + Number(!!s.higher)
-      const found: Sight = higher ? { clear: true, penalty, higher } : { clear: true, penalty }
+      const found: Sight = {
+        clear: true,
+        penalty,
+        ...(higher && { higher }),
+        ...(hindering && { hindering }),
+        ...(ally && { ally }),
+      }
       if (!bestSight || score(found) > score(bestSight)) bestSight = found
     }
   return bestSight ?? { clear: false, penalty: 0 }

@@ -25,8 +25,9 @@ public static class GameEngine
     /// 17: the Status Phase asks, reactions, cards and Ability tokens, Disease and Tether.
     /// 18: counters, the track arranged, sides, figures of the scenario, kept boards, effects for later, opposing Espers.
     /// 19: corrections, Ready, several figures at once, a turn ended by its player.
+    /// 20: an Attack or a Spell validated as one action, AI actions resolved only once.
     /// </summary>
-    public const int Version = 19;
+    public const int Version = 20;
 
     public static class Errors
     {

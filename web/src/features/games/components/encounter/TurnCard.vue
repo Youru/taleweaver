@@ -3,7 +3,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 import Button from 'primevue/button'
-import { AdviceList, type Advice, type Suggestion } from '@/features/ai'
+import { AdviceList, isOpen, strikesOfTurn, type Advice, type Strike, type Suggestion } from '@/features/ai'
 import type { Combatant } from '@/features/catalog'
 import { pick } from '@/shared/lib/localized'
 import { usePreferences } from '@/shared/lib/preferences'
@@ -11,6 +11,7 @@ import type { Answer, Cell, EncounterState, LogEntry, Prompt } from '../../api/t
 import { currentTurn } from '../../lib/currentTurn'
 import { formatLog } from '../../lib/formatLog'
 import { shortId } from '../../lib/ids'
+import { figureName } from '../../lib/play'
 import PromptPanel from '../PromptPanel.vue'
 
 /**
@@ -30,7 +31,7 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{
   answer: [answer: Answer]
-  duel: [figure: string, target?: string, spell?: boolean]
+  duel: [figure: string, target?: string, spell?: boolean, strike?: string]
   move: [figure: string, to: Cell]
 }>()
 
@@ -64,12 +65,26 @@ const heading = computed(() => {
   }
   return ''
 })
-/** The acting combatant was told to attack or cast: the duel helper is one click away. */
-const attacks = computed(
-  () =>
-    !!turn.value.acting &&
-    turn.value.entries.some((e) => e.code === 'aiInstruction' && /\bATK\b|SPELL/.test(e.text?.en ?? '')),
-)
+const strikes = computed(() => strikesOfTurn(props.log))
+/** The acting combatant was told to attack or cast and did not yet: the duel helper is one click away. */
+const toResolve = computed(() => strikes.value.find((s) => s.figure === turn.value.acting && !settled(s)))
+/** Done: as often as asked, or against every target the board still offers when it is one against each. */
+function settled(strike: Strike): boolean {
+  if (!isOpen(strike)) return true
+  if (!strike.each || !strike.done.length) return false
+  const attacks = props.advice?.get(strike.entry)?.filter((a) => a.kind === 'attack') ?? []
+  return attacks.every((a) => a.candidates.every((c) => !isOpen(strike, c.id)))
+}
+const strikesOf = (entry: LogEntry) => strikes.value.filter((s) => s.entry === entry)
+/** Without the board's advice (figure off the table, wording not read), the instruction keeps its own button. */
+function unadvised(entry: LogEntry) {
+  return props.advice?.get(entry)?.some((a) => a.kind === 'attack') ? [] : strikesOf(entry)
+}
+/** Whom the board suggests for it ("the same target": the one just attacked). */
+function suggestedTarget(strike: Strike) {
+  const part = strikesOf(strike.entry).findIndex((s) => s.id === strike.id)
+  return props.advice?.get(strike.entry)?.filter((a) => a.kind === 'attack')[part]?.target?.id
+}
 const promptSuggestion = computed(() => {
   const s = props.suggestion
   return s ? { option: s.answer ? 'yes' : 'no', reason: t(`ai.reason.${s.reason.key}`, s.reason.args) } : undefined
@@ -105,20 +120,36 @@ const lines = computed(() =>
           :advice="advice.get(turn.entries[index]!)!"
           :name="turn.entries[index]!.args?.instance ?? ''"
           :position="positionOf(turn.entries[index]!.args?.instance)"
-          @duel="(target, spell) => emit('duel', turn.entries[index]!.args?.instance ?? '', target, spell)"
+          :strikes="strikesOf(turn.entries[index]!)"
+          @duel="
+            (target, spell, strike) => emit('duel', turn.entries[index]!.args?.instance ?? '', target, spell, strike)
+          "
           @move="(to) => emit('move', turn.entries[index]!.args?.instance ?? '', to)"
         />
+        <template v-for="strike in unadvised(turn.entries[index]!)" :key="strike.id">
+          <span v-if="strike.done.length" class="resolved">
+            <i class="pi pi-check" /> {{ t('ai.resolved', { names: strike.done.map(figureName).join(', ') }) }}
+          </span>
+          <Button
+            v-if="!settled(strike) && strike.figure !== turn.acting"
+            class="duel"
+            :label="t('duel.openTurn', { name: strike.figure })"
+            size="small"
+            text
+            @click="emit('duel', strike.figure, undefined, strike.spell, strike.id)"
+          />
+        </template>
       </li>
     </ol>
     <Button
-      v-if="attacks && turn.acting"
+      v-if="toResolve && turn.acting"
       class="duel"
       :label="t('duel.openTurn', { name: turn.acting })"
       icon="pi pi-bolt"
       size="small"
       severity="contrast"
       outlined
-      @click="emit('duel', turn.acting)"
+      @click="emit('duel', turn.acting, suggestedTarget(toResolve), toResolve.spell, toResolve.id)"
     />
     <PromptPanel
       v-if="prompt"
@@ -181,6 +212,10 @@ const lines = computed(() =>
 }
 .lines li.reward {
   border-color: var(--p-green-500);
+}
+.resolved {
+  color: var(--p-green-700);
+  font-size: 0.85rem;
 }
 .caveat {
   margin: 0;

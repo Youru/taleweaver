@@ -1,5 +1,5 @@
 import type { Combatant } from '@/features/catalog'
-import type { Cell, EncounterState } from '@/features/games'
+import type { AdventurerState, Cell, EncounterState } from '@/features/games'
 import type { BoardPieces } from '@/features/table'
 import { assetUrl } from '@/shared/api/assets'
 import { pick, type Language } from '@/shared/lib/localized'
@@ -82,6 +82,7 @@ export function fighters(
   language: Language,
   pieces?: BoardPieces,
   equipment: Equipment = {},
+  party: AdventurerState[] = [],
 ): Fighter[] {
   const figure = (...names: (string | undefined)[]) =>
     assetUrl(names.map((n) => (n ? pieces?.figures[n]?.image : undefined)).find((i) => !!i))
@@ -122,6 +123,7 @@ export function fighters(
       }
     })
   const adventurers = encounter.adventurers.map((a): Fighter => {
+    const member = party.find((m) => m.name === a.name)
     // The equipped cards when the party's items are tracked; otherwise what the GM entered last.
     const gear = equipment[a.name.toLowerCase()]
     const sheet = gear ?? { ...defaultSheet, ...sheets[a.name] }
@@ -137,7 +139,8 @@ export function fighters(
       casting: sheet.casting,
       abilities: [],
       reminders: gear?.reminders ?? [],
-      damage: 0,
+      health: member?.health,
+      damage: member?.damage ?? 0,
       position: a.position,
       portrait: figure(a.name.toLowerCase()),
       effects: a.effects ?? [],

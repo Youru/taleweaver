@@ -244,9 +244,7 @@ test('a GM resolves an attack in the duel window by tapping the dice faces, then
   await duel.getByRole('radiogroup', { name: 'Dé 1 · Violet' }).getByRole('radio', { name: /^7,/ }).click()
   await duel.getByRole('radiogroup', { name: 'Dé 2 · Violet' }).getByRole('radio', { name: /^7,/ }).click()
   await expect(duel.getByText('Jet 14 contre Défense 11 : touché, écart de 3.')).toBeVisible()
-  await duel.getByRole('button', { name: 'Infliger 3 dégâts à fragor-2' }).click()
-  await expect(duel.getByText('Dégâts infligés')).toBeVisible()
-  await page.keyboard.press('Escape')
+  await duel.getByRole('button', { name: 'Valider : 3 dégâts à fragor-2' }).click()
   await expect(duel).toBeHidden()
   await expect(page.getByText('3 / 12 PV').first()).toBeVisible()
 
@@ -256,7 +254,12 @@ test('a GM resolves an attack in the duel window by tapping the dice faces, then
   await duel.getByRole('button', { name: 'Sort' }).click()
   await duel.getByRole('radiogroup', { name: /dé 1/ }).getByRole('radio', { name: '2', exact: true }).click()
   await duel.getByRole('radiogroup', { name: /dé 2/ }).getByRole('radio', { name: /^3,/ }).click()
-  await expect(duel.getByText('Le sort agit')).toBeVisible()
+  await expect(duel.getByText('Le sort agit', { exact: true })).toBeVisible()
+  await duel.getByRole('spinbutton', { name: 'Dégâts à appliquer' }).fill('2')
+  await duel.getByRole('spinbutton', { name: 'Dégâts à appliquer' }).press('Tab')
+  await duel.getByRole('button', { name: 'Valider : 2 dégâts à Nightingale' }).click()
+  await expect(duel).toBeHidden()
+  await expect(page.getByRole('button', { name: /^Nightingale · 2\// })).toBeVisible()
 })
 
 test('the table alone follows the game', async ({ page, context }) => {

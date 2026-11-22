@@ -15,6 +15,7 @@ export type {
   EncounterState,
   LogEntry,
   Prompt,
+  Resolution,
   GameSummary,
   GameView,
 } from './api/types'

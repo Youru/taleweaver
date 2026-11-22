@@ -2,7 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
-import Button from 'primevue/button'
+import type { Resolution } from '@/features/games'
 import { usePreferences } from '@/shared/lib/preferences'
 import type { Dice } from '../api/types'
 import { readFaces } from '../lib/dice'
@@ -17,6 +17,7 @@ import OddsStrip from './OddsStrip.vue'
 import CardReminders from './CardReminders.vue'
 import EffectNotes from './EffectNotes.vue'
 import { effectMods } from '../lib/effects'
+import ResolveBar from './ResolveBar.vue'
 import StatField from './StatField.vue'
 
 /**
@@ -29,13 +30,12 @@ const props = defineProps<{
   dice: Dice | undefined
   showOdds: boolean
   locked: boolean
+  sending: boolean
+  summonTokens: number
 }>()
 const emit = defineEmits<{
-  apply: [instance: string, amount: number]
-  /** Targeted without Damage: it counts for Aggro. */
-  targeted: [instance: string]
+  resolve: [amount: number, resolution: Resolution, tokens?: number]
   remember: [fighter: Fighter, patch: Partial<AdventurerSheet>]
-  spend: [figure: Fighter, action: string]
 }>()
 
 const { t } = useI18n()
@@ -78,8 +78,7 @@ const castDice = computed(() => [
 const castFaces = ref<(number | null)[]>([])
 const checkFaces = ref<(number | null)[]>([])
 const damage = ref(0)
-const applied = ref(false)
-const noted = ref(false)
+const token = ref(false)
 watch(castDice, (list) => (castFaces.value = list.map(() => null)), { immediate: true })
 watch(conviction, (list) => (checkFaces.value = list.map(() => null)), { immediate: true })
 
@@ -103,28 +102,26 @@ function newRoll() {
   castFaces.value = castDice.value.map(() => null)
   checkFaces.value = conviction.value.map(() => null)
   damage.value = 0
-  applied.value = false
-  noted.value = false
-  paid.value = false
 }
 
-const paid = ref(false)
-function pay() {
-  if (paid.value || !empower.value) return
-  emit('spend', props.attacker, 'empower')
-  paid.value = true
-}
-
-function markTargeted() {
-  pay()
-  emit('targeted', props.target.id)
-  noted.value = true
-}
-
-function apply(instance: string, amount: number) {
-  pay()
-  emit('apply', instance, amount)
-  applied.value = true
+const confirmLabel = computed(() => {
+  const result = outcome.value
+  if (result?.backfire) return t('duel.confirmBackfire', { name: props.attacker.name })
+  if (!result?.affected) return t('duel.confirmResisted')
+  if (!damage.value) return t('duel.confirmAffected')
+  const name = props.target.kind === 'combatant' ? props.target.id : props.target.name
+  return t('duel.confirmDamage', { n: damage.value, name }, damage.value)
+})
+function confirm() {
+  const result = outcome.value
+  if (!result) return
+  const kind = result.backfire ? 'backfire' : result.affected ? 'affected' : 'resisted'
+  emit(
+    'resolve',
+    kind === 'affected' ? damage.value : 0,
+    { outcome: kind, empower: empower.value },
+    token.value && props.summonTokens ? 1 : undefined,
+  )
 }
 </script>
 
@@ -182,47 +179,20 @@ function apply(instance: string, amount: number) {
         <p v-else class="detail">
           {{ t('duel.forceAgainst', { force: outcome.force, conviction: outcome.conviction }) }}
         </p>
-        <div class="actions">
-          <template v-if="outcome.affected && target.kind === 'combatant'">
-            <StatField v-model="damage" :label="t('duel.magicDamage')" :max="99" />
-            <Button
-              v-if="!applied"
-              :label="t('duel.apply', { n: damage, name: target.id })"
-              icon="pi pi-check"
-              :disabled="locked || damage <= 0"
-              @click="apply(target.id, damage)"
-            />
-          </template>
-          <Button
-            v-if="outcome.backfire && attacker.kind === 'combatant' && !applied"
-            :label="t('duel.apply', { n: 3, name: attacker.id })"
-            icon="pi pi-check"
-            severity="danger"
-            :disabled="locked"
-            @click="apply(attacker.id, 3)"
-          />
-          <!-- A backfire Damages the caster: the target was targeted all the same -->
-          <template
-            v-if="
-              target.kind === 'combatant' &&
-              attacker.kind !== 'combatant' &&
-              (!outcome.affected || (damage <= 0 && !applied))
-            "
-          >
-            <Button
-              v-if="!noted"
-              :label="t('duel.targeted')"
-              icon="pi pi-check"
-              :disabled="locked"
-              @click="markTargeted"
-            />
-            <span v-else class="done"><i class="pi pi-check" /> {{ t('duel.noted') }}</span>
-          </template>
-          <span v-if="applied" class="done"><i class="pi pi-check" /> {{ t('duel.applied') }}</span>
-          <Button :label="t('duel.newRoll')" icon="pi pi-replay" severity="secondary" outlined @click="newRoll" />
-        </div>
       </section>
       <p v-else class="waiting">{{ t('duel.waiting') }}</p>
+      <ResolveBar
+        v-if="outcome"
+        v-model:amount="damage"
+        v-model:token="token"
+        :label="confirmLabel"
+        :editable="outcome.affected && !outcome.backfire"
+        :tokens="summonTokens"
+        :locked="locked"
+        :sending="sending"
+        @confirm="confirm"
+        @reset="newRoll"
+      />
     </section>
 
     <section class="side right" :aria-label="t('duel.targetSide')">

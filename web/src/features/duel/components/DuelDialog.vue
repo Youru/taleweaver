@@ -7,8 +7,9 @@ import Dialog from 'primevue/dialog'
 import Message from 'primevue/message'
 import SelectButton from 'primevue/selectbutton'
 import ToggleSwitch from 'primevue/toggleswitch'
+import { isOpen, readBoard, situationOf, stepKey, strikesOfTurn } from '@/features/ai'
 import { useItems, type CatalogItem, type Combatant } from '@/features/catalog'
-import type { AdventurerState, EncounterCommand, EncounterState } from '@/features/games'
+import type { AdventurerState, EncounterCommand, EncounterState, LogEntry, Resolution } from '@/features/games'
 import type { ScenarioNode } from '@/features/scenarios'
 import { BoardCanvas, boardLayout, useBoardPieces, type Selection } from '@/features/table'
 import { usePreferences } from '@/shared/lib/preferences'
@@ -17,14 +18,15 @@ import { partyEquipment } from '../lib/equipment'
 import { distance, fighters, type AdventurerSheet, type Fighter } from '../lib/fighters'
 import { commandSheet, withConduitForms } from '../lib/scaling'
 import { useAdventurerSheets } from '../lib/sheets'
+import { cardWeapon, equippedWeapon } from '../lib/weapons'
 import AttackArena from './AttackArena.vue'
 import FighterHead from './FighterHead.vue'
 import SpellArena from './SpellArena.vue'
 
 /**
  * The duel, in its own window over the game: who attacks whom, the odds if the table wants them,
- * the dice tapped as they landed, and the Damage applied in one click. Nothing else matters while
- * it is open; closing it goes back to the table as it was.
+ * the dice tapped as they landed, and the whole action validated in one click, which closes it.
+ * Nothing else matters while it is open; closing it goes back to the table as it was.
  */
 const open = defineModel<boolean>('open', { required: true })
 const props = defineProps<{
@@ -41,7 +43,12 @@ const props = defineProps<{
   to?: string | null
   /** The AI casts a Spell: open on the Spell side. */
   spell?: boolean
+  /** The AI Attack or Spell it was opened for. */
+  strike?: string
+  /** The journal: which AI actions are resolved, and when what was sent is done. */
+  log: LogEntry[]
   locked: boolean
+  error?: string | null
 }>()
 const emit = defineEmits<{ command: [command: EncounterCommand] }>()
 
@@ -51,8 +58,9 @@ const dice = useDice()
 const pieces = useBoardPieces()
 const { sheets, remember } = useAdventurerSheets(() => props.game)
 const items = useItems()
+const itemsById = computed(() => new Map<string, CatalogItem>((items.data.value ?? []).map((i) => [i.id, i])))
 const equipment = computed(() => {
-  const catalog = new Map<string, CatalogItem>((items.data.value ?? []).map((i) => [i.id, i]))
+  const catalog = itemsById.value
   const gear = partyEquipment(props.party, catalog, language.value)
   const result = withConduitForms(gear, props.party, props.cards, catalog, language.value)
   for (const ally of props.encounter.allies ?? []) {
@@ -78,9 +86,15 @@ const onTable = computed(() => {
   return new Set(layout.value.figures.filter((f) => onTile(f.x, f.y)).map((f) => f.id))
 })
 const all = computed(() =>
-  fighters(props.encounter, props.cards, sheets.value, language.value, pieces.data.value, equipment.value).filter(
-    (f) => !onTable.value || onTable.value.has(f.id) || f.id === props.from,
-  ),
+  fighters(
+    props.encounter,
+    props.cards,
+    sheets.value,
+    language.value,
+    pieces.data.value,
+    equipment.value,
+    props.party,
+  ).filter((f) => !onTable.value || onTable.value.has(f.id) || f.id === props.from),
 )
 const attackerId = ref<string | undefined>(props.from ?? undefined)
 const targetId = ref<string>()
@@ -164,20 +178,79 @@ const modes = computed(() => [
   { value: 'spell', label: t('duel.spell'), icon: 'pi pi-sparkles' },
 ])
 
-function apply(instance: string, amount: number) {
-  const from = attacker.value
-  // Who did it is the attacker, when the party's; nobody otherwise
-  emit('command', { type: 'damage', instance, amount, author: from?.kind === 'adventurer' ? from.id : null })
-}
+// ---- The AI action being resolved
+const strikes = computed(() => strikesOfTurn(props.log).filter((s) => s.figure === attackerId.value))
+const strike = computed(() => {
+  const open = strikes.value.filter((s) => s.spell === (mode.value === 'spell') && isOpen(s, targetId.value))
+  const asked = open.find((s) => s.id === props.strike)
+  if (asked) return asked
+  // A Counter or a Break Attack is not what the AI was told to do
+  return props.encounter.reactions?.length ? undefined : open[0]
+})
+const allResolved = computed(
+  () => !strike.value && !props.encounter.reactions?.length && strikes.value.some((s) => s.done.length),
+)
 
-function targeted(instance: string) {
-  emit('command', { type: 'target', instance })
+// ---- What the board says
+const board = computed(() => readBoard(layout.value, props.encounter))
+function weaponOf(id: string) {
+  const combatant = props.encounter.combatants.find((c) => c.instance === id)
+  if (combatant) return cardWeapon(props.cards.get(combatant.card))
+  const ally = props.encounter.allies?.find((a) => `ally:${a.id}` === id)
+  if (ally) return cardWeapon(props.cards.get(ally.card))
+  const member = props.party?.find((a) => `adventurer:${a.name}` === id)
+  return member?.conduitForm ? cardWeapon(props.cards.get(member.conduitForm)) : equippedWeapon(member, itemsById.value)
 }
+const situation = computed(() => {
+  if (!attackerId.value || !targetId.value || mode.value === 'spell') return undefined
+  const asked = strike.value
+  const weapon = asked?.melee === undefined ? undefined : { melee: asked.melee, reach: asked.range ?? 1 }
+  return situationOf(board.value, attackerId.value, targetId.value, weaponOf, weapon)
+})
+/** An opponent hurting a Loyal Esper: its summoner may discard Summon tokens. */
+const summonTokens = computed(() => {
+  const ally = props.encounter.allies?.find((a) => `ally:${a.id}` === targetId.value)
+  if (!ally?.esper || attacker.value?.side === 'adventurer') return 0
+  return props.party?.find((a) => a.name === ally.owner)?.summonTokens ?? 0
+})
 
-/** The SP of Dodge and Empower (p. 52): counted as the roll is reported. */
-function spend(figure: Fighter, action: string) {
-  if (figure.kind === 'adventurer') emit('command', { type: 'spend', figure: figure.id, action })
+// ---- Validated: closed once the journal has it, kept open with the reason otherwise
+const sentAt = ref<number | null>(null)
+const failed = ref(false)
+function resolve(amount: number, resolution: Resolution, tokens?: number) {
+  if (!attacker.value || !target.value || sentAt.value !== null) return
+  sentAt.value = props.log.length
+  failed.value = false
+  emit('command', {
+    type: 'resolve',
+    attacker: attacker.value.id,
+    target: target.value.id,
+    amount,
+    tokens,
+    resolution: { ...resolution, step: strike.value ? stepKey(strike.value, target.value.id) : undefined },
+  })
 }
+watch(
+  () => props.log,
+  (log) => {
+    if (sentAt.value === null) return
+    if (!log.slice(sentAt.value).some((entry) => entry.args?.attacker)) return
+    sentAt.value = null
+    open.value = false
+  },
+)
+watch(
+  () => props.error,
+  (error) => {
+    if (!error || sentAt.value === null) return
+    sentAt.value = null
+    failed.value = true
+  },
+)
+watch(open, () => {
+  sentAt.value = null
+  failed.value = false
+})
 
 function keep(fighter: Fighter, patch: Partial<AdventurerSheet>) {
   if (fighter.kind === 'adventurer') remember(fighter.name, patch)
@@ -217,6 +290,9 @@ function keep(fighter: Fighter, patch: Partial<AdventurerSheet>) {
       </div>
     </template>
 
+    <Message v-if="failed && error" severity="error" size="small">{{ error }}</Message>
+    <Message v-else-if="strike" severity="info" size="small">{{ t('duel.forAi', { name: strike.figure }) }}</Message>
+    <Message v-else-if="allResolved" severity="warn" size="small">{{ t('duel.allResolved') }}</Message>
     <Message v-if="dice.isError.value" severity="warn" size="small">{{ t('duel.noDice') }}</Message>
     <component
       :is="mode === 'attack' ? AttackArena : SpellArena"
@@ -227,9 +303,10 @@ function keep(fighter: Fighter, patch: Partial<AdventurerSheet>) {
       :dice="dice.data.value"
       :show-odds="showOdds"
       :locked="locked"
-      @apply="apply"
-      @targeted="targeted"
-      @spend="spend"
+      :sending="sentAt !== null"
+      :situation="situation"
+      :summon-tokens="summonTokens"
+      @resolve="resolve"
       @remember="keep"
     >
       <template #attacker>
