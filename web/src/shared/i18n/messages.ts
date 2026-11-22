@@ -675,7 +675,8 @@ export const messages = {
         },
       },
     },
-    app: { title: 'Taleweaver', language: 'Langue', back: 'Accueil', workshop: 'Atelier' },
+    app: { title: 'Taleweaver', language: 'Langue', back: 'Accueil', workshop: 'Atelier', manual: 'Manuel' },
+    manual: { title: 'Manuel du MJ', contents: 'Sommaire du manuel' },
     duel: {
       effect: {
         title: 'Effets pris en compte',
@@ -2710,7 +2711,8 @@ export const messages = {
         },
       },
     },
-    app: { title: 'Taleweaver', language: 'Language', back: 'Home', workshop: 'Workshop' },
+    app: { title: 'Taleweaver', language: 'Language', back: 'Home', workshop: 'Workshop', manual: 'Manual' },
+    manual: { title: 'The GM’s manual', contents: 'Contents of the manual' },
     duel: {
       effect: {
         title: 'Effects counted',

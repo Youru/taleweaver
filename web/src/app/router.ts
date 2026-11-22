@@ -41,6 +41,7 @@ export const router = createRouter({
       props: true,
       meta: { game: true },
     },
+    { path: '/manual', name: 'manual', component: () => import('@/features/manual/pages/ManualPage.vue') },
     { path: '/rules', name: 'rules', component: () => import('@/features/reference/pages/RulesPage.vue') },
     {
       path: '/workshop',

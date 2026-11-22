@@ -37,6 +37,7 @@ const languages = [
     <!-- A game fills the banner itself (GameBar) -->
     <div v-show="route.meta.game" id="app-bar" class="slot" />
     <nav v-if="!route.meta.game" class="nav">
+      <RouterLink :to="{ name: 'manual' }">{{ t('app.manual') }}</RouterLink>
       <RouterLink :to="{ name: 'workshop' }">{{ t('app.workshop') }}</RouterLink>
       <a v-if="route.path.startsWith('/games/')" href="/rules" :title="t('reference.shortcut')" @click="toRules">
         {{ t('reference.open') }}
