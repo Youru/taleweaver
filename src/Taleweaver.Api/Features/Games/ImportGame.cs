@@ -15,14 +15,21 @@ public static class ImportGame
             RuleFor(g => g.Scenario).NotEmpty();
             RuleFor(g => g.Party).NotNull();
             RuleFor(g => g.Options).Must(o => GameOptions.IsKnownUrgencyLimit(o?.UrgencyLimit)).WithMessage("The Urgency limit is 3, 4 or 5.");
+            RuleFor(g => g.Checkpoints).NotNull();
+            RuleFor(g => g.Baseline).Must(IsInHistory).WithMessage("A checkpoint is outside the history.");
+            RuleFor(g => g.EncounterStart).Must(IsInHistory).WithMessage("A checkpoint is outside the history.");
+            RuleForEach(g => g.Checkpoints).Must(IsInHistory).WithMessage("A checkpoint is outside the history.");
             RuleForEach(g => g.Commands).ChildRules(c => c.RuleFor(x => x.Type).NotEmpty());
         }
+
+        private static bool IsInHistory(Game game, Checkpoint? checkpoint) =>
+            checkpoint is null || (checkpoint.State is not null && checkpoint.CommandCount >= 0 && checkpoint.CommandCount <= game.Commands.Count);
     }
 
     public sealed class Handler(GameRunner runner)
     {
         public Task<Result<Game>> Handle(Game game, CancellationToken cancellationToken) =>
-            runner.ReplayAsync(game with { Id = Guid.NewGuid().ToString("N") }, cancellationToken);
+            runner.ImportAsync(game, cancellationToken);
     }
 
     public static void Map(RouteGroupBuilder group) =>

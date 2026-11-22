@@ -14,6 +14,9 @@ internal sealed partial class Session
 
     private static readonly AdventurerStamina DefaultStamina = new(3, 5);
 
+    /// <summary>A number cut in half is always rounded up (p. 71).</summary>
+    private static int HalfRoundedUp(int value) => (value + 1) / 2;
+
     private static bool IsAdventurer(string? figure) => figure?.StartsWith(AdventurerCard, StringComparison.Ordinal) == true;
 
     /// <summary>A party member from a figure ("adventurer:Rook") or a name.</summary>
@@ -27,7 +30,7 @@ internal sealed partial class Session
             var card = Catalog.FindAdventurer(member.Name);
             // In Conduit Form, SP are the Conduit card's; maximum HP stay the adventurer's (p. 72, 77)
             var stamina = member.ConduitForm is { } form ? AllyRules.StaminaOf(Catalog.FindCombatant(form)) : card?.Stamina ?? DefaultStamina;
-            member.Health = (card?.Health ?? DefaultHealth) + member.Equipped.Sum(HealthBonus);
+            member.Health = Math.Max(1, (card?.Health ?? DefaultHealth) + member.Equipped.Sum(HealthBonus) + DisciplineHealth(member));
             member.StaminaRecovery = stamina.Recovery;
             member.StaminaMax = stamina.Max;
         }
@@ -47,19 +50,30 @@ internal sealed partial class Session
     {
         var item = Catalog.FindItem(owned.Item);
         var stats = owned.Flipped && item?.BackSide?.Stats is { } back ? back : item?.Stats;
-        return stats?.Health ?? 0;
+        // Upgrading one side upgrades the other too (p. 27)
+        return (stats?.Health ?? 0) + owned.Upgrades.Sum(id => Catalog.FindUpgrade(id)?.Health ?? 0);
+    }
+
+    /// <summary>The Health icons of the Disciplines learnt (p. 72).</summary>
+    private int DisciplineHealth(AdventurerState member)
+    {
+        var known = member.Disciplines.Select(d => Catalog.FindDiscipline(d.Id)).OfType<Discipline>().ToList();
+        // A Flipped Discipline cannot be used (p. 37): its icons with it
+        known.RemoveAll(card => member.FlippedCards.Contains(card.Id));
+        return known.Sum(card => (card.Health ?? 0)
+            + (card.HealthPerHighestLevel is { } tree ? known.Where(d => d.Tree == tree).Max(d => d.Level) ?? 0 : 0));
     }
 
     /// <summary>
     /// Prepare Phase (p. 14): Defeated adventurers, and those with more Damage than half their maximum HP, go down to
-    /// half (rounded down); every adventurer of the encounter sets their SP to their Recovery value.
+    /// half (rounded up); every adventurer of the encounter sets their SP to their Recovery value.
     /// </summary>
     private void PrepareAdventurers()
     {
         UpdateAdventurerStats();
         foreach (var member in ActiveParty)
         {
-            var half = member.Health / 2;
+            var half = HalfRoundedUp(member.Health);
             if (member.Defeated || member.Damage > half)
             {
                 member.Damage = half;
@@ -75,8 +89,15 @@ internal sealed partial class Session
     /// <summary>Refresh Phase (p. 37): SP gained up to the maximum, except on the adventurer's 1st turn of the encounter.</summary>
     private void RefreshStamina(string adventurer)
     {
-        if (MemberOf(adventurer) is not { Defeated: false } member || Encounter.Round <= 1)
+        if (MemberOf(adventurer) is not { Defeated: false } member)
         {
+            return;
+        }
+
+        var played = Encounter.HadFirstTurn;
+        if (played is null ? Encounter.Round <= 1 : !played.Contains(member.Name))
+        {
+            played?.Add(member.Name);
             return;
         }
 
@@ -98,13 +119,12 @@ internal sealed partial class Session
 
         UpdateAdventurerStats();
         member.Damage = Math.Clamp(member.Damage + amount, 0, member.Health);
-        if (amount < 0 && member.Defeated && member.Damage < member.Health)
-        {
-            // Healed out of a Defeat between encounters (the story heals them).
-            member.Defeated = false;
-        }
-
+        var revived = amount < 0 && member.Defeated && member.Damage < member.Health;
         Log("adventurerDamage", args: Args(("adventurer", member.Name), ("amount", Number(amount)), ("damage", Number(member.Damage)), ("health", Number(member.Health))));
+        if (revived)
+        {
+            Revive(member);
+        }
         if (member.Damage >= member.Health && !member.Defeated)
         {
             DefeatAdventurer(member);
@@ -174,8 +194,13 @@ internal sealed partial class Session
             return;
         }
 
+        // What follows from a fall is about who fell
+        _author = member.Name;
         if (encounter.Adventurers.FirstOrDefault(a => a.Name == member.Name) is { } figure)
         {
+            DropCarriedBy(AdventurerCard + member.Name, figure.Position);
+            CutTethers(AdventurerCard + member.Name);
+            member.AbilityTokens = null;
             figure.Effects.Clear();
             figure.Position = null;
             figure.Defeated = true;
@@ -189,16 +214,17 @@ internal sealed partial class Session
             return;
         }
 
-        RemoveFromTrack(AdventurerCard + member.Name);
+        // Every one of their Initiative Cards
+        foreach (var card in encounter.InitiativeTrack.Where(c => IsAdventurer(c) && AdventurerOfCard(c) == member.Name).ToList())
+        {
+            RemoveFromTrack(card);
+        }
+
         Fire(e => e.Trigger.On == "adventurerDefeated");
         if (State.Encounter is { Ended: false } && ActiveParty.All(a => a.Defeated))
         {
             Log("partyDefeated");
-            var lose = EncounterNode.EndConditions.FirstOrDefault(e => e.Kind == "lose" && Encounter.ActiveEndConditions.Contains(e.Id));
-            if (lose is not null)
-            {
-                EndEncounter(lose.Id);
-            }
+            LoseEncounter(BuiltInEnds.AllDefeated);
         }
     }
 
@@ -208,6 +234,7 @@ internal sealed partial class Session
         UpdateAdventurerStats();
         foreach (var figure in State.Encounter?.Adventurers ?? [])
         {
+            DropCarriedBy(AdventurerCard + figure.Name, figure.Position);
             figure.Defeated = true;
         }
 
@@ -228,12 +255,29 @@ internal sealed partial class Session
         }
 
         member.Defeated = false;
-        member.Damage = Math.Min(member.Damage, member.Health / 2);
+        member.Damage = Math.Min(member.Damage, HalfRoundedUp(member.Health));
         if (Encounter.Adventurers.FirstOrDefault(a => a.Name == member.Name) is { } figure)
         {
             figure.Defeated = false;
         }
 
+        Log("adventurerReturns", args: Args(("adventurer", member.Name), ("damage", Number(member.Damage))));
+    }
+
+    /// <summary>
+    /// Healed out of a Defeat. During an encounter, "as though they were a Combatant Spawning" (p. 69): the figure to
+    /// place again, its card on the track.
+    /// </summary>
+    private void Revive(AdventurerState member)
+    {
+        member.Defeated = false;
+        if (State.Encounter is not { Ended: false } encounter || encounter.Adventurers.FirstOrDefault(a => a.Name == member.Name) is not { } figure)
+        {
+            return;
+        }
+
+        figure.Defeated = false;
+        AddToTrack([AdventurerCard + member.Name]);
         Log("adventurerReturns", args: Args(("adventurer", member.Name), ("damage", Number(member.Damage))));
     }
 
@@ -255,14 +299,29 @@ internal sealed partial class Session
         Log("initiativeRemoved", args: Args(("card", card)));
     }
 
-    /// <summary>Restore Adventurers (p. 18): every Damage token and Effect removed. Flipped cards are left to the table.</summary>
+    /// <summary>Restore Adventurers (p. 18): every Damage token and Effect removed, every card Un-Flipped.</summary>
     private void RestoreAdventurers()
     {
         RestoreAllies();
+        UnflipCards();
+        RestoreCards();
+        foreach (var member in State.Campaign.Party.Where(a => !a.Unselectable))
+        {
+            OfferReequip(member);
+        }
+
+        foreach (var figure in State.Encounter?.Adventurers ?? [])
+        {
+            CutTethers(AdventurerCard + figure.Name);
+        }
+
         foreach (var member in State.Campaign.Party)
         {
             member.Damage = 0;
-            member.Defeated = false;
+            if (member.Defeated)
+            {
+                Revive(member);
+            }
         }
 
         foreach (var figure in State.Encounter?.Adventurers ?? [])

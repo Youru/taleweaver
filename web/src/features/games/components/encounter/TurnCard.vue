@@ -49,10 +49,14 @@ const heading = computed(() => {
   switch (value.kind) {
     case 'before':
       return t('play.turnBefore')
+    case 'between':
+      return t('play.turnBetween')
     case 'adventurer':
       return t('play.turnAdventurer', { name: value.who ?? '' })
-    case 'ally':
-      return t('play.turnAlly', { name: value.who ?? '' })
+    case 'ally': {
+      const by = value.playedBy ? ` · ${t('log.playedBy', { name: value.playedBy })}` : ''
+      return t('play.turnAlly', { name: value.who ?? '' }) + by
+    }
     case 'combatants':
       return t('play.turnCombatants', { name: value.acting ?? '', card: actingCard.value })
     case 'idle':

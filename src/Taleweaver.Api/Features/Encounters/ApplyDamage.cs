@@ -12,7 +12,7 @@ namespace Taleweaver.Api.Features.Encounters;
 /// </summary>
 public static class ApplyDamage
 {
-    public sealed record Request(int Amount, bool? FromOpponent = null, int? Tokens = null);
+    public sealed record Request(int Amount, bool? FromOpponent = null, int? Tokens = null, string? Author = null);
 
     public sealed class Validator : AbstractValidator<Request>
     {
@@ -26,7 +26,7 @@ public static class ApplyDamage
     public static void Map(RouteGroupBuilder group) =>
         group.MapPost("/combatants/{instance}/damage", async Task<Results<Ok<GameView>, ProblemHttpResult>> (
                 string id, string instance, Request request, GameRunner runner, CancellationToken cancellationToken) =>
-                (await runner.ExecuteAsync(id, GameCommand.Damage(instance, request.Amount) with { FromOpponent = request.FromOpponent, Tokens = request.Tokens }, cancellationToken)).ToResponse())
+                (await runner.ExecuteAsync(id, GameCommand.Damage(instance, request.Amount) with { FromOpponent = request.FromOpponent, Tokens = request.Tokens, Author = request.Author }, cancellationToken)).ToResponse())
             .WithValidation<Request>()
             .WithName("ApplyDamage");
 }

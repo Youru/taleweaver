@@ -21,8 +21,11 @@ public static class GameEngine
     /// Achievements, launch options, Abraxis Battle Dice.
     /// 11: the party prepared before it sets out; Command Combatants, summons and Conduits.
     /// 12: gainDiscipline, the hiddenCard.&lt;size:code&gt; condition, a Hidden Card revealed once.
+    /// 16: who did it, rewards and Skill Checks, the group, what is carried.
+    /// 17: the Status Phase asks, reactions, cards and Ability tokens, Disease and Tether.
+    /// 18: counters, the track arranged, sides, figures of the scenario, kept boards, effects for later, opposing Espers.
     /// </summary>
-    public const int Version = 12;
+    public const int Version = 18;
 
     public static class Errors
     {
@@ -115,7 +118,13 @@ public static class GameEngine
     /// <summary>Rebuilds a game from its history (used by undo). Fails if a command no longer applies to the scenario.</summary>
     public static Result<GameState> Replay(GameContext context, IReadOnlyList<string> party, IEnumerable<GameCommand> commands)
     {
-        var state = Start(context, party);
+        return Replay(context, Start(context, party), commands);
+    }
+
+    /// <summary>Applies the rest of a history to the state of a checkpoint.</summary>
+    public static Result<GameState> Replay(GameContext context, GameState from, IEnumerable<GameCommand> commands)
+    {
+        var state = from;
         foreach (var command in commands)
         {
             var result = Apply(state, command, context);

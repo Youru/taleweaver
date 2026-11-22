@@ -32,7 +32,10 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{
   apply: [instance: string, amount: number]
+  /** Targeted without Damage: it counts for Aggro. */
+  targeted: [instance: string]
   remember: [fighter: Fighter, patch: Partial<AdventurerSheet>]
+  spend: [figure: Fighter, action: string]
 }>()
 
 const { t } = useI18n()
@@ -76,6 +79,7 @@ const castFaces = ref<(number | null)[]>([])
 const checkFaces = ref<(number | null)[]>([])
 const damage = ref(0)
 const applied = ref(false)
+const noted = ref(false)
 watch(castDice, (list) => (castFaces.value = list.map(() => null)), { immediate: true })
 watch(conviction, (list) => (checkFaces.value = list.map(() => null)), { immediate: true })
 
@@ -100,9 +104,25 @@ function newRoll() {
   checkFaces.value = conviction.value.map(() => null)
   damage.value = 0
   applied.value = false
+  noted.value = false
+  paid.value = false
+}
+
+const paid = ref(false)
+function pay() {
+  if (paid.value || !empower.value) return
+  emit('spend', props.attacker, 'empower')
+  paid.value = true
+}
+
+function markTargeted() {
+  pay()
+  emit('targeted', props.target.id)
+  noted.value = true
 }
 
 function apply(instance: string, amount: number) {
+  pay()
   emit('apply', instance, amount)
   applied.value = true
 }
@@ -181,6 +201,23 @@ function apply(instance: string, amount: number) {
             :disabled="locked"
             @click="apply(attacker.id, 3)"
           />
+          <!-- A backfire Damages the caster: the target was targeted all the same -->
+          <template
+            v-if="
+              target.kind === 'combatant' &&
+              attacker.kind !== 'combatant' &&
+              (!outcome.affected || (damage <= 0 && !applied))
+            "
+          >
+            <Button
+              v-if="!noted"
+              :label="t('duel.targeted')"
+              icon="pi pi-check"
+              :disabled="locked"
+              @click="markTargeted"
+            />
+            <span v-else class="done"><i class="pi pi-check" /> {{ t('duel.noted') }}</span>
+          </template>
           <span v-if="applied" class="done"><i class="pi pi-check" /> {{ t('duel.applied') }}</span>
           <Button :label="t('duel.newRoll')" icon="pi pi-replay" severity="secondary" outlined @click="newRoll" />
         </div>

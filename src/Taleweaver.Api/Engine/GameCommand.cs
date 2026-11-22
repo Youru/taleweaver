@@ -54,6 +54,12 @@ public sealed record GameCommand
     /// </summary>
     public string? By { get; init; }
 
+    /// <summary>Who did it (defeated, activated, reached the end): an adventurer, or an ally for its summoner.</summary>
+    public string? Author { get; init; }
+
+    /// <summary>React, Tether: whom it is against, or on.</summary>
+    public string? Against { get; init; }
+
     /// <summary>Answer to an "abraxis" question: the symbols extra or missing of each player still in, in their order.</summary>
     public IReadOnlyList<int>? Misses { get; init; }
 
@@ -128,6 +134,46 @@ public sealed record GameCommand
 
     public static GameCommand AnswerNumber(int value) => new() { Type = GameCommands.Answer, Value = value };
 
+    /// <summary>The total rolled at a Skill Check, for the <paramref name="skill"/>th option.</summary>
+    public static GameCommand AnswerTotal(int skill, int total, string? tester = null) =>
+        new() { Type = GameCommands.Answer, Option = $"total-{skill}", Value = total, Instance = tester };
+
+    public static GameCommand AnswerGroup(params string[] adventurers) => new() { Type = GameCommands.Answer, Adventurers = adventurers };
+
+    /// <summary>What is carried goes to <paramref name="figure"/>; nobody: put down.</summary>
+    public static GameCommand Carry(string id, string? figure, bool lost = false) =>
+        new() { Type = GameCommands.Carry, Item = id, Instance = figure, Effect = lost ? "lose" : null };
+
+    /// <summary>An action's cost taken off the SP: move, extraMove, attack, encounterAction, reequip, dodge, empower, counter, counterDodged.</summary>
+    public static GameCommand Spend(string figure, string action) => new() { Type = GameCommands.Spend, Instance = figure, Effect = action };
+
+    /// <summary>counter, counterDodged, break, redirect, poppet.</summary>
+    public static GameCommand React(string figure, string kind, string? against) =>
+        new() { Type = GameCommands.React, Instance = figure, Effect = kind, Against = against };
+
+    public static GameCommand EndReaction() => new() { Type = GameCommands.EndReaction };
+
+    public static GameCommand NoInstruction() => new() { Type = GameCommands.NoInstruction };
+
+    public static GameCommand MarkCard(string figure, string card, string mark, bool on) =>
+        new() { Type = GameCommands.MarkCard, Instance = figure, Item = card, Effect = mark, Active = on };
+
+    public static GameCommand AbilityToken(string figure, string token, int value) =>
+        new() { Type = GameCommands.AbilityToken, Instance = figure, Token = token, Value = value };
+
+    public static GameCommand Tether(string placer, string? target) => new() { Type = GameCommands.Tether, Instance = placer, Against = target };
+
+    public static GameCommand Reequipped(string adventurer) => new() { Type = GameCommands.Reequipped, Instance = adventurer };
+
+    public static GameCommand FlipToken(string token) => new() { Type = GameCommands.FlipToken, Token = token };
+
+    public static GameCommand Counter(string id, int by) => new() { Type = GameCommands.Counter, Item = id, Value = by };
+
+    public static GameCommand DealInitiative() => new() { Type = GameCommands.DealInitiative };
+
+    public static GameCommand SummonEsper(string card, string summoner, Cell? at = null) =>
+        new() { Type = GameCommands.SummonEsper, Card = card, Instance = summoner, To = at };
+
     public static GameCommand NextTurn() => new() { Type = GameCommands.NextTurn };
 
     public static GameCommand Damage(string instance, int amount) => new() { Type = GameCommands.Damage, Instance = instance, Value = amount };
@@ -138,6 +184,9 @@ public sealed record GameCommand
     /// <summary>The adventurer now holds <paramref name="value"/> SP (spent, or gained by an ability).</summary>
     public static GameCommand SetStamina(string adventurer, int value) =>
         new() { Type = GameCommands.SetStamina, Instance = adventurer, Value = value };
+
+    /// <summary>The target of an opponent's Attack, Spell or Ability, hit or not (Aggro, p. 60).</summary>
+    public static GameCommand Target(string instance) => new() { Type = GameCommands.Target, Instance = instance };
 
     public static GameCommand Defeat(string instance) => new() { Type = GameCommands.Defeat, Instance = instance };
 
@@ -181,10 +230,24 @@ public static class GameCommands
     public const string Damage = "damage";
     public const string SetEffect = "setEffect";
     public const string Defeat = "defeat";
+    public const string Target = "target";
     public const string SetStamina = "setStamina";
     public const string ActivateToken = "activateToken";
     public const string ReachEndCondition = "reachEndCondition";
     public const string Move = "move";
+    public const string Carry = "carry";
+    public const string Counter = "counter";
+    public const string DealInitiative = "dealInitiative";
+    public const string SummonEsper = "summonEsper";
+    public const string Spend = "spend";
+    public const string React = "react";
+    public const string EndReaction = "endReaction";
+    public const string NoInstruction = "noInstruction";
+    public const string MarkCard = "card";
+    public const string AbilityToken = "abilityToken";
+    public const string Tether = "tether";
+    public const string Reequipped = "reequipped";
+    public const string FlipToken = "flipToken";
     public const string RevealArea = "revealArea";
     public const string MoveInitiative = "moveInitiative";
     public const string AddItem = "addItem";

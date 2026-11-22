@@ -31,6 +31,7 @@ internal sealed partial class Session(GameState state, GameContext context)
 
     public Result Execute(GameCommand command)
     {
+        _author = AuthorOf(command.Author);
         if (State.Preparation is not null)
         {
             return ExecutePreparation(command);
@@ -39,6 +40,12 @@ internal sealed partial class Session(GameState state, GameContext context)
         if (GameCommands.IsPreparationCommand(command.Type))
         {
             return PreparationErrors.SetOut;
+        }
+
+        if (State.Encounter is { Ended: false, Reactions.Count: > 0 }
+            && (command.Type == GameCommands.NextTurn || (command.Type == GameCommands.Answer && State.Prompt?.Kind == PromptKinds.AiCondition)))
+        {
+            return TurnErrors.Reacting;
         }
 
         if (command.Type == GameCommands.Answer)
@@ -56,6 +63,29 @@ internal sealed partial class Session(GameState state, GameContext context)
         if (GameCommands.IsPartyCommand(command.Type))
         {
             return State.Encounter is { Ended: false } ? GameEngine.Errors.InEncounter : ExecutePartyCommand(command);
+        }
+
+        if (command.Type == GameCommands.Carry && (State.Prompt is null || State.Prompt.Kind == PromptKinds.AiCondition || State.Encounter is null))
+        {
+            return CarryCommand(command.Item, command.Instance, command.Effect);
+        }
+
+        if (command.Type == GameCommands.Counter && (State.Prompt is null || State.Prompt.Kind == PromptKinds.AiCondition))
+        {
+            // A threshold's events come before the AI question, asked again after
+            State.Prompt = null;
+            return CounterCommand(command.Item, command.Value ?? 0);
+        }
+
+        // Cards and tokens on them change nothing in the flow
+        switch (command.Type)
+        {
+            case GameCommands.MarkCard:
+                return MarkCard(command.Instance, command.Item, command.Effect, command.Active ?? true);
+            case GameCommands.AbilityToken:
+                return SetAbilityToken(command.Instance, command.Token, command.Value ?? 0);
+            case GameCommands.Reequipped:
+                return Reequipped(command.Instance);
         }
 
         // An Achievement may only be known once the encounter is won: allowed until it is left.
@@ -103,22 +133,34 @@ internal sealed partial class Session(GameState state, GameContext context)
 
         return command.Type switch
         {
+            GameCommands.DealInitiative when reportsAllowed => DealCommand(),
+            GameCommands.SummonEsper when reportsAllowed => SummonEsper(command.Card, command.Instance, command.To),
+            GameCommands.DealInitiative or GameCommands.SummonEsper or GameCommands.Counter => GameEngine.Errors.AwaitingAnswer,
+            GameCommands.Spend when reportsAllowed => Spend(command.Instance, command.Effect),
+            GameCommands.React when reportsAllowed => React(command.Instance, command.Effect, command.Against),
+            GameCommands.EndReaction when reportsAllowed => EndReaction(),
+            GameCommands.NoInstruction when reportsAllowed => NoInstruction(),
+            GameCommands.Tether when reportsAllowed => Tether(command.Instance, command.Against),
+            GameCommands.FlipToken when reportsAllowed => FlipToken(command.Token),
+            GameCommands.Spend or GameCommands.React or GameCommands.EndReaction or GameCommands.NoInstruction or GameCommands.Tether or GameCommands.FlipToken or GameCommands.Carry
+                => GameEngine.Errors.AwaitingAnswer,
             GameCommands.NextTurn => State.Prompt is null ? NextTurn() : GameEngine.Errors.AwaitingAnswer,
             GameCommands.Damage when reportsAllowed && IsAlly(command.Instance) =>
-                DamageAlly(command.Instance, command.Value ?? 0, command.FromOpponent, Math.Max(0, command.Tokens ?? 0)),
+                Deal(command.Instance, command.Value ?? 0, command.FromOpponent, Math.Max(0, command.Tokens ?? 0)),
             GameCommands.Defeat when reportsAllowed && IsAlly(command.Instance) => DefeatAllyCommand(command.Instance),
             GameCommands.SetStamina when reportsAllowed && IsAlly(command.Instance) => SetAllyStamina(command.Instance, command.Value ?? 0),
-            GameCommands.Damage when reportsAllowed && IsAdventurer(command.Instance) => DamageAdventurer(command.Instance, command.Value ?? 0),
+            GameCommands.Damage when reportsAllowed && IsAdventurer(command.Instance) => Deal(command.Instance, command.Value ?? 0),
             GameCommands.Defeat when reportsAllowed && IsAdventurer(command.Instance) => DefeatAdventurerCommand(command.Instance),
             GameCommands.SetStamina when reportsAllowed => SetStamina(command.Instance, command.Value ?? 0),
-            GameCommands.Damage when reportsAllowed => ApplyDamage(command.Instance, command.Value ?? 0),
+            GameCommands.Damage when reportsAllowed => Deal(command.Instance, command.Value ?? 0),
             GameCommands.SetEffect when reportsAllowed => SetEffect(command.Instance, command.Effect, command.Active ?? true),
             GameCommands.Defeat when reportsAllowed => Defeat(command.Instance),
+            GameCommands.Target when reportsAllowed => MarkTargeted(command.Instance),
             GameCommands.ActivateToken when reportsAllowed => ActivateTokenCommand(command.Token),
             GameCommands.ReachEndCondition when reportsAllowed => ReachEndCondition(command.EndCondition),
             GameCommands.RevealArea when reportsAllowed => RevealAreaCommand(command.Area),
             GameCommands.CompleteAchievement when reportsAllowed => CompleteAchievement(command.Item, command.Instance),
-            GameCommands.CompleteAchievement or GameCommands.Damage or GameCommands.SetEffect or GameCommands.Defeat or GameCommands.SetStamina or GameCommands.ActivateToken or GameCommands.ReachEndCondition or GameCommands.RevealArea
+            GameCommands.CompleteAchievement or GameCommands.Damage or GameCommands.SetEffect or GameCommands.Defeat or GameCommands.Target or GameCommands.SetStamina or GameCommands.ActivateToken or GameCommands.ReachEndCondition or GameCommands.RevealArea
                 => GameEngine.Errors.AwaitingAnswer,
             _ when GameCommands.IsAllyCommand(command.Type) => GameEngine.Errors.AwaitingAnswer,
             _ => GameEngine.Errors.UnknownCommand(command.Type),
@@ -151,6 +193,7 @@ internal sealed partial class Session(GameState state, GameContext context)
     {
         // Leaving a node drops what was left of it (e.g. a scene's "next" after a choice that branched).
         State.PendingActions.Clear();
+        _author = null;
         LeaveEncounter();
         // The end of a Bounty, whatever it says: back to the Story Round it was chosen from.
         if (State.Bounty is { } bounty && (target is null || target.StartsWith('@')))
@@ -217,13 +260,18 @@ internal sealed partial class Session(GameState state, GameContext context)
             return AnswerAbraxis(command, prompt);
         }
 
-        if (prompt.Kind != PromptKinds.Number && prompt.Options.All(o => o.Id != option))
+        if (prompt.Kind == PromptKinds.ActiveGroup)
+        {
+            return AnswerActiveGroup(prompt, command.Adventurers);
+        }
+
+        if (prompt.Kind != PromptKinds.Number && !IsTotal(prompt, command) && prompt.Options.All(o => o.Id != option))
         {
             return GameEngine.Errors.InvalidAnswer(option);
         }
 
         State.Prompt = null;
-        Log("answer", args: Args(("question", prompt.Kind), ("answer", option ?? command.Value?.ToString(System.Globalization.CultureInfo.InvariantCulture))));
+        Log("answer", args: Args(("question", prompt.Kind), ("answer", option ?? command.Value?.ToString(System.Globalization.CultureInfo.InvariantCulture)), ("adventurer", prompt.Decider)));
         switch (prompt.Kind)
         {
             case PromptKinds.Continue:
@@ -232,7 +280,11 @@ internal sealed partial class Session(GameState state, GameContext context)
                 Push(prompt.Action!.Options![int.Parse(option!, System.Globalization.CultureInfo.InvariantCulture)].Actions ?? []);
                 break;
             case PromptKinds.SkillCheck:
-                AnswerSkillCheck(prompt.Action!, option!);
+                return AnswerSkillCheck(prompt, command);
+            case PromptKinds.Status:
+                return AnswerStatus(prompt, command);
+            case PromptKinds.Arrival:
+                AfterArrival();
                 break;
             case PromptKinds.AiCondition:
                 AnswerAiCondition(option == "yes");
@@ -321,6 +373,9 @@ public static class PromptKinds
     public const string Adventurer = "adventurer";
     public const string StoryRound = "storyRound";
     public const string Abraxis = "abraxis";
+    public const string ActiveGroup = "activeGroup";
+    public const string Arrival = "arrival";
+    public const string Status = "status";
 }
 
 internal static class InternalActions
@@ -330,4 +385,19 @@ internal static class InternalActions
 
     /// <summary>Asks the phase of the current Story Round (after its page's mechanics).</summary>
     public const string AskStoryRound = "askStoryRound";
+
+    /// <summary>After what the end of the round triggered, questions included: Urgency, then the next round.</summary>
+    public const string FinishRound = "finishRound";
+
+    /// <summary>After what the end of a turn triggered: the next one.</summary>
+    public const string AdvanceTurn = "advanceTurn";
+
+    /// <summary>Status Phase: one Effect to resolve.</summary>
+    public const string AskStatus = "askStatus";
+
+    /// <summary>After what an arrival brings: the GM finishes setting the newcomer up.</summary>
+    public const string AskArrival = "askArrival";
+
+    /// <summary>After what the start of the round triggered, questions included: the first turn.</summary>
+    public const string FirstTurn = "firstTurn";
 }

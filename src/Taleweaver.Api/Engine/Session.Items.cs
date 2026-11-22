@@ -34,6 +34,9 @@ internal sealed partial class Session
 
         public static Error UnknownToken(string? token) => Error.NotFound("Items.UnknownToken", $"No token '{token}' in the catalogue.");
 
+        public static readonly Error NoExchange =
+            Error.Conflict("Items.NoExchange", "This encounter imposes its participants: no exchange with the others.");
+
         public static readonly Error TokenNeedsSquare = Error.Validation("Items.TokenNeedsSquare", "Say on which square the token goes.");
     }
 
@@ -49,6 +52,27 @@ internal sealed partial class Session
         GameCommands.DetachUpgrade => DetachUpgrade(command),
         _ => GameEngine.Errors.UnknownCommand(command.Type),
     };
+
+    /// <summary>An imposed participant exchanges with none of the others, the Stash included (play-spec A2).</summary>
+    private bool ExchangeBarred(List<OwnedItem> from, string? to)
+    {
+        if (State.Encounter?.Participants is not { } participants || ReferenceEquals(from, State.Campaign.Unassigned))
+        {
+            return false;
+        }
+
+        var giver = OwnerOf(from);
+        var taker = Member(to)?.Name;
+        if (giver == taker)
+        {
+            return false;
+        }
+
+        var gives = giver is not null && participants.Contains(giver);
+        var takes = taker is not null && participants.Contains(taker);
+        // Into the Stash is always allowed (p. 24)
+        return gives != takes && taker is not null;
+    }
 
     private Result AddItem(GameCommand command)
     {
@@ -90,6 +114,11 @@ internal sealed partial class Session
             Flipped = false,
         };
         list.Add(owned);
+        if (replaced is not null)
+        {
+            OfferReequip(Member(command.Owner));
+        }
+
         State.Campaign.Items.Add(card.Id);
         Log("itemAdded", args: Args(("item", card.Id), ("id", owned.Id), ("owner", command.Owner), ("slot", SlotOf(command.Owner, command.Slot)),
             ("price", price > 0 ? Number(price) : null), ("gold", price > 0 ? Number(State.Campaign.Gold) : null), ("drawn", replaced is null ? null : "true")));
@@ -161,6 +190,22 @@ internal sealed partial class Session
             return ItemErrors.UnknownOwner(command.Owner);
         }
 
+        if (ExchangeBarred(found.List, command.Owner))
+        {
+            return ItemErrors.NoExchange;
+        }
+
+        if (ReferenceEquals(found.List, State.Campaign.Stash) && command.Owner != StashOwner && !InStoryRound())
+        {
+            Log("stashOutsideStoryRound", args: Args(("item", found.Owned.Item), ("owner", command.Owner)));
+        }
+
+        // Gained: from a reward, or from another adventurer (p. 70)
+        if (Member(command.Owner) is { } taker && !ReferenceEquals(found.List, State.Campaign.Stash) && OwnerOf(found.List) != taker.Name)
+        {
+            OfferReequip(taker);
+        }
+
         found.List.Remove(found.Owned);
         list.Add(found.Owned);
         Log("itemMoved", args: Args(("item", found.Owned.Item), ("id", found.Owned.Id), ("owner", command.Owner), ("slot", SlotOf(command.Owner, command.Slot))));
@@ -175,6 +220,7 @@ internal sealed partial class Session
         }
 
         found.List.Remove(found.Owned);
+        ReturnMonsterLoot(found.Owned.Item);
         var gold = Math.Max(0, command.Value ?? 0);
         if (gold > 0)
         {
@@ -188,6 +234,24 @@ internal sealed partial class Session
 
         return Result.Success();
     }
+
+    /// <summary>
+    /// Restore (p. 18): every card in play, in a Pack or in the Stash Un-Flipped. A DOUBLE item is two cards (p. 27):
+    /// the side up is the one chosen, it stays.
+    /// </summary>
+    private void UnflipCards()
+    {
+        var campaign = State.Campaign;
+        var cards = campaign.Party.SelectMany(a => a.Equipped.Concat(a.Pack)).Concat(campaign.Stash).Concat(campaign.Unassigned);
+        foreach (var owned in cards.Where(o => o.Flipped && !IsDouble(o.Item)).ToList())
+        {
+            owned.Flipped = false;
+            Log("itemFlipped", args: Args(("item", owned.Item), ("id", owned.Id), ("flipped", "false")));
+        }
+    }
+
+    private bool IsDouble(string? id) =>
+        Catalog.FindItem(id) is { } item && (item.Tags.Contains("DOUBLE") || item.BackSide?.Tags.Contains("DOUBLE") == true);
 
     private Result FlipItem(GameCommand command)
     {
@@ -264,7 +328,7 @@ internal sealed partial class Session
     }
 
     /// <summary>Gained during the game (loot, scenario reward): waits for the GM to hand it out.</summary>
-    private OwnedItem GainOwned(string? item, string source, IReadOnlyList<string>? tiers = null, string? type = null)
+    private OwnedItem GainOwned(string? item, string source, IReadOnlyList<string>? tiers = null, string? type = null, AdventurerState? to = null)
     {
         var owned = new OwnedItem
         {
@@ -274,9 +338,13 @@ internal sealed partial class Session
             Type = item is null ? type : null,
             Source = source,
         };
-        State.Campaign.Unassigned.Add(owned);
+        (to?.Pack ?? State.Campaign.Unassigned).Add(owned);
+        OfferReequip(to);
         return owned;
     }
+
+    private bool InStoryRound() =>
+        State.Campaign.StoryRound is { } round && round.Phase != StoryRoundPhases.SideQuest && State.Encounter is not { Ended: false };
 
     private string NewItemId() => $"item-{++State.Campaign.ItemCount}";
 

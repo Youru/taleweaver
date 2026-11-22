@@ -180,6 +180,18 @@ public sealed record Node
 
     public IReadOnlyList<Diagram> Diagrams { get; init; } = [];
 
+    /// <summary>The encounter whose board this one keeps: figures, squares, Damage, tokens, counters.</summary>
+    public string? KeepBoardFrom { get; init; }
+
+    /// <summary>Figures written in the rules of the encounter: placed or spawned with the ref "figure:&lt;id&gt;".</summary>
+    public IReadOnlyList<SceneFigure> Figures { get; init; } = [];
+
+    /// <summary>The Espers an opponent may summon (p. 76).</summary>
+    public IReadOnlyList<EncounterEsper> EncounterEspers { get; init; } = [];
+
+    /// <summary>The adventurers this encounter imposes: they play it, the Active Group stays as it is.</summary>
+    public IReadOnlyList<string>? Participants { get; init; }
+
     /// <summary>Story Round (rulebook p. 13): the Items for sale in the Shop and Train phase.</summary>
     public Store? Store { get; init; }
 
@@ -241,6 +253,9 @@ public sealed record StoryExit
     public required string Node { get; init; }
 
     public int? Page { get; init; }
+
+    /// <summary>Offered only when all these hold (a Story Flag, p. 13).</summary>
+    public IReadOnlyList<EventCondition>? If { get; init; }
 
     [JsonIgnore]
     public string Key => Id ?? Node;
@@ -368,7 +383,57 @@ public sealed record CombatantPlacement
 
     /// <summary>Effects the figure starts with ("burrowed").</summary>
     public IReadOnlyList<string> Effects { get; init; } = [];
+
+    /// <summary>"players", or another camp; none: the adventurers' opponents.</summary>
+    public string? Side { get; init; }
+
+    /// <summary>An opposing Esper: the instance whose values its "*" are.</summary>
+    public string? Summoner { get; init; }
 }
+
+/// <summary>A figure, or a token that may be attacked, whose numbers are in the rules of the encounter.</summary>
+public sealed record SceneFigure
+{
+    public required string Id { get; init; }
+
+    public LocalizedText? Name { get; init; }
+
+    public FigureStats? Stats { get; init; }
+
+    public string? Figure { get; init; }
+
+    public string? InitiativeCard { get; init; }
+
+    public string? Side { get; init; }
+
+    public bool? Attackable { get; init; }
+
+    /// <summary>True: a Combatant Loot card when Defeated.</summary>
+    public bool? Loot { get; init; }
+
+    public IReadOnlyList<string> Tags { get; init; } = [];
+}
+
+/// <summary>Numbers in the place of a card's.</summary>
+public sealed record FigureStats
+{
+    public int? Health { get; init; }
+
+    public int? Defense { get; init; }
+
+    public int? Armor { get; init; }
+
+    public int? Movement { get; init; }
+
+    public IReadOnlyList<string>? CombatDice { get; init; }
+
+    public IReadOnlyList<string>? ConvictionDice { get; init; }
+
+    [JsonConverter(typeof(SingleOrArrayConverter<string>))]
+    public IReadOnlyList<string>? CastingDie { get; init; }
+}
+
+public sealed record EncounterEsper(string Ref, string? Summoner = null);
 
 public sealed record HiddenCardReveal(string Code, string? Size);
 
@@ -398,6 +463,14 @@ public sealed record TokenRule
     public IReadOnlyList<string> Events { get; init; } = [];
 }
 
+public static class BuiltInEnds
+{
+    public const string AllDefeated = "allDefeated";
+    public const string LastUrgency = "urgency4";
+
+    public static bool IsKnown(string builtIn) => builtIn is AllDefeated or LastUrgency;
+}
+
 public sealed record EndCondition
 {
     public required string Id { get; init; }
@@ -407,6 +480,12 @@ public sealed record EndCondition
 
     /// <summary>False when the condition is only added later (addEndCondition).</summary>
     public bool? Active { get; init; }
+
+    /// <summary>The defeat the rules call by themselves: allDefeated (every adventurer Defeated) or urgency4 (the last Urgency token).</summary>
+    public string? BuiltIn { get; init; }
+
+    /// <summary>The reward continues the encounter (rulebook p. 14): given once, the encounter goes on, maybe with new End Conditions.</summary>
+    public bool? Continues { get; init; }
 
     public LocalizedText? Text { get; init; }
 
@@ -456,6 +535,11 @@ public sealed record EventTrigger
 
     /// <summary>areaRevealed: only that area.</summary>
     public string? Area { get; init; }
+
+    /// <summary>counter: which one, and the threshold crossed.</summary>
+    public string? Counter { get; init; }
+
+    public int? Value { get; init; }
 }
 
 /// <summary>A condition of an event: a variable test, an end-condition test, or a negation.</summary>

@@ -127,10 +127,16 @@ cd taleweaver && dotnet test
 | `dotnet build` échoue pendant que l'API de l'utilisateur tourne (fichiers verrouillés) | `--artifacts-path` **dans le dépôt** (`taleweaver/obj/side-build`) : ailleurs, les tests ne trouvent pas `packs/` |
 | Un `enum` part en nombre dans le JSON, le front compare à un mot (`status`) | `[JsonConverter(typeof(JsonStringEnumConverter<T>))]` sur l'enum : les anciennes sauvegardes en nombre se relisent |
 | Composant à plusieurs racines (bouton + menu) : `class` et styles `scoped` du parent perdus | `inheritAttrs: false` + `v-bind="$attrs"`, et `:deep()` chez le parent |
-| Nouvelle règle du moteur qui consomme moins de hasard | Augmenter `GameEngine.Version` ; l'ordre d'initiative des parties rejouées change : le dire |
+| Nouvelle règle du moteur qui change le calcul ou le hasard | Augmenter `GameEngine.Version` : les parties en cours gardent leur état (`baseline`). Un nouveau champ d'état y vaut donc sa valeur par défaut, le rejeu ne le remplit plus : prévoir ce cas |
+| `%APPDATA%` vu depuis Claude (bureau, paquet MSIX) n'est pas celui de l'appli lancée à la main | Le shell de Claude lit et écrit dans `AppData/Local/Packages/Claude_*/LocalCache/Roaming` : interroger `GET /api/games` de l'appli lancée, ou lister avec PowerShell, avant de parler des parties de l'utilisateur |
+| Build impossible, `Taleweaver.Api.exe` verrouillé par l'appli lancée | `dotnet test --project <projet> -p:BaseOutputPath=bin/verif/`, puis supprimer ce dossier |
 | Git Bash transforme un argument `/items` en chemin Windows | `MSYS_NO_PATHCONV=1` |
 | Une liste vide qui veut dire quelque chose (« rien d'acheté », « aucun nom ») disparaît des sauvegardes, qui omettent les listes vides : lue `null`, elle change le rejeu | `[KeptWhenEmpty]` sur la propriété (les propriétés `required` sont toujours écrites) ; tester le rejeu après un aller-retour par `JsonDefaults.FileOptions` |
 | Deux commandes simultanées sur une partie (plusieurs téléphones) : la dernière sauvegarde écrase l'autre | `GameRunner.ExecuteAsync` et `UndoAsync` passent l'une après l'autre par partie ; ne jamais prendre ce verrou dans `LoadAsync` (les observateurs chargent) |
+| Dans les fichiers, une collection `null` est écrite `null` au lieu d'être omise | `OmitEmptyCollections` remplace la règle « null omis » pour les collections : un test lit l'état, pas l'absence de la clé |
+| Une règle du moteur plus stricte retire en silence ce qu'un scénario existant donne (carte d'histoire gagnée par deux voies) | Avant de livrer une règle de refus, compter ses cas dans `scenarios/`, sans afficher de noms |
+| Deux commandes envoyées d'un même clic (SP puis dégâts) se doublent | `useGameCommand` les sérialise (`scope`), envoyer dans l'ordre voulu |
+| Dans la colonne de droite de la rencontre, un bloc ajouté écrase la carte du tour à une ligne | Le bloc porte `flex: none`, essayer en 1400 × 900 avec une question en cours |
 | Dans le navigateur de test, un onglet en arrière-plan ne finit pas ses transitions : les onglets du téléphone semblent bloqués | Mettre l'onglet au premier plan avant de cliquer |
 
 ## Préparation du groupe et alliés

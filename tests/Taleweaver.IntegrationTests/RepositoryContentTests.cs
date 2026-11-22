@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using Microsoft.Extensions.DependencyInjection;
 using Taleweaver.Api.Common;
 using Taleweaver.Api.Content;
 using Taleweaver.Api.Engine;
@@ -123,6 +124,18 @@ public class RepositoryContentTests(RepositoryFactory factory) : IClassFixture<R
         dice!.Keys.Should().BeEquivalentTo("purple", "white", "orange", "teal", "red", "green", "grey", "blue", "black");
         dice.Values.Should().AllSatisfy(d => d.Faces.Should().HaveCount(6));
         dice["blue"].Faces.Average(f => f.Value).Should().Be(7.5);
+    }
+
+    [Fact]
+    public async Task Catalog_RealPacks_HaveTheHealthIconsOfDisciplinesAndUpgrades()
+    {
+        var provider = factory.Services.GetRequiredService<CatalogProvider>();
+
+        var catalog = await provider.GetAsync(TestContext.Current.CancellationToken);
+
+        catalog.FindDiscipline("um1:discipline/nirvana-s-mark")!.Health.Should().Be(2);
+        catalog.FindDiscipline("um1:discipline/physically-perfected")!.HealthPerHighestLevel.Should().Be("martial");
+        catalog.FindUpgrade("um1:item-upgrade/sentient")!.Health.Should().Be(2);
     }
 
     [Fact]

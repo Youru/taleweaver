@@ -77,9 +77,56 @@ export function samePlace(a: Place, b: Place): boolean {
   return a.owner === b.owner && ('slot' in a ? a.slot : null) === ('slot' in b ? b.slot : null)
 }
 
+/** Spaces of the Pack: 3, and 6 more per Adventurer's Pack equipped. */
+export function packRoom(adventurer: AdventurerState): number {
+  return packSize + 6 * (adventurer.equipped ?? []).filter((o) => !!o.item && adventurersPack.test(o.item)).length
+}
+
+/** A Companion has its own space, one each, never in the Pack (rulebook p. 71). */
+export const isCompanion = (item: CatalogItem | undefined) =>
+  !!item && (item.type === 'companion' || item.tags.includes('COMPANION'))
+
+const gigasGrip = /\/gigas-grip$/
+
+/** The weapons together (rulebook p. 78, 90, 93). */
+function weaponWarnings(adventurer: AdventurerState, catalog: Map<string, CatalogItem>): LimitWarning[] {
+  const sides = (adventurer.equipped ?? []).flatMap((owned) => {
+    const item = owned.item ? catalog.get(owned.item) : undefined
+    if (!item) return []
+    const back = owned.flipped ? item.backSide : undefined
+    return [{ item, stats: back?.stats ?? item.stats, tags: back?.tags ?? item.tags }]
+  })
+  const weapons = sides.filter((s) => s.item.type === 'weapon')
+  const warnings: LimitWarning[] = []
+  const gigas = (adventurer.disciplines ?? []).some(
+    (d) => gigasGrip.test(d.id) && !adventurer.flippedCards?.includes(d.id),
+  )
+  const hands = weapons.reduce((sum, w) => {
+    const printed = w.stats?.hands ?? 1
+    return sum + (gigas && printed === 2 && w.stats?.attack !== 'ranged' ? 1 : printed)
+  }, 0)
+  if (weapons.length < 3 && hands > 2) warnings.push({ kind: 'hands', count: hands, max: 2 })
+  if (weapons.length > 1) {
+    const icons = weapons.map((w) => w.stats?.attack)
+    if (icons.includes('melee') && icons.includes('ranged')) warnings.push({ kind: 'meleeRanged' })
+    const reaches = weapons.map(
+      (w) => w.stats?.range ?? Number(/^REACH (\d+)$/.exec(w.tags.find((tag) => /^REACH \d+$/.test(tag)) ?? '')?.[1] ?? 1),
+    )
+    // "Either" takes the Range of what it is paired with
+    const own = reaches.filter((_, i) => icons[i] !== 'either' || weapons[i]?.stats?.range)
+    if (own.length && new Set(own).size > 1) warnings.push({ kind: 'range', count: Math.min(...own) })
+  }
+  const heavy = sides.filter((s) => s.tags.includes('HEAVY')).length
+  if (heavy) warnings.push({ kind: 'heavy', count: heavy })
+  return warnings
+}
+
 export interface LimitWarning {
-  /** over: more items of a type than equipped allowed; pack: Pack full; relic: same Relic twice. */
-  kind: 'over' | 'pack' | 'relic'
+  /**
+   * over: more items of a type than equipped allowed; pack: Pack full; relic: same Relic twice; companion: more
+   * than one, companionPack: one in the Pack; hands, meleeRanged, range (the lowest), heavy: the weapons together.
+   */
+  kind: 'over' | 'pack' | 'relic' | 'companion' | 'companionPack' | 'hands' | 'meleeRanged' | 'range' | 'heavy'
   type?: string
   count?: number
   max?: number
@@ -98,7 +145,7 @@ export function limitWarnings(
   const warnings: LimitWarning[] = []
   const equipped = (adventurer.equipped ?? []).flatMap((o) => (o.item ? [catalog.get(o.item)] : [])).filter(isItem)
   for (const type of itemTypes) {
-    const count = equipped.filter((item) => item.type === type).length
+    const count = equipped.filter((item) => item.type === type && !isCompanion(item)).length
     const max = equipLimits[type] ?? Infinity
     if (count > max) warnings.push({ kind: 'over', type, count, max })
   }
@@ -110,6 +157,10 @@ export function limitWarnings(
   )
   for (const [id, count] of countBy(relics.map((r) => r.id)))
     if (count > 1) warnings.push({ kind: 'relic', name: pick(catalog.get(id)?.name, language), count })
+  const companions = equipped.filter(isCompanion).length
+  if (companions > 1) warnings.push({ kind: 'companion', count: companions, max: 1 })
+  if (pack.some((o) => !!o.item && isCompanion(catalog.get(o.item)))) warnings.push({ kind: 'companionPack' })
+  warnings.push(...weaponWarnings(adventurer, catalog))
   return warnings
 }
 
@@ -196,11 +247,14 @@ export function playerMat(adventurer: AdventurerState, catalog: Map<string, Cata
     ...cards.map((owned, i) => ({ key: owned.id, owned, extra: i >= spaces })),
     ...Array.from({ length: Math.max(0, spaces - cards.length) }, (_, i) => ({ key: `${key}-${i}` })),
   ]
+  const companion = (o: OwnedItem) => !!o.item && isCompanion(catalog.get(o.item))
   const rows = itemTypes.map((type) => ({
     type,
-    slots: fill(type, equipped.filter((o) => typeOf(o) === type), equipLimits[type] ?? 0),
+    slots: fill(type, equipped.filter((o) => typeOf(o) === type && !companion(o)), equipLimits[type] ?? 0),
   }))
-  const other = equipped.filter((o) => !(itemTypes as readonly string[]).includes(typeOf(o)))
+  const companions = equipped.filter(companion)
+  if (companions.length) rows.push({ type: 'companion' as never, slots: fill('companion', companions, 1) })
+  const other = equipped.filter((o) => !companion(o) && !(itemTypes as readonly string[]).includes(typeOf(o)))
   if (other.length) rows.push({ type: 'other' as never, slots: fill('other', other, 0).map((s) => ({ ...s, extra: false })) })
   const packSpaces =
     packSize +

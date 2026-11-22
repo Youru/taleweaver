@@ -89,7 +89,12 @@ watch([() => current.value?.name, healthLeft], ([name, left], [before, previous]
 })
 
 // The GM's answer to a request (room-spec §6.2): a short line that fades, longer when refused.
-const others = computed(() => props.view.party.filter((p) => !p.mine).map((p) => p.name))
+// In an encounter one takes from an adjacent ally, and never gives (rulebook p. 46)
+const others = computed(() =>
+  props.view.encounter && !props.view.encounter.ended
+    ? []
+    : props.view.party.filter((p) => !p.mine).map((p) => p.name),
+)
 const answer = ref<{ ok: boolean; text: string } | null>(null)
 let answerTimer: ReturnType<typeof setTimeout> | undefined
 watch(

@@ -86,6 +86,9 @@ public sealed class CampaignState
 
     public List<string> RevealedHiddenCards { get; set; } = [];
 
+    /// <summary>Combatant Loot cards drawn since the last Restore, between two encounters: out of the next one's deck (p. 57, 96).</summary>
+    public List<string> LootDrawn { get; set; } = [];
+
     /// <summary>Scenarios played to their end, won or lost (Additional Prerequisites: "after you've attempted the Bounty").</summary>
     public List<string> AttemptedScenarios { get; set; } = [];
 
@@ -120,6 +123,17 @@ public sealed class CampaignState
 
     /// <summary>Item Upgrades unlocked (Adventure Sheet): for sale at every Shop and Train from now on (p. 28).</summary>
     public List<string> UnlockedUpgrades { get; set; } = [];
+
+    /// <summary>What figures carry, or put down.</summary>
+    public List<CarriedThing> Carried { get; set; } = [];
+
+    public List<Counter> Counters { get; set; } = [];
+
+    /// <summary>The boards an encounter to come keeps.</summary>
+    public List<KeptBoard> Boards { get; set; } = [];
+
+    /// <summary>Who may Re-Equip for free now (a gain, a Restore).</summary>
+    public List<string> FreeReequip { get; set; } = [];
 
     /// <summary>The Adventure Sheet's checklist of Achievements.</summary>
     public List<CompletedAchievement> Achievements { get; set; } = [];
@@ -213,6 +227,16 @@ public sealed class AdventurerState
     /// <summary>Most SP the adventurer may hold (all dots of the bar). Computed from the card.</summary>
     public int StaminaMax { get; set; }
 
+    /// <summary>Cards other than items (Disciplines…), by catalogue id: Exhausted, Used, Flipped.</summary>
+    public List<string> ExhaustedCards { get; set; } = [];
+
+    public List<string> UsedCards { get; set; } = [];
+
+    public List<string> FlippedCards { get; set; } = [];
+
+    /// <summary>Dodge, Heal, Intervention, Vow, Energy (p. 95).</summary>
+    public Dictionary<string, int>? AbilityTokens { get; set; }
+
     /// <summary>Summon tokens held (p. 75).</summary>
     public int SummonTokens { get; set; }
 
@@ -246,6 +270,13 @@ public sealed class OwnedItem
 
     /// <summary>Equipped on its back side (DOUBLE), or Flipped by an ability.</summary>
     public bool Flipped { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool Exhausted { get; set; }
+
+    /// <summary>A Used token is on it (Per Encounter).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool Used { get; set; }
 
     /// <summary>Item Upgrades attached to the card (catalogue ids, p. 28).</summary>
     public List<string> Upgrades { get; set; } = [];
@@ -321,11 +352,57 @@ public sealed class EncounterState
     /// <summary>The adventurers' figures, placed in the starting zone, then moved by the GM.</summary>
     public List<AdventurerFigure> Adventurers { get; set; } = [];
 
+    /// <summary>
+    /// The adventurers who had their first turn in this encounter. Null in an encounter begun before engine 13: the
+    /// first turn was then the first round's.
+    /// </summary>
+    [KeptWhenEmpty]
+    public List<string>? HadFirstTurn { get; set; }
+
+    /// <summary>Adventurers and allies who began the turn under way Paralyzed: the token leaves at its end.</summary>
+    public List<string> ParalyzedThisTurn { get; set; } = [];
+
+    /// <summary>Who lost a turn to Paralyze: Immune to it until the end of the encounter.</summary>
+    public List<string> ParalyzeImmune { get; set; } = [];
+
     /// <summary>AI steps added by the scenario, by family (appendAiStep).</summary>
     public Dictionary<string, List<AiStep>> ExtraAiSteps { get; set; } = [];
 
     /// <summary>What happened this round, for the Urgency rule.</summary>
     public RoundLog RoundLog { get; set; } = new();
+
+    /// <summary>Dealt before the first round: not shuffled again for it.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool TrackDealt { get; set; }
+
+    /// <summary>Cards never shuffled, and their place: front, back, or a number (1 first).</summary>
+    public Dictionary<string, string>? FixedCards { get; set; }
+
+    /// <summary>The figures of the turn under way whose end is still to come.</summary>
+    public List<string> TurnOf { get; set; } = [];
+
+    public List<DelayedEffect> Delayed { get; set; } = [];
+
+    /// <summary>modifyFigure on a family: for those still to come.</summary>
+    public List<ScenarioAction> Modifiers { get; set; } = [];
+
+    /// <summary>The reactions under way, the last one first to end: the turn waits.</summary>
+    public List<Reaction> Reactions { get; set; } = [];
+
+    /// <summary>Who made their Break Attack this turn.</summary>
+    public List<string> BreakAttacks { get; set; } = [];
+
+    /// <summary>Who made their Move Action this turn.</summary>
+    public List<string> Moved { get; set; } = [];
+
+    /// <summary>Who placed a Tether, on whom.</summary>
+    public Dictionary<string, string>? Tethers { get; set; }
+
+    /// <summary>The AI step that may still prove impossible.</summary>
+    public LastAiStep? LastStep { get; set; }
+
+    /// <summary>The adventurers the encounter imposes; null: the Active Group.</summary>
+    public List<string>? Participants { get; set; }
 
     /// <summary>The group taking its turn, while its figures go through their AI steps.</summary>
     public Activation? Activation { get; set; }
@@ -359,10 +436,48 @@ public sealed class CombatantState
 
     public bool Aggro { get; set; }
 
-    /// <summary>Attacked since its last turn (Golden Rule #4: Aggro).</summary>
+    /// <summary>Target of an opponent's Attack, Spell or Ability since its last turn, hit or not (Golden Rule #4: Aggro).</summary>
     public bool Attacked { get; set; }
 
+    /// <summary>The figure that Spawned it: such an opponent drops no Combatant Loot (p. 57).</summary>
+    public string? SpawnedBy { get; set; }
+
     public bool Defeated { get; set; }
+
+    public Dictionary<string, int>? AbilityTokens { get; set; }
+
+    /// <summary>The name of a figure the scenario describes (its card is "figure:&lt;id&gt;").</summary>
+    public Dictionary<string, string>? Name { get; set; }
+
+    /// <summary>Numbers in the place of the card's (maximum HP: <see cref="Health"/>).</summary>
+    public FigureStats? Stats { get; set; }
+
+    /// <summary>"players", or another camp; null: the adventurers' opponents.</summary>
+    public string? Side { get; set; }
+
+    public List<string> AddedTags { get; set; } = [];
+
+    public List<string> RemovedTags { get; set; } = [];
+
+    /// <summary>AI steps ignored, 1 first.</summary>
+    public List<int> SkippedSteps { get; set; } = [];
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool Asleep { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool WakesWhenDamaged { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool NoLoot { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool Untargetable { get; set; }
+
+    /// <summary>An opposing Esper's summoner, and the Force it gives.</summary>
+    public string? Summoner { get; set; }
+
+    public int? Force { get; set; }
 }
 
 /// <summary>One figure to come, and the fog area it waits for; its card and number are chosen when it appears.</summary>
@@ -410,10 +525,29 @@ public sealed class BoardToken
     public Rect? Area { get; set; }
 
     public bool Removed { get; set; }
+
+    /// <summary>A Bulb that went off.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool Flipped { get; set; }
+}
+
+/// <summary>A Counter, Break Attack or Redirect, and whom it is against.</summary>
+public sealed record Reaction(string Kind, string Figure, string? Against);
+
+public sealed class LastAiStep
+{
+    public required Activation Before { get; set; }
+
+    public bool RoundHadTrueStep { get; set; }
+
+    public bool Aggro { get; set; }
+
+    public bool Attacked { get; set; }
 }
 
 public sealed class RoundLog
 {
+    /// <summary>A step was true, or a turn was lost to Paralyze, which counts as taken (p. 18).</summary>
     public bool AiStepTrue { get; set; }
 
     public int Defeated { get; set; }
@@ -430,6 +564,12 @@ public sealed class Activation
 
     public int Step { get; set; }
 
+    /// <summary>The acting figure began its turn Paralyzed: no AI step, the token leaves at the end.</summary>
+    public bool Paralyzed { get; set; }
+
+    /// <summary>The acting figure was Paralyzed during its turn: no more step, the token stays for the next turn.</summary>
+    public bool Interrupted { get; set; }
+
     public bool AnyStepTrue { get; set; }
 
     /// <summary>The question asked is the step's ContinueDownIf, not its condition.</summary>
@@ -439,7 +579,7 @@ public sealed class Activation
 /// <summary>A question to the GM. The answer is one of <see cref="Options"/>, or a number when <see cref="Kind"/> is "number".</summary>
 public sealed class Prompt
 {
-    /// <summary>continue, choice, skillCheck, aiCondition, number, adventurer, spawnPossible, storyRound, abraxis.</summary>
+    /// <summary>continue, choice, skillCheck, aiCondition, number, adventurer, spawnPossible, storyRound, abraxis, activeGroup, arrival, status.</summary>
     public required string Kind { get; set; }
 
     public LocalizedText? Question { get; set; }
@@ -451,6 +591,104 @@ public sealed class Prompt
 
     /// <summary>Combatant concerned (AI step, restored combatant).</summary>
     public string? Instance { get; set; }
+
+    /// <summary>Who decides: the GM types their answer.</summary>
+    public string? Decider { get; set; }
+
+    /// <summary>activeGroup: how many to choose.</summary>
+    public int? Max { get; set; }
+
+    /// <summary>skillCheck: who may test, with their Skills.</summary>
+    public List<SkillTester>? Testers { get; set; }
+
+    /// <summary>skillCheck: the Skill and difficulty of each option.</summary>
+    public List<SkillOption>? Checks { get; set; }
+}
+
+public sealed record SkillTester(string Name, IReadOnlyDictionary<string, int> Skills);
+
+public sealed record SkillOption(string? Skill, int? Difficulty);
+
+public sealed class Counter
+{
+    public required string Id { get; set; }
+
+    public Dictionary<string, string>? Name { get; set; }
+
+    public int Value { get; set; }
+
+    public int? Min { get; set; }
+
+    /// <summary>A token's id, or a figure; null: the encounter's.</summary>
+    public string? On { get; set; }
+
+    /// <summary>Goes on into the next encounter.</summary>
+    public bool Keep { get; set; }
+}
+
+public sealed class DelayedEffect
+{
+    public required string Id { get; set; }
+
+    public int Round { get; set; }
+
+    /// <summary>start, or end.</summary>
+    public required string At { get; set; }
+
+    public bool Repeats { get; set; }
+
+    public Dictionary<string, string>? Text { get; set; }
+
+    public List<ScenarioAction> Actions { get; set; } = [];
+}
+
+public sealed class KeptBoard
+{
+    public required string From { get; set; }
+
+    public List<CombatantState> Combatants { get; set; } = [];
+
+    public List<WaitingCombatant> Waiting { get; set; } = [];
+
+    public List<BoardToken> Tokens { get; set; } = [];
+
+    public List<string> RevealedAreas { get; set; } = [];
+
+    public List<string> PlacedDiagrams { get; set; } = [];
+
+    public List<AdventurerFigure> Adventurers { get; set; } = [];
+
+    public List<AllyState> Allies { get; set; } = [];
+
+    public List<Counter> Counters { get; set; } = [];
+
+    public List<CarriedThing> Carried { get; set; } = [];
+}
+
+public sealed class CarriedThing
+{
+    public required string Id { get; set; }
+
+    public Dictionary<string, string>? Name { get; set; }
+
+    /// <summary>The figure holding it; null: lying, or lost.</summary>
+    public string? Carrier { get; set; }
+
+    public Cell? Position { get; set; }
+
+    /// <summary>Taken into the next encounter.</summary>
+    public bool Keep { get; set; }
+
+    public bool Lost { get; set; }
+
+    public bool SurvivesDangerous { get; set; }
+
+    /// <summary>The token it is on the board, when it is one.</summary>
+    public string? TokenKey { get; set; }
+
+    public string? TokenType { get; set; }
+
+    public string? Color { get; set; }
 }
 
 public sealed record PromptOption(string Id, LocalizedText? Label = null);

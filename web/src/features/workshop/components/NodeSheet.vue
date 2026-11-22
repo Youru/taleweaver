@@ -28,6 +28,7 @@ import BoardRules from './BoardRules.vue'
 import { eventsOf } from '../lib/events'
 import { addHiddenRule, hiddenRulesOf, removeHiddenRule, updateHiddenRule } from '../lib/hiddenRules'
 import HiddenRuleCard from './HiddenRuleCard.vue'
+import JsonField from './JsonField.vue'
 import StoryRoundFields from './StoryRoundFields.vue'
 import TargetSelect from './TargetSelect.vue'
 import TextField from './TextField.vue'
@@ -153,6 +154,22 @@ const locations = computed(() =>
   ),
 )
 const ends = computed(() => props.node.endConditions ?? [])
+const participants = computed(() => ((props.node.participants as string[] | undefined) ?? []).join(', '))
+function setParticipants(typed: string) {
+  const names = typed
+    .split(',')
+    .map((name) => name.trim())
+    .filter(Boolean)
+  patch({ participants: names.length ? names : undefined })
+}
+const boardsToKeep = computed(() =>
+  props.scenario.nodes
+    .filter((n) => n.type === 'encounter' && n.id !== props.node.id)
+    .map((n) => ({ value: n.id, label: pick(n.name, language.value) || n.id })),
+)
+
+const keptFrom = computed(() => props.node.keepBoardFrom as string | undefined)
+
 function patchEnd(index: number, fields: Partial<DraftEnd>) {
   patch({ endConditions: ends.value.map((e, i) => (i === index ? { ...e, ...fields } : e)) })
 }
@@ -170,6 +187,11 @@ function addEnd(kind: 'win' | 'lose') {
 const kinds = computed(() => [
   { value: 'win', label: t('workshop.win') },
   { value: 'lose', label: t('workshop.lose') },
+])
+const defeatCauses = computed(() => [
+  { value: 'other', label: t('workshop.defeatCause.other') },
+  { value: 'allDefeated', label: t('workshop.defeatCause.allDefeated') },
+  { value: 'urgency4', label: t('workshop.defeatCause.urgency4') },
 ])
 const rules = computed(() => props.node.specialRules ?? [])
 function patchRule(index: number, fields: Partial<DraftRule>) {
@@ -439,6 +461,40 @@ const hiddenRules = computed(() => {
             </div>
           </div>
 
+          <details class="more-rules">
+            <summary>{{ t('workshop.moreRules') }}</summary>
+            <div class="field">
+              <label for="participants">{{ t('workshop.participants') }}</label>
+              <InputText
+                id="participants"
+                :model-value="participants"
+                @change="(e) => setParticipants((e.target as HTMLInputElement).value)"
+              />
+            </div>
+            <div class="field">
+              <label for="keep-board">{{ t('workshop.keepBoardFrom') }}</label>
+              <Select
+                input-id="keep-board"
+                :model-value="keptFrom"
+                :options="boardsToKeep"
+                option-label="label"
+                option-value="value"
+                show-clear
+                @update:model-value="(v) => patch({ keepBoardFrom: v ?? undefined })"
+              />
+            </div>
+            <JsonField
+              :model-value="node.figures"
+              :label="t('workshop.figures')"
+              @update:model-value="(v) => patch({ figures: v })"
+            />
+            <JsonField
+              :model-value="node.encounterEspers"
+              :label="t('workshop.encounterEspers')"
+              @update:model-value="(v) => patch({ encounterEspers: v })"
+            />
+          </details>
+
           <h3>{{ t('workshop.endConditions') }}</h3>
           <ol class="ends">
             <li v-for="(end, index) in ends" :key="end.id" :class="end.kind">
@@ -451,7 +507,7 @@ const hiddenRules = computed(() => {
                   :allow-empty="false"
                   :aria-label="t('workshop.endKind', { n: index + 1 })"
                   size="small"
-                  @update:model-value="(v) => patchEnd(index, { kind: v })"
+                  @update:model-value="(v) => patchEnd(index, { kind: v, builtIn: undefined })"
                 />
                 <Button
                   icon="pi pi-times"
@@ -472,7 +528,33 @@ const hiddenRules = computed(() => {
                 :label="t('workshop.reward')"
                 @update:model-value="(v) => patchEnd(index, { reward: v })"
               />
-              <div class="field">
+              <label class="end-option">
+                <ToggleSwitch
+                  :model-value="!!end.continues"
+                  @update:model-value="
+                    (v) =>
+                      patchEnd(
+                        index,
+                        v
+                          ? { continues: true, next: undefined, builtIn: undefined }
+                          : { continues: undefined, next: end.kind === 'lose' ? '@defeat' : '@victory' },
+                      )
+                  "
+                />
+                {{ t('workshop.endContinues') }}
+              </label>
+              <div v-if="end.kind === 'lose' && !end.continues" class="field">
+                <span class="label">{{ t('workshop.defeatCause.label') }}</span>
+                <Select
+                  :model-value="end.builtIn ?? 'other'"
+                  :options="defeatCauses"
+                  option-label="label"
+                  option-value="value"
+                  :aria-label="t('workshop.defeatCause.label')"
+                  @update:model-value="(v) => patchEnd(index, { builtIn: v === 'other' ? undefined : v })"
+                />
+              </div>
+              <div v-if="!end.continues" class="field">
                 <span class="label">{{ t('workshop.leadsTo') }}</span>
                 <TargetSelect
                   :model-value="end.next"
@@ -771,5 +853,10 @@ ol {
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
+}
+.end-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 </style>

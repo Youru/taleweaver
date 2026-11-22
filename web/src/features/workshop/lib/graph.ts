@@ -30,7 +30,7 @@ export function choiceOf(node: DraftNode): DraftAction | undefined {
 
 export function exitsOf(node: DraftNode): Exit[] {
   if (node.type === 'encounter')
-    return (node.endConditions ?? []).map((end) => ({
+    return (node.endConditions ?? []).filter((end) => !end.continues).map((end) => ({
       key: `end:${end.id}`,
       kind: end.kind === 'lose' ? 'lose' : 'win',
       label: end.text,

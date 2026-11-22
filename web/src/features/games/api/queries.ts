@@ -87,6 +87,8 @@ export type GameCommand =
 export function useGameCommand(id: MaybeRefOrGetter<string>) {
   const client = useQueryClient()
   return useMutation({
+    // One at a time, in their order: the duel sends the SP, then the Damage
+    scope: { id: 'game-command' },
     mutationFn: (command: GameCommand): Promise<GameView> => {
       const gameId = toValue(id)
       switch (command.kind) {

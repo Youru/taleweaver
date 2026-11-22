@@ -21,9 +21,18 @@ internal sealed partial class Session
         var deck = Catalog.Packs
             .SelectMany(p => p.Rules?.LootDecks ?? [])
             .LastOrDefault(d => d.LootLevel == node.LootLevel);
-        Encounter.LootDeck = deck is null
+        var cards = deck is null
             ? []
             : deck.Cards.SelectMany(c => Enumerable.Repeat(CardKey(c), c.Count)).ToList();
+
+        // Only a Restore rebuilds it (p. 96); another Loot LVL changes the composition, the drawn cards stay out
+        foreach (var drawn in State.Campaign.LootDrawn)
+        {
+            cards.Remove(drawn);
+        }
+
+        Encounter.LootDeck = cards;
+        Encounter.LootDrawn = [.. State.Campaign.LootDrawn];
     }
 
     private static string CardKey(LootCard card) => card.Kind switch
@@ -36,7 +45,18 @@ internal sealed partial class Session
     private void DropLoot(CombatantState figure)
     {
         var card = Catalog.FindCombatant(figure.Card);
-        var tags = card?.Tags ?? [];
+        var tags = TagsOf(figure);
+        if (figure.SpawnedBy is not null || figure.NoLoot || !IsOpponent(figure) || tags.Contains("TRIVIAL"))
+        {
+            return;
+        }
+
+        // SWARM (p. 91): only the last of its group, whose Initiative Card then leaves the track
+        if (tags.Contains("SWARM") && Alive().Any(c => c.InitiativeCards.Intersect(figure.InitiativeCards).Any()))
+        {
+            return;
+        }
+
         if (tags.Contains("GILDED"))
         {
             if (!GainMonsterLoot(figure, card))
@@ -107,7 +127,7 @@ internal sealed partial class Session
             case ItemCard:
                 // The Adventurer rolls 2 WHITE dice for the Item type (rulebook p. 20): physical dice, the GM draws the card.
                 State.Campaign.Items.Add($"1 {lootLevel} item (Item Loot)");
-                var drawnLater = GainOwned(null, "itemLoot", lootLevel is null ? null : [lootLevel]);
+                var drawnLater = GainOwned(null, "itemLoot", lootLevel is null ? null : [lootLevel], to: Member(_author));
                 Log("lootItem", args: Args(("instance", figure.Instance), ("lootLevel", lootLevel), ("id", drawnLater.Id)));
                 break;
             case MonsterCard:
@@ -148,7 +168,7 @@ internal sealed partial class Session
 
         var item = left[NextRandom(left.Count)];
         State.Campaign.Items.Add(item);
-        GainOwned(item, "monsterLoot");
+        GainOwned(item, "monsterLoot", to: Member(_author));
         Log("lootMonster", args: Args(("instance", figure.Instance), ("item", item)));
         return true;
     }
@@ -165,13 +185,14 @@ internal sealed partial class Session
 
         var item = left[NextRandom(left.Count)];
         State.Campaign.Items.Add(item);
-        GainOwned(item, "uniqueLoot");
+        GainOwned(item, "uniqueLoot", to: Member(_author));
         Log("lootUnique", args: Args(("instance", figure.Instance), ("item", item)));
     }
 
     /// <summary>Restore Adventurers: the drawn Combatant Loot cards go back into the deck.</summary>
     private void ReturnLootCards()
     {
+        State.Campaign.LootDrawn.Clear();
         if (State.Encounter is not { } encounter || encounter.LootDrawn.Count == 0)
         {
             return;
@@ -180,6 +201,15 @@ internal sealed partial class Session
         encounter.LootDeck.AddRange(encounter.LootDrawn);
         encounter.LootDrawn.Clear();
         Log("lootDeckShuffled", args: Args(("cards", Number(encounter.LootDeck.Count))));
+    }
+
+    /// <summary>A Material given up (p. 28: traded for Gold or an Item Upgrade) goes back to the Monster Loot deck.</summary>
+    private void ReturnMonsterLoot(string? item)
+    {
+        if (item is not null && Catalog.Combatants.Any(c => c.MonsterLoot.Contains(item)))
+        {
+            State.Campaign.Items.Remove(item);
+        }
     }
 
     /// <summary>Gold drawn from the deck is earned at the end of the encounter, even if the party is Defeated.</summary>

@@ -21,6 +21,8 @@ export interface DraftTrigger {
   round?: number
   area?: string
   rule?: string
+  counter?: string
+  value?: number
   [field: string]: unknown
 }
 
@@ -47,7 +49,7 @@ export const TOKEN_MODES = [
 ] as const
 
 /** The triggers the engine fires, with the parameter each one takes. */
-export const TRIGGERS: Record<string, 'token' | 'round' | 'family' | 'area' | 'rule' | null> = {
+export const TRIGGERS: Record<string, 'token' | 'round' | 'family' | 'area' | 'rule' | 'counter' | null> = {
   tokenActivated: 'token',
   encounterStart: null,
   roundStart: 'round',
@@ -56,6 +58,9 @@ export const TRIGGERS: Record<string, 'token' | 'round' | 'family' | 'area' | 'r
   adventurerDefeated: null,
   areaRevealed: 'area',
   hiddenRuleRead: 'rule',
+  turnStart: null,
+  turnEnd: null,
+  counter: 'counter',
 }
 
 /** The actions the workshop edits field by field; any other stays editable as JSON. */
@@ -83,6 +88,32 @@ export const SIMPLE_ACTIONS = [
 export type SimpleAction = (typeof SIMPLE_ACTIONS)[number]
 export const isSimple = (action: DraftAction): action is DraftAction & { do: SimpleAction } =>
   (SIMPLE_ACTIONS as readonly string[]).includes(action.do)
+
+/** The rules of play-spec lots 2 to 4: added with the fields they take, then edited as JSON. */
+export const ADVANCED_ACTIONS = {
+  joinParty: { adventurer: '', setup: true, gold: 0, items: [], disciplines: [], actions: [] },
+  setActiveGroup: {},
+  askSkillCheck: { who: 'author', options: [{ skill: 'lore', difficulty: 10 }], pass: [], fail: [] },
+  carry: { id: '', who: 'author', keep: false },
+  dropCarried: { id: '' },
+  loseCarried: { id: '' },
+  setCounter: { id: '', amount: 0, keep: false },
+  addCounter: { id: '', amount: 1 },
+  removeCounter: { id: '' },
+  drawAdventurers: { var: 'drawn', count: 1, except: [] },
+  splitParty: { zones: [] },
+  delay: { id: '', rounds: 1, at: 'end', actions: [] },
+  cancelDelay: { id: '' },
+  dealInitiative: {},
+  moveInitiative: { instance: '', to: 'front' },
+  addInitiativeCard: { instance: '' },
+  removeInitiativeCard: { card: '' },
+  modifyFigure: { instance: '', stats: {} },
+} as const
+export type AdvancedAction = keyof typeof ADVANCED_ACTIONS
+export const isAdvanced = (kind: string): kind is AdvancedAction => kind in ADVANCED_ACTIONS
+export const newAdvancedAction = (kind: AdvancedAction): DraftAction =>
+  JSON.parse(JSON.stringify({ do: kind, ...ADVANCED_ACTIONS[kind] })) as DraftAction
 
 /** A new action with the fields it needs. */
 export function newAction(kind: SimpleAction, language: string): DraftAction {

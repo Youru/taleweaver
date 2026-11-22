@@ -115,7 +115,7 @@ public static class PlayerViewProjector
         var campaign = state.Campaign;
         var active = campaign.ActiveGroup?.ToHashSet()
             ?? campaign.Party.Where(a => !a.Injured && !a.Unselectable).Select(a => a.Name).ToHashSet();
-        var mine = campaign.Party.Where(a => adventurers.Contains(a.Name)).ToList();
+        var mine = campaign.Party.Where(a => adventurers.Contains(a.Name)).Select(WithoutGmMarks).ToList();
         var encounter = state.Encounter is { } e ? EncounterOf(e, played ?? scenario, catalog, adventurers) : null;
 
         return new PlayerView(
@@ -129,8 +129,8 @@ public static class PlayerViewProjector
             campaign.Party.Select(a => new PartyMemberView(a.Name, a.Damage, a.Health, a.Defeated, a.Injured, a.Unselectable, active.Contains(a.Name), adventurers.Contains(a.Name),
                 room?.Seats.Any(s => s.Adventurers.Contains(a.Name)) == true)).ToList(),
             campaign.Gold,
-            campaign.Stash,
-            campaign.Unassigned,
+            campaign.Stash.Select(WithoutGmMarks).ToList(),
+            campaign.Unassigned.Select(WithoutGmMarks).ToList(),
             encounter,
             PublicLog(state.Log),
             // The seat's own requests: the pending ones and the last answers
@@ -151,7 +151,7 @@ public static class PlayerViewProjector
     {
         "scene", "text", "encounter", "navigate", "revealArea", "roundStart", "roundEnd", "turn", "urgency", "urgencyDefeat",
         "damage", "defeated", "adventurerDamage", "adventurerDefeated", "stamina", "adventurersPrepared", "restoreAdventurers",
-        "encounterEnd", "reward", "scenarioEnd", "partyDefeated", "adventurerReturns",
+        "encounterEnd", "encounterContinues", "reward", "scenarioEnd", "partyDefeated", "adventurerReturns",
         "achievement", "achievementText", "abraxisStart", "abraxisRound", "abraxisEnd",
         "gainGold", "gainXp", "gainItem", "gainDiscipline", "revealHiddenCard", "itemAdded", "itemMoved", "itemUsed", "itemDiscarded", "itemSold", "itemFlipped", "consumableDiscarded",
         "lootGold", "lootItem", "lootMonster", "lootUnique", "lootNone",
@@ -186,6 +186,35 @@ public static class PlayerViewProjector
 
         return lines.TakeLast(LogLength).ToList();
     }
+
+    /// <summary>The GM's follow-up of cards and tokens (play-spec R4) is not on the phones: lot 6 decides.</summary>
+    private static AdventurerState WithoutGmMarks(AdventurerState member)
+    {
+        var copy = Copy(member);
+        copy.ExhaustedCards = [];
+        copy.UsedCards = [];
+        copy.FlippedCards = [];
+        copy.AbilityTokens = null;
+        copy.Equipped = member.Equipped.Select(WithoutGmMarks).ToList();
+        copy.Pack = member.Pack.Select(WithoutGmMarks).ToList();
+        return copy;
+    }
+
+    private static OwnedItem WithoutGmMarks(OwnedItem owned)
+    {
+        if (!owned.Exhausted && !owned.Used)
+        {
+            return owned;
+        }
+
+        var copy = Copy(owned);
+        copy.Exhausted = false;
+        copy.Used = false;
+        return copy;
+    }
+
+    private static T Copy<T>(T value) =>
+        System.Text.Json.JsonSerializer.Deserialize<T>(System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(value, Common.JsonDefaults.Options), Common.JsonDefaults.Options)!;
 
     private static PlayerEncounter EncounterOf(EncounterState e, Scenario? played, Catalog? catalog, IReadOnlyCollection<string> mine)
     {

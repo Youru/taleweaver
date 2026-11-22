@@ -17,6 +17,7 @@ internal sealed partial class Session
     private const string QuestPrefix = "quest:";
     private const string VenturePrefix = "venture:";
     private const string BountyPrefix = "bounty:";
+    private const int ActiveGroupSize = 4;
 
     private static class PartyErrors
     {
@@ -46,7 +47,9 @@ internal sealed partial class Session
 
     /// <summary>The adventurers who play the encounters: the Active Group, without the Injured and the Unselectable.</summary>
     private IEnumerable<AdventurerState> ActiveParty =>
-        State.Campaign.Party.Where(a => !a.Injured && !a.Unselectable
+        State.Encounter?.Participants is { } imposed
+            ? State.Campaign.Party.Where(a => imposed.Contains(a.Name, StringComparer.OrdinalIgnoreCase))
+            : State.Campaign.Party.Where(a => !a.Injured && !a.Unselectable
                                         && (State.Campaign.ActiveGroup is not { } group || group.Contains(a.Name, StringComparer.OrdinalIgnoreCase)));
 
     private void EnterStoryRound(Node node, bool returning)
@@ -117,12 +120,20 @@ internal sealed partial class Session
         }
 
         var quests = node.SideQuests
-            .Where(q => !State.Campaign.SideQuestsAttempted.Contains(q.Key))
+            .Where(q => !State.Campaign.SideQuestsAttempted.Contains(q.Key) && (q.If ?? []).All(IsTrue))
             .Select(q => new PromptOption(QuestPrefix + q.Key, q.Label ?? Text(q.Node, q.Node)));
         var bounties = BountiesOffered(node)
             .Select(b => new PromptOption(BountyPrefix + b.Id, b.Title));
-        var exits = node.VentureForth
-            .Select((v, i) => new PromptOption(VenturePrefix + i.ToString(System.Globalization.CultureInfo.InvariantCulture), v.Label ?? Text(v.Node, v.Node)));
+        var ways = node.VentureForth.Select((exit, index) => (Exit: exit, Index: index)).ToList();
+        var open = ways.Where(w => (w.Exit.If ?? []).All(IsTrue)).ToList();
+        if (open.Count == 0 && ways.Count > 0)
+        {
+            // Every way closed would stop the game: all shown, the GM says
+            Log("noExitOpen");
+            open = ways;
+        }
+
+        var exits = open.Select(w => new PromptOption(VenturePrefix + Number(w.Index), w.Exit.Label ?? Text(w.Exit.Node, w.Exit.Node)));
         Ask(PromptKinds.StoryRound, Text("Explore: choose a Side Quest, or Venture Forth.", "Explorer : choisir une quête annexe, ou continuer l'histoire."), quests.Concat(bounties).Concat(exits));
     }
 
@@ -338,7 +349,7 @@ internal sealed partial class Session
             return PartyErrors.EmptyGroup;
         }
 
-        if (names.Count > 4)
+        if (names.Count > ActiveGroupSize)
         {
             return PartyErrors.TooLarge(names.Count);
         }
@@ -375,9 +386,11 @@ internal sealed partial class Session
         switch (status)
         {
             case "injured":
+                KeepTheFourActive(recovers: !value && member.Injured);
                 member.Injured = value;
                 break;
             case "unselectable":
+                KeepTheFourActive(recovers: !value && member.Unselectable);
                 member.Unselectable = value;
                 break;
             default:
@@ -388,6 +401,111 @@ internal sealed partial class Session
         return Result.Success();
     }
 
+    /// <summary>
+    /// Without a chosen group everybody eligible plays: once four do, they become the group, and whoever joins or
+    /// recovers waits to be chosen (p. 10).
+    /// </summary>
+    private void KeepTheFourActive(bool recovers)
+    {
+        if (!recovers || State.Campaign.ActiveGroup is not null)
+        {
+            return;
+        }
+
+        var active = ActiveParty.Select(a => a.Name).ToList();
+        if (active.Count >= ActiveGroupSize)
+        {
+            State.Campaign.ActiveGroup = active;
+        }
+    }
+
+    /// <summary>
+    /// "Choose your Active Group": asked each time the story says it, four among the eligible (four or fewer: all of
+    /// them, nothing to ask). Items may be exchanged while the question waits.
+    /// </summary>
+    private void ChooseActiveGroup(ScenarioAction action)
+    {
+        var eligible = State.Campaign.Party.Where(a => !a.Injured && !a.Unselectable).Select(a => a.Name).ToList();
+        if (eligible.Count <= ActiveGroupSize)
+        {
+            State.Campaign.ActiveGroup = null;
+            Log("activeGroup", args: Args(("adventurers", string.Join(", ", eligible))));
+            return;
+        }
+
+        Log("chooseActiveGroup", action.Text);
+        Ask(PromptKinds.ActiveGroup, Text("Choose the 4 adventurers of the Active Group.", "Choisir les 4 aventuriers du groupe actif."),
+            eligible.Select(name => new PromptOption(name, Text(name, name))), action);
+        State.Prompt!.Max = ActiveGroupSize;
+    }
+
+    private Result AnswerActiveGroup(Prompt prompt, IReadOnlyList<string>? names)
+    {
+        var chosen = names?.Distinct(StringComparer.OrdinalIgnoreCase).ToList() ?? [];
+        // The party may have changed while the question waited
+        var eligible = State.Campaign.Party.Count(a => !a.Injured && !a.Unselectable);
+        if (names?.Count != chosen.Count || chosen.Count != Math.Min(prompt.Max ?? ActiveGroupSize, eligible))
+        {
+            return GameEngine.Errors.InvalidAnswer(string.Join(", ", names ?? []));
+        }
+
+        var result = SetActiveGroup(chosen);
+        if (result.IsSuccess)
+        {
+            State.Prompt = null;
+        }
+
+        return result;
+    }
+
+    /// <summary>An arrival (play-spec A3): what the story gives them, then the GM finishes with "setup".</summary>
+    private void SetUpArrival(ScenarioAction action, AdventurerState member)
+    {
+        if (ExtraNumber(action, "gold") is { } gold)
+        {
+            GainGold(gold);
+        }
+
+        foreach (var id in ExtraList(action, "items") ?? [])
+        {
+            if (Catalog.FindItem(id) is not { } card)
+            {
+                Log("manualAction", args: Args(("do", "gainItem"), ("item", id), ("adventurer", member.Name)));
+                continue;
+            }
+
+            State.Campaign.Items.Add(card.Id);
+            member.Equipped.Add(new OwnedItem { Id = NewItemId(), Item = card.Id, Source = "scenario" });
+            Log("gainItem", args: Args(("item", card.Id), ("adventurer", member.Name)));
+        }
+
+        var actions = (ExtraList(action, "disciplines") ?? [])
+            .Select(id => With(new ScenarioAction { Do = "gainDiscipline", Ref = id }, "adventurer", member.Name))
+            .Concat(Bind(action.Actions ?? [], member.Name));
+        if (ExtraTrue(action, "setup"))
+        {
+            actions = actions.Append(With(new ScenarioAction { Do = InternalActions.AskArrival }, "adventurer", member.Name));
+        }
+
+        Push(actions);
+    }
+
+    private void AskArrival(string? name)
+    {
+        Ask(PromptKinds.Arrival,
+            Text($"{name} joins the party: learn Disciplines, equip, give a seat, then continue.",
+                $"{name} rejoint le groupe : apprendre ses disciplines, l’équiper, lui donner un joueur, puis continuer."),
+            [new PromptOption("continue")], instance: name);
+    }
+
+    private void AfterArrival()
+    {
+        if (State.Campaign.Party.Count(a => !a.Injured && !a.Unselectable) > ActiveGroupSize)
+        {
+            Push([new ScenarioAction { Do = "setActiveGroup" }]);
+        }
+    }
+
     /// <summary>joinParty, leaveParty, setInjured, setUnselectable, setActiveGroup: the story changes the party.</summary>
     private void DoPartyAction(ScenarioAction action)
     {
@@ -395,13 +513,25 @@ internal sealed partial class Session
         switch (action.Do)
         {
             case "joinParty" when name is not null:
-                if (Member(name) is null)
+                var arrives = Member(name) is null;
+                if (arrives)
                 {
-                    State.Campaign.Party.Add(new AdventurerState { Name = name, Xp = action.Amount ?? 0 });
-                    State.Campaign.ActiveGroup?.Add(name);
+                    // "XP equal to the total XP earned by the party (a single member) so far"
+                    var xp = action.Amount ?? State.Campaign.Party.Select(a => a.Xp).DefaultIfEmpty(0).Max();
+                    KeepTheFourActive(recovers: true);
+                    State.Campaign.Party.Add(new AdventurerState { Name = name, Xp = xp });
+                    if (State.Campaign.ActiveGroup is { } group && group.Count < ActiveGroupSize)
+                    {
+                        group.Add(name);
+                    }
                 }
 
                 Log("joinParty", action.Text, Args(("adventurer", name)));
+                if (arrives)
+                {
+                    SetUpArrival(action, Member(name)!);
+                }
+
                 break;
             case "leaveParty" when Member(name) is { } member:
                 // Their items go to the Party Stash unless the story says they are lost ("items": "discard").
@@ -426,8 +556,7 @@ internal sealed partial class Session
                 if (names is null)
                 {
                     // No names: the GM chooses (the story says "choose your Active Group").
-                    State.Campaign.ActiveGroup = null;
-                    Log("chooseActiveGroup", action.Text);
+                    ChooseActiveGroup(action);
                 }
                 else if (!SetActiveGroup(names).IsSuccess)
                 {

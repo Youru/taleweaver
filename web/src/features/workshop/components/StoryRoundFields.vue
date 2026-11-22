@@ -14,6 +14,7 @@ import type { DraftNode, DraftScenario, DraftStoryExit } from '../api/types'
 import { setText } from '../lib/graph'
 import { storeOf, type DraftStore } from '../lib/storyRound'
 import TargetSelect from './TargetSelect.vue'
+import JsonField from './JsonField.vue'
 import TextField from './TextField.vue'
 
 /**
@@ -186,6 +187,12 @@ const slug = (label: string) =>
           severity="secondary"
           :aria-label="t('workshop.storyRoundSheet.removeExit', { n: i + 1 })"
           @click="removeExit(key, i)"
+        />
+        <JsonField
+          :model-value="exit.if"
+          :label="t('workshop.storyRoundSheet.exitIf')"
+          :rows="1"
+          @update:model-value="(v) => setExit(key, i, { if: Array.isArray(v) && v.length ? v : undefined })"
         />
       </div>
       <Button

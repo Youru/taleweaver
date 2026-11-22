@@ -34,3 +34,4 @@ export { default as InitiativeTrack } from './components/encounter/InitiativeTra
 export { default as GameJournal } from './components/GameJournal.vue'
 export { formatLog, type FormattedLog } from './lib/formatLog'
 export { initiativeTrack, type HeldBy, type TrackCard } from './lib/initiativeTrack'
+export { default as CountersBar } from './components/encounter/CountersBar.vue'

@@ -162,6 +162,20 @@ const actions = computed({
         :aria-label="t('workshop.events.rule')"
         @update:model-value="(v) => patchTrigger({ rule: v ?? undefined })"
       />
+      <template v-else-if="parameter === 'counter'">
+        <InputText
+          :model-value="event.trigger.counter ?? ''"
+          :placeholder="t('workshop.events.counter')"
+          :aria-label="t('workshop.events.counter')"
+          @update:model-value="(v) => patchTrigger({ counter: v || undefined })"
+        />
+        <InputNumber
+          :model-value="event.trigger.value ?? null"
+          :placeholder="t('workshop.events.threshold')"
+          :aria-label="t('workshop.events.threshold')"
+          @update:model-value="(v) => patchTrigger({ value: v ?? undefined })"
+        />
+      </template>
     </div>
 
     <TextField

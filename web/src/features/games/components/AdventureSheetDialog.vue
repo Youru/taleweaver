@@ -21,6 +21,20 @@ const { language } = storeToRefs(usePreferences())
 const count = computed(() => props.state.campaign.revealedHiddenCards.length)
 const cards = useHiddenCards(() => props.id, count)
 const options = computed(() => activeOptions(props.state.options))
+/** The Story Flags and values: a flag reads as its name, checked or not. */
+const variables = computed(() =>
+  Object.entries(props.state.campaign.variables ?? {}).map(([name, value]) => ({
+    name,
+    value:
+      value === true
+        ? t('sheet.marked')
+        : value === false
+          ? t('sheet.unmarked')
+          : Array.isArray(value)
+            ? value.join(', ')
+            : String(value),
+  })),
+)
 </script>
 
 <template>
@@ -55,6 +69,14 @@ const options = computed(() => activeOptions(props.state.options))
     <ul v-else>
       <li v-for="item in state.campaign.achievements" :key="`${item.scenario}/${item.node}/${item.id}`">
         {{ pick(item.name, language) || item.id }} · {{ item.adventurer }}
+      </li>
+    </ul>
+
+    <h3>{{ t('sheet.flags') }}</h3>
+    <p v-if="!variables.length" class="muted">{{ t('sheet.noFlag') }}</p>
+    <ul v-else>
+      <li v-for="variable in variables" :key="variable.name">
+        <strong>{{ variable.name }}</strong> : {{ variable.value }}
       </li>
     </ul>
 

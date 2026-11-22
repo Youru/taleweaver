@@ -33,7 +33,7 @@ export function readBoard(layout: BoardLayout, encounter: EncounterState): Board
       return {
         id: f.id,
         name: f.name,
-        side: f.kind,
+        side: combatant?.side === 'players' ? 'adventurer' : (combatant?.side ?? f.kind),
         position: { x: f.x, y: f.y },
         size: f.size,
         damage: combatant?.damage ?? ally?.damage ?? 0,

@@ -32,6 +32,12 @@ import EncounterBar from '../components/encounter/EncounterBar.vue'
 import EncounterGoals from '../components/encounter/EncounterGoals.vue'
 import TurnCard from '../components/encounter/TurnCard.vue'
 import AbraxisPanel from '../components/AbraxisPanel.vue'
+import ArrivalPanel from '../components/ArrivalPanel.vue'
+import ReequipNotice from '../components/ReequipNotice.vue'
+import CountersBar from '../components/encounter/CountersBar.vue'
+import EncounterTrackers from '../components/encounter/EncounterTrackers.vue'
+import TurnTools from '../components/encounter/TurnTools.vue'
+import { withAuthor } from '../lib/play'
 import AlliesPanel from '../components/encounter/AlliesPanel.vue'
 import PreparationPanel from '../components/preparation/PreparationPanel.vue'
 import AchievementList from '../components/AchievementList.vue'
@@ -113,9 +119,15 @@ function answer(value: Answer) {
   command.mutate({ kind: 'answer', answer: value })
 }
 
+/** Who did what is being reported: proposed from the turn, changed by the GM. */
+const author = ref<string | null>(null)
 function encounterCommand(value: EncounterCommand) {
-  command.mutate({ kind: 'encounter', command: value })
+  command.mutate({ kind: 'encounter', command: withAuthor(value, author.value) })
 }
+const arriving = computed(() => {
+  const prompt = state.value?.prompt
+  return prompt?.kind === 'arrival' ? state.value?.campaign.party.find((a) => a.name === prompt.instance) : undefined
+})
 
 /** Board reports (damage, tokens…) are refused while a question other than an AI step is pending. */
 const reportsLocked = computed(
@@ -286,16 +298,35 @@ function moveFigure(figure: string, to: Cell) {
         <RouterLink v-if="encounter" :to="{ name: 'table', params: { id } }" target="_blank">
           <Button icon="pi pi-external-link" :label="t('table.openTable')" severity="secondary" text />
         </RouterLink>
-        <Button
-          icon="pi pi-undo"
-          :label="t('play.undo')"
-          severity="secondary"
-          text
-          :disabled="!game.data.value.canUndo || command.isPending.value"
-          @click="command.mutate({ kind: 'undo' })"
-        />
+        <!-- A disabled button shows no tooltip: the span carries the reason -->
+        <span :title="game.data.value.undoBlocked ? t('play.undoBlocked') : undefined">
+          <Button
+            icon="pi pi-undo"
+            :label="t('play.undo')"
+            severity="secondary"
+            text
+            :disabled="!game.data.value.canUndo || command.isPending.value"
+            @click="command.mutate({ kind: 'undo' })"
+          />
+        </span>
       </header>
       <Message v-if="commandError" severity="error" closable @close="command.reset()">{{ commandError }}</Message>
+      <ReequipNotice
+        :campaign="state.campaign"
+        :busy="command.isPending.value"
+        @command="encounterCommand"
+        @inventory="inventoryOpen = true"
+      />
+      <ArrivalPanel
+        v-if="arriving"
+        :member="arriving"
+        :gold="state.campaign.gold"
+        :to-hand-out="toHandOut"
+        :busy="command.isPending.value"
+        @party="partyCommand"
+        @inventory="inventoryOpen = true"
+        @room="roomOpen = true"
+      />
       <ReferenceDialog v-model:open="referenceOpen" />
       <AdventureSheetDialog :id="id" v-model:open="sheetOpen" :state="state" />
       <RoomPanel
@@ -335,7 +366,7 @@ function moveFigure(figure: string, to: Cell) {
         <EncounterBar
           :encounter="encounter"
           :node="node"
-          :disabled="!!state.prompt || command.isPending.value"
+          :disabled="!!state.prompt || !!encounter.reactions?.length || command.isPending.value"
           movable
           :held-by="heldBy"
           :urgency-max="urgencyMax(state.options)"
@@ -369,7 +400,7 @@ function moveFigure(figure: string, to: Cell) {
               class="turn"
               :encounter="encounter"
               :log="state.log"
-              :prompt="state.prompt"
+              :prompt="encounter.reactions?.length && state.prompt?.kind === 'aiCondition' ? undefined : state.prompt"
               :cards="cards"
               :pending="command.isPending.value"
               :suggestion="ai.condition.value"
@@ -378,6 +409,15 @@ function moveFigure(figure: string, to: Cell) {
               @duel="openDuel"
               @move="moveFigure"
             />
+            <TurnTools
+              v-model:author="author"
+              :encounter="encounter"
+              :party="state.campaign.party"
+              :locked="reportsLocked"
+              @command="encounterCommand"
+              @duel="openDuel"
+            />
+            <CountersBar :counters="state.campaign.counters" />
             <Message v-for="token in ai.seen.value" :key="token.key" severity="warn" size="small" class="unplaced seen">
               <span>{{ t('table.totemSeen', { who: token.by, token: tokenLabel(token.key) }) }}</span>
               <Button
@@ -437,6 +477,13 @@ function moveFigure(figure: string, to: Cell) {
                   <GameJournal :log="state.log" class="journal" />
                 </TabPanel>
                 <TabPanel value="goals">
+                  <EncounterTrackers
+                    :campaign="state.campaign"
+                    :encounter="encounter"
+                    :node="node"
+                    :locked="reportsLocked"
+                    @command="encounterCommand"
+                  />
                   <EncounterGoals
                     :encounter="encounter"
                     :node="node"
@@ -560,13 +607,18 @@ function moveFigure(figure: string, to: Cell) {
   flex-direction: column;
   gap: 0.75rem;
   min-height: 0;
+  overflow-y: auto;
 }
 .turn {
-  flex: 0 1 auto;
-  max-height: 50%;
+  flex: none;
+  max-height: 36%;
   padding: 0.75rem;
   border: 1px solid var(--p-content-border-color);
   border-radius: var(--p-content-border-radius);
+}
+/* A question is read whole */
+.turn:has(.prompt) {
+  max-height: 62%;
 }
 /* The notice keeps its height: the column would squash it to a line */
 .side :deep(.unplaced) {
@@ -577,6 +629,9 @@ function moveFigure(figure: string, to: Cell) {
   flex-wrap: wrap;
   align-items: center;
   gap: 0.4rem;
+}
+.side .tabs {
+  min-height: 14rem;
 }
 .tabs {
   flex: 1;

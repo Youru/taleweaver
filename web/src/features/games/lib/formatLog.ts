@@ -58,6 +58,10 @@ const tones: Record<string, LogTone> = {
   figureTurn: 'ai',
   aiInstruction: 'ai',
   aggro: 'ai',
+  targeted: 'muted',
+  paralyzed: 'ai',
+  paralyzeEnded: 'muted',
+  effectImmune: 'alert',
   roundStart: 'round',
   roundEnd: 'round',
   turn: 'round',
@@ -72,6 +76,7 @@ const tones: Record<string, LogTone> = {
   spawnImpossible: 'alert',
   noTokenLeft: 'alert',
   encounterEnd: 'reward',
+  encounterContinues: 'reward',
   reward: 'reward',
   gainGold: 'reward',
   gainXp: 'reward',
@@ -114,6 +119,36 @@ const tones: Record<string, LogTone> = {
   conduitForm: 'info',
   conduitLeft: 'muted',
   answer: 'muted',
+  participantMissing: 'alert',
+  noExitOpen: 'alert',
+  rewardTaken: 'alert',
+  carriedDropped: 'alert',
+  carriedLost: 'alert',
+  healBlocked: 'alert',
+  effectBlocked: 'alert',
+  secondMove: 'alert',
+  staminaShort: 'alert',
+  reaction: 'alert',
+  poppetBreak: 'alert',
+  tentacleTaken: 'alert',
+  tentacleRemoved: 'alert',
+  tokenLimit: 'alert',
+  stashOutsideStoryRound: 'alert',
+  delayedDue: 'alert',
+  currentReminder: 'alert',
+  currentTokensReminder: 'alert',
+  terrainReminder: 'alert',
+  summonerMissing: 'alert',
+  skillFailed: 'alert',
+  skillPassed: 'reward',
+  noInstruction: 'ai',
+  asleep: 'ai',
+  spent: 'muted',
+  cardMarked: 'muted',
+  abilityToken: 'muted',
+  reequipped: 'muted',
+  tetherRemoved: 'muted',
+  skillCheck: 'muted',
   figureTurnEnd: 'muted',
 }
 
@@ -126,6 +161,10 @@ function readableArgs(entry: LogEntry): Record<string, string> {
   for (const key of ['card', 'from', 'to', 'item', 'diagram', 'token', 'upgrade', 'discipline', 'scenario']) {
     const value = args[key]
     if (value) args[key] = shortId(value)
+  }
+  for (const key of ['instance', 'figure', 'target']) {
+    const value = args[key]
+    if (value?.startsWith('adventurer:') || value?.startsWith('ally:')) args[key] = value.slice(value.indexOf(':') + 1)
   }
   if (entry.code === 'turn') args.who = args.adventurer ?? args.ally ?? shortId(args.card ?? '')
   if (entry.code === 'gainItem' && !args.item) args.item = [args.count, args.tiers, args.type].filter(Boolean).join(' ')
@@ -153,6 +192,16 @@ export function formatLog(
     if (args.slot === 'pack') args.owner += ` (${translate('inventory.pack', {})})`
     if (!args.item) args.item = args.id ?? ''
   }
+  // The codes of the turn, in the reader's words
+  for (const [name, group] of [
+    ['action', 'turnTools.action'],
+    ['kind', 'turnTools.kind'],
+    ['mark', 'marks.mark'],
+    ['token', 'marks.token'],
+  ] as const) {
+    const key = `${group}.${args[name]}`
+    if (args[name] && hasMessage(key)) args[name] = translate(key, {})
+  }
   const code =
     entry.code === 'itemAdded' && args.price
       ? 'itemBought'
@@ -165,6 +214,10 @@ export function formatLog(
   let title = hasMessage(key) ? translate(key, args) : translate('log.unknown', { code: entry.code })
   // STATUS Effects resolve at the start of the figure's turn (Poison, Condemn, Haste)
   if (args.statusEffects) title += ` · ${translate('log.statusEffects', { effects: args.statusEffects })}`
+  // Who decided, or tested (play-spec A5, A20)
+  if ((entry.code === 'answer' || entry.code === 'skillCheck') && args.adventurer) title += ` · ${args.adventurer}`
+  // Who plays a guest of the party
+  if (args.playedBy) title += ` · ${translate('log.playedBy', { name: args.playedBy })}`
   // A player's request accepted by the GM (room-spec §9): who asked for it
   if (args.by) title += ` · ${translate('log.by', { name: args.by })}`
   const line: FormattedLog = { title, text: pick(entry.text, language), tone: toneOf(entry.code) }

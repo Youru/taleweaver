@@ -8,6 +8,10 @@ namespace Taleweaver.Api.Engine;
 internal sealed partial class Session
 {
     private const string AdventurerCard = "adventurer:";
+    private const string Paralyze = "paralyze";
+
+    /// <summary>Added AI steps are kept by family, or by "instance:&lt;name&gt;".</summary>
+    private const string InstanceSteps = "instance:";
 
     /// <summary>Golden Rule #4: a combatant with an Aggro token moves towards the nearest opponent.</summary>
     private static readonly AiStep AggroStep = new()
@@ -27,12 +31,22 @@ internal sealed partial class Session
 
     private void EnterEncounter(Node node)
     {
+        var imposed = node.Participants?.Select(name => Member(name)?.Name).OfType<string>().Distinct().ToList();
         State.Encounter = new EncounterState
         {
             Node = node.Id,
             ActiveEndConditions = node.EndConditions.Where(e => e.Active != false).Select(e => e.Id).ToList(),
-            InitiativeTrack = ActiveParty.Select(a => AdventurerCard + a.Name).ToList(),
+            Participants = imposed is { Count: > 0 } ? imposed : null,
+            HadFirstTurn = [],
         };
+        State.Encounter.InitiativeTrack = ActiveParty.Select(a => AdventurerCard + a.Name).ToList();
+        foreach (var absent in (node.Participants ?? []).Where(name => Member(name) is null))
+        {
+            Log("participantMissing", args: Args(("adventurer", absent)));
+        }
+
+        State.Campaign.FreeReequip.Clear();
+        ReadyCardsForEncounter();
         PrepareAdventurers();
         Log("encounter", node.Intro, Args(("node", node.Id), ("name", node.Name?.GetValueOrDefault("en")), ("lootLevel", node.LootLevel), ("locationType", node.LocationType)));
         foreach (var card in node.Setup?.RevealHiddenCards ?? [])
@@ -48,17 +62,60 @@ internal sealed partial class Session
         AddTokens(node.Map);
         RevealAtStart(node.Map);
         BuildLootDeck(node);
+        var kept = BoardFor(node);
+        if (kept is not null)
+        {
+            LayKeptBoard(node, kept);
+        }
+
         PlaceAdventurers(node.Map, node.Setup);
         BringKeptAllies();
         foreach (var placement in node.Setup?.Combatants ?? [])
         {
+            // A named one still on the board kept is already there
+            if (placement.Instance is { } there && kept?.Combatants.Any(c => c.Instance == there) == true)
+            {
+                continue;
+            }
+
             Spawn(SpawnOf(placement), fromSetup: true, placement.InitiativeCard);
+        }
+
+        if (kept is not null)
+        {
+            StandWhereTheyWere(node, kept);
         }
 
         Fire(e => e.Trigger.On == "encounterStart");
     }
 
     private Result NextTurn()
+    {
+        var encounter = Encounter;
+        EndParalyzedTurns();
+        encounter.LastStep = null;
+        State.Campaign.FreeReequip.Clear();
+        // The next turn waits for what the end of this one triggers
+        Push([new ScenarioAction { Do = InternalActions.AdvanceTurn }]);
+        var ending = encounter.TurnOf.ToList();
+        encounter.TurnOf.Clear();
+        ending.Reverse();
+        var (logged, waiting) = (State.Log.Count, State.PendingActions.Count);
+        foreach (var figure in ending.Where(f => !IsDefeated(f)))
+        {
+            EndTurnOf(figure);
+        }
+
+        if (State.Log.Count > logged || State.PendingActions.Count > waiting)
+        {
+            // Marks, for the GM's card, what the end of the turn brought
+            State.Log.Insert(logged, new LogEntry("turnEnd"));
+        }
+
+        return Result.Success();
+    }
+
+    private void AdvanceTurn()
     {
         var encounter = Encounter;
         // The card nearest the front that has not played yet: a turn is never skipped nor played twice (p. 36)
@@ -69,18 +126,16 @@ internal sealed partial class Session
             {
                 EndRound();
             }
-
-            if (!encounter.Ended)
+            else
             {
                 StartRound();
             }
 
-            return Result.Success();
+            return;
         }
 
         encounter.CurrentTurn = next;
         BeginTurn();
-        return Result.Success();
     }
 
     /// <summary>
@@ -120,7 +175,7 @@ internal sealed partial class Session
         var encounter = Encounter;
         encounter.Round++;
         encounter.RoundLog = new RoundLog();
-        if (encounter.Round == 1 || !Options.StaticMonsters)
+        if (encounter.Round == 1 ? !encounter.TrackDealt : !Options.StaticMonsters)
         {
             ShuffleTrack();
         }
@@ -128,30 +183,55 @@ internal sealed partial class Session
         encounter.PlayedCards.Clear();
         encounter.CurrentTurn = 0;
         Log("roundStart", args: Args(("round", Number(encounter.Round)), ("track", string.Join(", ", encounter.InitiativeTrack))));
+        // The turn waits for what the round's start triggers: pushed first, so run last
+        Push([new ScenarioAction { Do = InternalActions.FirstTurn }]);
+        RunDelayed(AtRoundStart);
         Fire(e => e.Trigger.On == "roundStart" && (e.Trigger.Round is null || e.Trigger.Round == encounter.Round));
-        BeginTurn();
     }
 
     private void ShuffleTrack()
     {
         var track = Encounter.InitiativeTrack;
+        var held = (Encounter.FixedCards ?? []).Where(f => track.Contains(f.Key)).ToList();
+        track.RemoveAll(card => held.Any(f => f.Key == card));
         for (var i = track.Count - 1; i > 0; i--)
         {
             var j = NextRandom(i + 1);
             (track[i], track[j]) = (track[j], track[i]);
         }
+
+        // A fixed card is never shuffled (play-spec A10)
+        foreach (var (card, place) in held)
+        {
+            var at = place == Front ? 0 : int.TryParse(place, out var number) ? number - 1 : track.Count;
+            track.Insert(Math.Clamp(at, 0, track.Count), card);
+        }
     }
 
-    /// <summary>Urgency (rulebook p. 18): a round with no true AI step, no opponent defeated and none spawned adds a token.</summary>
+    /// <summary>The end of the round, then what it triggers, questions included; only then <see cref="FinishRound"/>.</summary>
     private void EndRound()
     {
         var encounter = Encounter;
         Log("roundEnd", args: Args(("round", Number(encounter.Round))));
+        Push([new ScenarioAction { Do = InternalActions.FinishRound }]);
+        RemindTokensInCurrents();
+        RunDelayed(AtRoundEnd);
         Fire(e => e.Trigger.On == "roundEnd" && (e.Trigger.Round is null || e.Trigger.Round == encounter.Round));
-        var log = encounter.RoundLog;
+    }
+
+    /// <summary>Urgency (rulebook p. 18): a round with no true AI step, no opponent defeated and none spawned adds a token.</summary>
+    private void FinishRound()
+    {
+        var log = Encounter.RoundLog;
         if (!log.AiStepTrue && log.Defeated == 0 && log.Spawned == 0)
         {
             AddUrgency(1);
+        }
+
+        // Ended, or the GM is being asked which defeat it is
+        if (!Encounter.Ended && State.Prompt is null)
+        {
+            StartRound();
         }
     }
 
@@ -168,14 +248,39 @@ internal sealed partial class Session
         if (encounter.Urgency >= ((Options.NoPlayerElimination ? Options.UrgencyLimit : null) ?? GameOptions.DefaultUrgencyLimit))
         {
             // The last Urgency token (the 4th, as printed) defeats every Adventurer.
-            var node = EncounterNode;
-            var lose = node.EndConditions.FirstOrDefault(e => e.Kind == "lose" && encounter.ActiveEndConditions.Contains(e.Id));
             Log("urgencyDefeat");
             DefeatEveryAdventurer();
-            if (lose is not null)
+            LoseEncounter(BuiltInEnds.LastUrgency);
+        }
+    }
+
+    /// <summary>
+    /// The defeat the rules call (p. 14, 18): the End Condition marked for it, the last Urgency falling back on
+    /// "every adventurer Defeated". None marked: the only one it can be, else the GM says.
+    /// </summary>
+    private void LoseEncounter(string cause)
+    {
+        var active = EncounterNode.EndConditions
+            .Where(e => e.Kind == "lose" && e.Continues != true && Encounter.ActiveEndConditions.Contains(e.Id))
+            .ToList();
+        var marked = active.FirstOrDefault(e => e.BuiltIn == cause) ?? active.FirstOrDefault(e => e.BuiltIn == BuiltInEnds.AllDefeated);
+        var unmarked = active.Where(e => e.BuiltIn is null).ToList();
+        var possible = marked is not null ? [marked] : unmarked.Count > 0 ? unmarked : active;
+        if (possible.Count == 1)
+        {
+            EndEncounter(possible[0].Id);
+        }
+        else if (possible.Count > 1)
+        {
+            // Asked at once: nothing else, not even the next round, comes before the answer
+            Encounter.Activation = null;
+            var options = possible.Select(e => new ActionOption
             {
-                EndEncounter(lose.Id);
-            }
+                Label = e.Text ?? Text(e.Id, e.Id),
+                Actions = [new ScenarioAction { Do = "endEncounter", EndCondition = e.Id }],
+            }).ToList();
+            Ask(PromptKinds.Choice, Text("The party is Defeated: which End Condition applies?", "Le groupe est vaincu : quelle condition de fin s’applique ?"),
+                options.Select((o, i) => new PromptOption(Number(i)!, o.Label)), new ScenarioAction { Do = "askChoice", Options = options });
         }
     }
 
@@ -193,22 +298,57 @@ internal sealed partial class Session
             encounter.PlayedCards.Add(card);
         }
 
-        var adventurer = card.StartsWith(AdventurerCard, StringComparison.Ordinal) ? card[AdventurerCard.Length..] : null;
+        var adventurer = card.StartsWith(AdventurerCard, StringComparison.Ordinal) ? AdventurerOfCard(card) : null;
+        encounter.BreakAttacks.Clear();
+        encounter.Moved.Clear();
         if (adventurer is not null)
         {
             ReturnToPlay(adventurer);
             RefreshStamina(adventurer);
+            if (MemberOf(adventurer) is { } refreshed)
+            {
+                UnexhaustOf(refreshed);
+            }
+
+            if (encounter.Adventurers.FirstOrDefault(a => a.Name == adventurer && !a.Defeated) is { } standing)
+            {
+                TakeTentacles(AdventurerCard + standing.Name, standing.Effects, standing.Position);
+            }
         }
 
         // Every ally of the card takes its turn, in the order the players choose (p. 58)
         var allies = IsAlly(card) ? LivingAllies().Where(a => a.TrackCard == card).ToList() : [];
         allies.ForEach(BeginAllyTurn);
+        foreach (var ally in allies)
+        {
+            ally.ExhaustedCards.Clear();
+            TakeTentacles(AllyPrefix + ally.Id, ally.Effects, ally.Position);
+        }
         var carried = allies.Count > 0
             ? allies.SelectMany(a => a.Effects).Distinct()
             : Encounter.Adventurers.FirstOrDefault(a => a.Name == adventurer)?.Effects ?? [];
         var statusEffects = carried.Where(IsStatusEffect).ToList();
+        encounter.ParalyzedThisTurn =
+        [
+            .. allies.Where(a => a.Effects.Contains(Paralyze)).Select(a => AllyPrefix + a.Id),
+            .. encounter.Adventurers.Where(a => a.Name == adventurer && !a.Defeated && a.Effects.Contains(Paralyze)).Select(a => AdventurerCard + a.Name),
+        ];
         Log("turn", args: Args(("card", card), ("adventurer", adventurer), ("ally", allies.Count > 0 ? string.Join(", ", allies.Select(NameOf)) : null),
+            ("playedBy", allies.Any(a => a.Owner is not null) ? string.Join(", ", allies.Select(a => a.Owner).OfType<string>().Distinct()) : null),
             ("statusEffects", statusEffects.Count > 0 ? string.Join(", ", statusEffects) : null)));
+        AskStatuses(allies.Select(a => (AllyPrefix + a.Id, a.Effects))
+            .Concat(encounter.Adventurers.Where(a => a.Name == adventurer && !a.Defeated).Select(a => (AdventurerCard + a.Name, a.Effects))));
+        encounter.TurnOf =
+        [
+            .. allies.Select(a => AllyPrefix + a.Id),
+            .. encounter.Adventurers.Where(a => a.Name == adventurer && !a.Defeated).Select(a => AdventurerCard + a.Name),
+        ];
+        // Start of Turn, then Status (p. 37): pushed after, so run before
+        foreach (var starting in Enumerable.Reverse(encounter.TurnOf))
+        {
+            FireTurn("turnStart", starting);
+        }
+
         var figures = Alive().Where(c => c.InitiativeCards.Contains(card)).OrderBy(c => c.Number).Select(c => c.Instance).ToList();
         if (figures.Count > 0)
         {
@@ -223,15 +363,26 @@ internal sealed partial class Session
         var statusEffects = figure.Effects.Where(IsStatusEffect).ToList();
         Log("figureTurn", args: Args(("instance", figure.Instance), ("card", figure.Card), ("number", Number(figure.Number)),
             ("statusEffects", statusEffects.Count > 0 ? string.Join(", ", statusEffects) : null)));
+        if (figure.Effects.Contains(Paralyze))
+        {
+            Encounter.Activation!.Paralyzed = true;
+            Log("paralyzed", args: Args(("instance", figure.Instance)));
+        }
+
+        Encounter.BreakAttacks.Clear();
+        AskStatuses([(figure.Instance, figure.Effects)]);
+        FireTurn("turnStart", figure.Instance);
     }
 
     /// <summary>The acting figure goes through its AI steps, top to bottom: the GM answers each condition.</summary>
     private void ContinueActivation()
     {
         var activation = Encounter.Activation!;
+        var skipped = false;
         while (activation.Figures.Count > 0 && Find(activation.Figures[0]) is not { Defeated: false })
         {
             NextFigure(activation);
+            skipped = true;
         }
 
         if (activation.Figures.Count == 0)
@@ -240,11 +391,39 @@ internal sealed partial class Session
             return;
         }
 
+        if (skipped)
+        {
+            StartFigure(activation.Figures[0]);
+            if (State.PendingActions.Count > 0)
+            {
+                return;
+            }
+        }
+
         var figure = Find(activation.Figures[0])!;
         var steps = StepsOf(figure);
-        if (activation.Step >= steps.Count)
+        var lostTurn = activation.Paralyzed || activation.Interrupted;
+        while (figure.SkippedSteps.Contains(activation.Step + 1) && !activation.AskingContinue)
         {
-            if (!activation.AnyStepTrue && figure.Attacked && !figure.Aggro)
+            activation.Step++;
+        }
+
+        if (lostTurn || figure.Asleep || activation.Step >= steps.Count)
+        {
+            if (lostTurn)
+            {
+                // Kept from acting, it still counts as having taken its turn (p. 18): no Urgency, no Aggro
+                Encounter.RoundLog.AiStepTrue |= IsOpponent(figure);
+                if (activation.Paralyzed)
+                {
+                    WearOffParalyze(figure.Instance, figure.Effects);
+                }
+            }
+            else if (figure.Asleep)
+            {
+                Log("asleep", args: Args(("instance", figure.Instance)));
+            }
+            else if (!activation.AnyStepTrue && figure.Attacked && !figure.Aggro)
             {
                 figure.Aggro = true;
                 Log("aggro", args: Args(("instance", figure.Instance)));
@@ -258,6 +437,8 @@ internal sealed partial class Session
                 StartFigure(next.Instance);
             }
 
+            // Pushed last: the end of this turn runs before the start of the next one
+            EndTurnOf(figure.Instance);
             return;
         }
 
@@ -286,12 +467,14 @@ internal sealed partial class Session
 
         if (!isTrue)
         {
+            Encounter.LastStep = null;
             activation.Step++;
             return;
         }
 
+        RememberStep(activation, figure);
         activation.AnyStepTrue = true;
-        Encounter.RoundLog.AiStepTrue = true;
+        Encounter.RoundLog.AiStepTrue |= IsOpponent(figure);
         foreach (var instruction in step.Instructions)
         {
             Log("aiInstruction", instruction.Text, Args(("instance", figure.Instance), ("target", instruction.Target?.Priority)));
@@ -313,12 +496,15 @@ internal sealed partial class Session
         activation.Step = 0;
         activation.AnyStepTrue = false;
         activation.AskingContinue = false;
+        activation.Paralyzed = false;
+        activation.Interrupted = false;
     }
 
     private List<AiStep> StepsOf(CombatantState figure)
     {
         var steps = new List<AiStep>(Catalog.FindCombatant(figure.Card)?.AiSteps ?? []);
         steps.AddRange(Encounter.ExtraAiSteps.GetValueOrDefault(figure.Family) ?? []);
+        steps.AddRange(Encounter.ExtraAiSteps.GetValueOrDefault(InstanceSteps + figure.Instance) ?? []);
         if (figure.Aggro)
         {
             steps.Add(AggroStep);
@@ -327,7 +513,10 @@ internal sealed partial class Session
         return steps;
     }
 
-    private static ScenarioAction SpawnOf(CombatantPlacement placement) => new()
+    private static ScenarioAction SpawnOf(CombatantPlacement placement) =>
+        With(With(SpawnActionOf(placement), "side", placement.Side), "summoner", placement.Summoner);
+
+    private static ScenarioAction SpawnActionOf(CombatantPlacement placement) => new()
     {
         Do = "spawn",
         Family = placement.Family,
@@ -378,7 +567,9 @@ internal sealed partial class Session
 
         for (var i = 0; i < count; i++)
         {
-            var figure = action.Ref is not null ? NamedFigure(action) : FamilyFigure(action.Family!, lootLevel, possibleSpawns ?? !fromSetup);
+            var figure = action.Ref is not null
+                ? action.Ref.StartsWith(FigurePrefix, StringComparison.Ordinal) ? SceneFigureOf(action) : NamedFigure(action)
+                : FamilyFigure(action.Family!, lootLevel, possibleSpawns ?? !fromSetup);
             if (figure is null)
             {
                 Log("spawnImpossible", args: Args(("family", action.Family), ("ref", action.Ref)));
@@ -392,13 +583,24 @@ internal sealed partial class Session
             }
 
             figure.Figure = action.Figure ?? figure.Figure;
-            figure.Health = HealthInThisGame(figure.Card);
+            figure.SpawnedBy = ExtraString(action, "spawnedBy");
+            figure.Health ??= HealthInThisGame(figure.Card);
+            if (ExtraString(action, "side") is { } side)
+            {
+                figure.Side = side == EnemiesSide ? null : side;
+            }
+
+            if (ExtraString(action, "summoner") is { } summoner)
+            {
+                ScaleOnSummoner(figure, summoner, fromSetup);
+            }
             figure.Effects.AddRange((action.Effects ?? []).Except(figure.Effects));
             figure.Position = i == 0 ? Locate(action.At) : null;
             var existing = Encounter.Combatants.FindIndex(c => c.Instance == figure.Instance);
             if (existing >= 0)
             {
                 Encounter.Combatants[existing] = figure;
+                Encounter.ParalyzeImmune.Remove(figure.Instance);
             }
             else
             {
@@ -406,7 +608,12 @@ internal sealed partial class Session
             }
 
             AddToTrack(figure.InitiativeCards);
-            if (!fromSetup)
+            foreach (var rule in Encounter.Modifiers.Where(m => IsOfFamily(figure, m.Family!)).ToList())
+            {
+                Modify(figure, rule);
+            }
+
+            if (!fromSetup && IsOpponent(figure))
             {
                 Encounter.RoundLog.Spawned++;
             }
@@ -426,7 +633,7 @@ internal sealed partial class Session
 
         return new CombatantState
         {
-            Instance = action.Instance ?? $"{card.Family}-{Encounter.Combatants.Count + 1}",
+            Instance = action.Instance ?? UniqueInstance($"{card.Family}-{Encounter.Combatants.Count + 1}"),
             Card = card.Id,
             Family = card.Family,
             InitiativeCards = [.. card.InitiativeCards],
@@ -610,16 +817,27 @@ internal sealed partial class Session
         Log("replaceInitiativeCard", args: Args(("from", from), ("to", to)));
     }
 
-    private Result ApplyDamage(string? instance, int amount)
+    private Result ApplyDamage(string? instance, int amount, bool targeted = true)
     {
         if (Find(instance) is not { Defeated: false } figure)
         {
             return GameEngine.Errors.UnknownCombatant(instance);
         }
 
+        if (figure.Untargetable && amount > 0)
+        {
+            return Error.Conflict("Encounters.NotAttackable", $"{figure.Instance} cannot be attacked.");
+        }
+
+        if (figure.Asleep && figure.WakesWhenDamaged && amount > 0)
+        {
+            (figure.Asleep, figure.WakesWhenDamaged) = (false, false);
+            Log("wakes", args: Args(("instance", figure.Instance)));
+        }
+
         figure.Damage = Math.Max(0, figure.Damage + amount);
-        figure.Attacked |= amount > 0;
-        var health = figure.Health ?? Catalog.FindCombatant(figure.Card)?.Stats?.Health?.Value;
+        figure.Attacked |= targeted && amount > 0;
+        var health = MaxHealthOf(figure);
         Log("damage", args: Args(("instance", figure.Instance), ("amount", Number(amount)), ("damage", Number(figure.Damage)), ("health", Number(health))));
         if (health is { } max && figure.Damage >= max)
         {
@@ -632,10 +850,7 @@ internal sealed partial class Session
     /// <summary>On a combatant, or an adventurer ("adventurer:Rook"); a figure has at most one of each Effect.</summary>
     private Result SetEffect(string? instance, string? effect, bool active)
     {
-        var effects = instance?.StartsWith(AdventurerCard, StringComparison.Ordinal) == true
-            ? Encounter.Adventurers.FirstOrDefault(a => a.Name == instance[AdventurerCard.Length..])?.Effects
-            : IsAlly(instance) ? FindAlly(instance)?.Effects
-            : Find(instance) is { Defeated: false } figure ? figure.Effects : null;
+        var effects = EffectsOf(instance);
         if (effects is null)
         {
             return GameEngine.Errors.UnknownCombatant(instance);
@@ -646,14 +861,88 @@ internal sealed partial class Session
             return GameEngine.Errors.InvalidAnswer(effect);
         }
 
+        if (active && effect == Paralyze && Encounter.ParalyzeImmune.Contains(instance!))
+        {
+            Log("effectImmune", args: Args(("instance", instance), ("effect", effect)));
+            return Result.Success();
+        }
+
+        if (active && IsPositive(effect) && effects.Contains(Disease))
+        {
+            Log("effectBlocked", args: Args(("instance", instance), ("effect", effect)));
+            return Result.Success();
+        }
+
         effects.Remove(effect);
         if (active)
         {
             effects.Add(effect);
+            if (effect == Disease)
+            {
+                effects.RemoveAll(IsPositive);
+            }
+        }
+        else if (effect == TetherEffect)
+        {
+            CutTethers(instance!, placedByItToo: false);
+        }
+        else if (effect.StartsWith(Tentacle, StringComparison.Ordinal))
+        {
+            Log("tentacleRemoved", args: Args(("instance", instance)));
         }
 
         Log(active ? "effectAdded" : "effectRemoved", args: Args(("instance", instance), ("effect", effect)));
+        if (active && effect == Paralyze && Encounter.Activation is { Paralyzed: false } acting && acting.Figures.FirstOrDefault() == instance)
+        {
+            // "End your Action or Ability": received during its own turn, it stops there
+            acting.Interrupted = true;
+            Log("paralyzed", args: Args(("instance", instance)));
+        }
+
         return Result.Success();
+    }
+
+    private List<string>? EffectsOf(string? instance) =>
+        IsAdventurer(instance) ? Encounter.Adventurers.FirstOrDefault(a => a.Name == instance![AdventurerCard.Length..])?.Effects
+        : IsAlly(instance) ? FindAlly(instance)?.Effects
+        : Find(instance) is { Defeated: false } figure ? figure.Effects : null;
+
+    private Result MarkTargeted(string? instance)
+    {
+        if (Find(instance) is not { Defeated: false } figure)
+        {
+            return GameEngine.Errors.UnknownCombatant(instance);
+        }
+
+        figure.Attacked = true;
+        Log("targeted", args: Args(("instance", figure.Instance)));
+        return Result.Success();
+    }
+
+    /// <summary>The turn under way ends: whoever began it Paralyzed discards the token.</summary>
+    private void EndParalyzedTurns()
+    {
+        foreach (var figure in Encounter.ParalyzedThisTurn)
+        {
+            if (EffectsOf(figure) is { } effects)
+            {
+                WearOffParalyze(figure, effects);
+            }
+        }
+
+        Encounter.ParalyzedThisTurn.Clear();
+    }
+
+    /// <summary>"Discard this token at the end of your next turn. Then, Gain Immunity: Paralyze until the end of the Encounter."</summary>
+    private void WearOffParalyze(string figure, List<string> effects)
+    {
+        if (!effects.Remove(Paralyze))
+        {
+            return;
+        }
+
+        Encounter.ParalyzeImmune.Add(figure);
+        Log("paralyzeEnded", args: Args(("instance", figure)));
     }
 
     private Result Defeat(string? instance)
@@ -669,11 +958,18 @@ internal sealed partial class Session
 
     private void DefeatFigure(CombatantState figure)
     {
+        CutTethers(figure.Instance);
         figure.Defeated = true;
+        figure.AbilityTokens = null;
         figure.Effects.Clear();
         figure.Aggro = false;
-        Encounter.RoundLog.Defeated++;
+        if (IsOpponent(figure))
+        {
+            Encounter.RoundLog.Defeated++;
+        }
+
         Log("defeated", args: Args(("instance", figure.Instance), ("card", figure.Card)));
+        DropCarriedBy(figure.Instance, figure.Position);
         DropLoot(figure);
         if (State.Prompt?.Instance == figure.Instance && State.Prompt.Kind == PromptKinds.AiCondition)
         {
@@ -733,7 +1029,15 @@ internal sealed partial class Session
             return;
         }
 
+        if (condition.Continues == true)
+        {
+            ContinueEncounter(condition);
+            return;
+        }
+
         Encounter.Ended = true;
+        Encounter.Reactions.Clear();
+        Encounter.LastStep = null;
         Encounter.Activation = null;
         State.Prompt = null;
         State.PendingActions.Clear();
@@ -749,18 +1053,41 @@ internal sealed partial class Session
             Log("reward", condition.Reward);
         }
 
-        Push([.. condition.Mechanics, Continue(), GoTo(condition.Next)]);
+        Push([.. WithAuthor(condition.Mechanics), Continue(), GoTo(condition.Next)]);
+    }
+
+    /// <summary>
+    /// "Some Rewards might reveal new surprises that continue the current Encounter" (p. 14): the reward is given
+    /// once, what was under way goes on. The Gold of the loot waits for the real end.
+    /// </summary>
+    private void ContinueEncounter(EndCondition condition)
+    {
+        if (!Encounter.ActiveEndConditions.Remove(condition.Id))
+        {
+            return;
+        }
+
+        Log("encounterContinues", condition.Text, Args(("endCondition", condition.Id), ("kind", condition.Kind)));
+        if (condition.Reward is not null)
+        {
+            Log("reward", condition.Reward);
+        }
+
+        Push([.. WithAuthor(condition.Mechanics), Continue()]);
     }
 
     /// <summary>Tougher Mobs: 50% more HP to every non-BOSS opponent (rounded up).</summary>
     private int? HealthInThisGame(string card) =>
         Options.TougherMobs && Catalog.FindCombatant(card) is { IsBoss: false, Kind: "intelligent" } combatant && combatant.Stats?.Health?.Value is { } health
-            ? health + ((health + 1) / 2)
+            ? health + HalfRoundedUp(health)
             : null;
 
     private IEnumerable<CombatantState> Alive() => Encounter.Combatants.Where(c => !c.Defeated);
 
     private CombatantState? Find(string? instance) => Encounter.Combatants.FirstOrDefault(c => c.Instance == instance);
+
+    private bool IsPositive(string effect) =>
+        Catalog.Packs.Any(p => p.Rules?.Effects.Any(e => e.Id == effect && e.Polarity == "positive") == true);
 
     private bool IsStatusEffect(string effect) =>
         Catalog.Packs.Any(p => p.Rules?.Effects.Any(e => e.Id == effect && e.Condition == "status") == true);

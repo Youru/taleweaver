@@ -11,6 +11,7 @@ import { DuelDialog } from '@/features/duel'
 import {
   arrivedCombatants,
   cardsInPlay,
+  CountersBar,
   EncounterBar,
   useGame,
   useGameCommand,
@@ -97,6 +98,7 @@ function run(value: EncounterCommand) {
         :busy="command.isPending.value"
         @move-card="(card, by) => run({ type: 'moveInitiative', card, by })"
       />
+      <CountersBar v-if="encounter" :counters="state?.campaign.counters" />
       <Message v-if="commandError" severity="error" closable @close="command.reset()">{{ commandError }}</Message>
       <TableView
         v-if="encounter"

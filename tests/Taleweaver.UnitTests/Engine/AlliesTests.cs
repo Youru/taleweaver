@@ -44,7 +44,7 @@ public class AlliesTests
 
         game.Do(GameCommand.Defeat("ally:wolf")).Do(GameCommand.ReachEndCondition("win")).Continue();
 
-        game.Encounter.Allies.Single().Should().BeEquivalentTo(new { Id = "wolf", Damage = 4, Defeated = false });
+        game.Encounter.Allies.Single().Should().BeEquivalentTo(new { Id = "wolf", Damage = 5, Defeated = false });
     }
 
     [Fact]

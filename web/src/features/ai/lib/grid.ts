@@ -103,7 +103,8 @@ export function inReach(board: Board, a: BoardFigure, b: BoardFigure, reach: num
   return between(a, b) <= reach - Math.max(0, climb(board, a, b) - 1)
 }
 
-export type Side = 'combatant' | 'adventurer'
+/** adventurer, combatant, or another camp of the scenario. */
+export type Side = string
 
 export interface BoardFigure {
   /** Combatant instance, or "adventurer:<name>". */

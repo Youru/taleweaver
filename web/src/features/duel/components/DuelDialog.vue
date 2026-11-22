@@ -92,7 +92,7 @@ function targetsOf(from: Fighter | undefined) {
   if (!from) return []
   return all.value
     .filter((f) => f.id !== from.id)
-    .map((f) => ({ fighter: f, range: distance(from.position, f.position), opponent: f.kind !== from.kind }))
+    .map((f) => ({ fighter: f, range: distance(from.position, f.position), opponent: f.side !== from.side }))
     .sort(
       (a, b) =>
         Number(b.opponent) - Number(a.opponent) ||
@@ -125,7 +125,7 @@ watch(
 watch(
   [attackerId, () => all.value.length > 0],
   () => {
-    if (!targets.value.some((o) => o.id === targetId.value) || attacker.value?.kind === target.value?.kind)
+    if (!targets.value.some((o) => o.id === targetId.value) || attacker.value?.side === target.value?.side)
       targetId.value = targets.value[0]?.id
   },
   { immediate: true },
@@ -165,7 +165,18 @@ const modes = computed(() => [
 ])
 
 function apply(instance: string, amount: number) {
-  emit('command', { type: 'damage', instance, amount })
+  const from = attacker.value
+  // Who did it is the attacker, when the party's; nobody otherwise
+  emit('command', { type: 'damage', instance, amount, author: from?.kind === 'adventurer' ? from.id : null })
+}
+
+function targeted(instance: string) {
+  emit('command', { type: 'target', instance })
+}
+
+/** The SP of Dodge and Empower (p. 52): counted as the roll is reported. */
+function spend(figure: Fighter, action: string) {
+  if (figure.kind === 'adventurer') emit('command', { type: 'spend', figure: figure.id, action })
 }
 
 function keep(fighter: Fighter, patch: Partial<AdventurerSheet>) {
@@ -217,6 +228,8 @@ function keep(fighter: Fighter, patch: Partial<AdventurerSheet>) {
       :show-odds="showOdds"
       :locked="locked"
       @apply="apply"
+      @targeted="targeted"
+      @spend="spend"
       @remember="keep"
     >
       <template #attacker>

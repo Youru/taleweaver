@@ -49,7 +49,7 @@ public class OptionsAndAchievementsTests
         game.PlayRound();
         var rook = game.State.Campaign.Party.Single(a => a.Name == "Rook");
         rook.Defeated.Should().BeFalse();
-        rook.Damage.Should().Be(rook.Health / 2);
+        rook.Damage.Should().Be((rook.Health + 1) / 2);
         GameEngine.Replay(game.Context, game.Party, game.History).Value.Should().BeEquivalentTo(game.State);
     }
 

@@ -9,7 +9,7 @@ public static class ReachEndCondition
 {
     public static void Map(RouteGroupBuilder group) =>
         group.MapPost("/end-conditions/{endCondition}", async Task<Results<Ok<GameView>, ProblemHttpResult>> (
-                string id, string endCondition, GameRunner runner, CancellationToken cancellationToken) =>
-                (await runner.ExecuteAsync(id, GameCommand.ReachEndCondition(endCondition), cancellationToken)).ToResponse())
+                string id, string endCondition, string? author, GameRunner runner, CancellationToken cancellationToken) =>
+                (await runner.ExecuteAsync(id, GameCommand.ReachEndCondition(endCondition) with { Author = author }, cancellationToken)).ToResponse())
             .WithName("ReachEndCondition");
 }

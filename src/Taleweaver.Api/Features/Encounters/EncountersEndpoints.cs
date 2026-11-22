@@ -10,6 +10,7 @@ public static class EncountersEndpoints
         ApplyDamage.Map(group);
         SetEffect.Map(group);
         DefeatCombatant.Map(group);
+        TargetCombatant.Map(group);
         ActivateToken.Map(group);
         ReachEndCondition.Map(group);
         MoveFigure.Map(group);

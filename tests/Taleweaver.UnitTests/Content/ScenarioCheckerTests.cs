@@ -305,7 +305,7 @@ public class ScenarioCheckerTests
         {
             Map = Board() with { Tokens = [new MapToken { Id = "o", Type = "hb:token/objective", Color = "red", X = 0, Y = 0 }] },
             Tokens = new Dictionary<string, TokenRule> { ["objective:red"] = new() { Mode = "whenSeenTwice" } },
-            Events = [Event(new ScenarioAction { Do = "warp" }) with { Trigger = new EventTrigger { On = "turnStart" } }],
+            Events = [Event(new ScenarioAction { Do = "warp" }) with { Trigger = new EventTrigger { On = "moonRise" } }],
         };
 
         var report = ScenarioChecker.Check(Scenario(encounter), Catalog);
@@ -542,6 +542,41 @@ public class ScenarioCheckerTests
         Start = "fight",
         Nodes = nodes,
     };
+
+    [Fact]
+    public void Check_SeveralDefeatsNoneMarked_Warns()
+    {
+        var node = Encounter() with { EndConditions = [Defeat("escort"), Defeat("all")] };
+
+        var report = ScenarioChecker.Check(Scenario(node), Catalog);
+
+        report.Warnings.Should().Contain(w => w.Code == "Scenarios.AmbiguousDefeat");
+    }
+
+    [Fact]
+    public void Check_DefeatOfThePartyMarked_DoesNotWarn()
+    {
+        var node = Encounter() with { EndConditions = [Defeat("escort"), Defeat("all") with { BuiltIn = "allDefeated" }] };
+
+        var report = ScenarioChecker.Check(Scenario(node), Catalog);
+
+        report.Warnings.Should().NotContain(w => w.Code == "Scenarios.AmbiguousDefeat");
+    }
+
+    [Theory]
+    [InlineData("lose", "nonsense", null)]
+    [InlineData("win", "allDefeated", null)]
+    [InlineData("lose", "urgency4", true)]
+    public void Check_BuiltInMisplaced_IsAnError(string kind, string builtIn, bool? continues)
+    {
+        var node = Encounter() with { EndConditions = [new EndCondition { Id = "end", Kind = kind, BuiltIn = builtIn, Continues = continues }] };
+
+        var report = ScenarioChecker.Check(Scenario(node), Catalog);
+
+        report.Errors.Should().Contain(e => e.Code == "Scenarios.InvalidBuiltInEnd");
+    }
+
+    private static EndCondition Defeat(string id) => new() { Id = id, Kind = "lose", Next = "@end" };
 
     private static BoardMap Board() => new() { Tiles = [new MapTile("hb:tile/t1", 0, 0, 0)] };
 

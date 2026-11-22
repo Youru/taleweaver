@@ -86,6 +86,9 @@ public sealed record ItemUpgrade
 
     public LocalizedText? Text { get; init; }
 
+    /// <summary>The Health icon: added to the maximum HP of who has the upgraded item equipped.</summary>
+    public int? Health { get; init; }
+
     public string? Image { get; init; }
 }
 
@@ -105,6 +108,12 @@ public sealed record Discipline
 
     /// <summary>XP cost printed on the card, when known.</summary>
     public int? Cost { get; init; }
+
+    /// <summary>The passive Health icon: added to the maximum HP (may be negative).</summary>
+    public int? Health { get; init; }
+
+    /// <summary>"+X Health, X equal to your highest LVL Discipline" of this tree.</summary>
+    public string? HealthPerHighestLevel { get; init; }
 
     public string? Image { get; init; }
 }

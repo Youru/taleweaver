@@ -60,6 +60,8 @@ export interface DraftStoryExit {
   label?: LocalizedText
   node: string
   page?: number
+  /** Offered only when all these hold. */
+  if?: unknown[]
 }
 
 export interface DraftAction {
@@ -83,6 +85,10 @@ export interface DraftEnd {
   text?: LocalizedText
   reward?: LocalizedText
   next?: string
+  /** The defeat the rules call by themselves: allDefeated, urgency4. */
+  builtIn?: string
+  /** The reward continues the encounter: no exit. */
+  continues?: boolean
   [field: string]: unknown
 }
 

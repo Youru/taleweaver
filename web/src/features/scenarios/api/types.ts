@@ -34,6 +34,8 @@ export interface ScenarioNode {
   sideQuests?: StoryExit[]
   ventureForth?: StoryExit[]
   bountyDifficulty?: number
+  /** The Espers an opponent may summon (rulebook p. 76). */
+  encounterEspers?: { ref: string; summoner?: string }[]
   /** Achievements of an encounter (rulebook p. 17). */
   achievements?: { id: string; name: LocalizedText; condition?: LocalizedText; hiddenText?: LocalizedText }[]
 }

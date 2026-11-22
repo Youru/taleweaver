@@ -156,6 +156,9 @@ public static class PlayerCommands
 
         public static Error AllyNotYours(string ally) => Error.Forbidden("Rooms.AllyNotAccessible", $"'{ally}' is not this seat's to play.");
 
+        public static readonly Error NoGiving =
+            Error.Conflict("Rooms.NoGiving", "In an encounter an adventurer takes from an adjacent ally, and never gives.");
+
         public static readonly Error InvalidAutonomy = Error.Validation("Rooms.InvalidAutonomy", $"Autonomy is \"{RoomAutonomy.ValidateAll}\" or \"{RoomAutonomy.FreeInventory}\".");
     }
 
@@ -189,6 +192,11 @@ public static class PlayerCommands
                     && (string.IsNullOrEmpty(command.Owner) || (command.Owner != "stash" && campaign.Party.All(a => a.Name != command.Owner))))
                 {
                     return RoomService.Errors.NotInParty(command.Owner ?? "");
+                }
+
+                if (command.Type == PlayerCommand.MoveItem && encounter is { Ended: false } && owner != "stash" && command.Owner != "stash" && command.Owner != owner)
+                {
+                    return Errors.NoGiving;
                 }
 
                 return null;

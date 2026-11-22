@@ -3,6 +3,9 @@ import type { Cell } from './types'
 
 /** Mirrors Taleweaver.Api.Engine.AllyState: a Command Combatant, on the adventurers' side (rulebook p. 58). */
 export interface AllyState {
+  exhaustedCards?: string[]
+  usedCards?: string[]
+  abilityTokens?: Record<string, number> | null
   id: string
   card: string
   family: string

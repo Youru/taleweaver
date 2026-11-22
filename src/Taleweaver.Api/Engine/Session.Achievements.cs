@@ -48,7 +48,7 @@ internal sealed partial class Session
 
         // Unless it says otherwise, only the adventurer who completed it gains the reward
         var achiever = JsonSerializer.SerializeToElement(member.Name);
-        var rewards = achievement.Actions.Select(a => a.Do is "gainXp" or "gainItem" && a.Each != true && a.Who is null ? a with { Who = achiever } : a).ToList();
+        var rewards = Bind(achievement.Actions, member.Name).Select(a => a.Do is "gainXp" or "gainItem" && a.Each != true && a.Who is null ? a with { Who = achiever } : a).ToList();
         // What is simply won is won at once, even on the encounter's last page; the rest waits for the question pending
         foreach (var gain in rewards.Where(a => a.Do is "gainXp" or "gainItem" or "gainGold"))
         {

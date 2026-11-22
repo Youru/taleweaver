@@ -6,8 +6,26 @@ namespace Taleweaver.Api.Engine;
 /// <summary>Scenario actions (data model §3.6 to §3.8).</summary>
 internal sealed partial class Session
 {
+    /// <summary>The actions that may aim at "author", "askAdventurer", "random".</summary>
+    private static readonly HashSet<string> Aiming =
+    [
+        "gainXp", "gainItem", "gainDiscipline", "askChoice", "askSkillCheck", "defeatAdventurer", "carry",
+        "leaveParty", "setInjured", "setUnselectable", "spawn", "setCounter", "moveInitiative", "addInitiativeCard",
+    ];
+
     private void Do(ScenarioAction action)
     {
+        _author = ExtraString(action, AuthorKey);
+        if (Aiming.Contains(action.Do))
+        {
+            if (Aimed(action) is not { } aimed)
+            {
+                return;
+            }
+
+            action = aimed;
+        }
+
         switch (action.Do)
         {
             case InternalActions.AwaitContinue:
@@ -15,6 +33,13 @@ internal sealed partial class Session
                 break;
             case "goToNode":
                 GoToNode(action.Node);
+                break;
+            case InternalActions.FinishRound:
+                FinishRound();
+                break;
+            case InternalActions.FirstTurn:
+                Encounter.CurrentTurn = Math.Max(0, Encounter.CurrentTurn);
+                BeginTurn();
                 break;
             case InternalActions.AskStoryRound:
                 AskStoryRound();
@@ -33,8 +58,23 @@ internal sealed partial class Session
                 Log("text", action.Text);
                 break;
             case "gainGold":
-                State.Campaign.Gold += action.Amount ?? 0;
-                Log("gainGold", args: Args(("amount", Number(action.Amount)), ("gold", Number(State.Campaign.Gold))));
+                GainGold(action.Amount ?? 0);
+                break;
+            case "carry" or "dropCarried" or "loseCarried":
+                DoCarried(action);
+                break;
+            case InternalActions.AdvanceTurn:
+                AdvanceTurn();
+                break;
+            case "setCounter" or "addCounter" or "removeCounter" or "drawAdventurers" or "splitParty" or "delay" or "cancelDelay"
+                or "dealInitiative" or "moveInitiative" or "addInitiativeCard" or "removeInitiativeCard" or "modifyFigure":
+                DoMechanic(action);
+                break;
+            case InternalActions.AskStatus:
+                AskStatus(action);
+                break;
+            case InternalActions.AskArrival:
+                AskArrival(ExtraString(action, "adventurer"));
                 break;
             case "gainXp":
                 GainXp(action);
@@ -78,6 +118,13 @@ internal sealed partial class Session
             case "askChoice":
                 Ask(PromptKinds.Choice, action.Question,
                     (action.Options ?? []).Select((o, i) => new PromptOption(i.ToString(System.Globalization.CultureInfo.InvariantCulture), o.Label)), action);
+                if (Member(WhoIs(action)) is { } decider)
+                {
+                    // What follows from the choice is its maker's
+                    State.Prompt!.Decider = decider.Name;
+                    State.Prompt.Action = Bound(action, decider.Name);
+                }
+
                 break;
             case "askSkillCheck":
                 AskSkillCheck(action);
@@ -106,14 +153,15 @@ internal sealed partial class Session
                 }
 
                 break;
-            case "appendAiStep" when State.Encounter is not null && action.Family is not null && action.Step is not null:
-                if (!Encounter.ExtraAiSteps.TryGetValue(action.Family, out var steps))
+            case "appendAiStep" when State.Encounter is not null && (action.Family ?? action.Instance) is not null && action.Step is not null:
+                var of = action.Family ?? InstanceSteps + action.Instance;
+                if (!Encounter.ExtraAiSteps.TryGetValue(of, out var steps))
                 {
-                    Encounter.ExtraAiSteps[action.Family] = steps = [];
+                    Encounter.ExtraAiSteps[of] = steps = [];
                 }
 
                 steps.Add(action.Step);
-                Log("appendAiStep", action.Step.Condition.Text, Args(("family", action.Family)));
+                Log("appendAiStep", action.Step.Condition.Text, Args(("family", action.Family ?? action.Instance)));
                 break;
             case "revealArea" when State.Encounter is not null:
                 RevealArea(ExtraString(action, "area"));
@@ -182,7 +230,7 @@ internal sealed partial class Session
         string? who = null;
         if (action.Each == true)
         {
-            State.Campaign.Party.ForEach(a => a.Xp += amount);
+            EachBut(action).ForEach(a => a.Xp += amount);
         }
         else if (action.Who is { ValueKind: JsonValueKind.String } named && Member(named.GetString()) is { } member)
         {
@@ -193,21 +241,10 @@ internal sealed partial class Session
         Log("gainXp", args: Args(("amount", Number(amount)), ("each", action.Each == true ? "true" : null), ("adventurer", who)));
     }
 
-    private void GainItem(ScenarioAction action)
+    private void GainGold(int amount)
     {
-        var description = action.Ref
-                          ?? $"{action.Count ?? 1} {string.Join("/", action.Tiers ?? [])} {action.Type}".Trim();
-        State.Campaign.Items.Add(description);
-
-        // The cards, to hand out: the item named, or as many cards still to be drawn as the reward says.
-        var known = Catalog.FindItem(action.Ref)?.Id;
-        for (var i = 0; i < Math.Max(1, action.Count ?? 1); i++)
-        {
-            GainOwned(known, "scenario", known is null ? action.Tiers : null, known is null ? action.Type : null);
-        }
-
-        Log("gainItem", args: Args(("item", action.Ref), ("count", Number(action.Count)), ("tiers", action.Tiers is null ? null : string.Join("/", action.Tiers)), ("type", action.Type),
-            ("adventurer", action.Who is { ValueKind: JsonValueKind.String } who ? who.GetString() : null)));
+        State.Campaign.Gold = Math.Max(0, State.Campaign.Gold + amount);
+        Log("gainGold", args: Args(("amount", Number(amount)), ("gold", Number(State.Campaign.Gold))));
     }
 
     /// <summary>Several events may name the same card (rulebook p. 37): it is revealed once.</summary>
@@ -225,7 +262,7 @@ internal sealed partial class Session
     private void GainDiscipline(ScenarioAction action)
     {
         var card = Catalog.FindDiscipline(action.Ref);
-        var name = ExtraString(action, "adventurer");
+        var name = ExtraString(action, "adventurer") ?? Member(WhoIs(action))?.Name;
         if (card is null || State.Campaign.Party.Count == 0 || (name is not null && Member(name) is null))
         {
             Log("manualAction", action.Text, Args(("do", action.Do), ("discipline", action.Ref), ("adventurer", name)));
@@ -239,7 +276,7 @@ internal sealed partial class Session
                 .Select(a => new ActionOption
                 {
                     Label = new Dictionary<string, string> { ["en"] = a.Name },
-                    Actions = [action with { Extra = new Dictionary<string, JsonElement> { ["adventurer"] = JsonSerializer.SerializeToElement(a.Name) } }],
+                    Actions = [With(action, "adventurer", a.Name)],
                 })
                 .ToList();
             if (options.Count > 0)
@@ -297,34 +334,6 @@ internal sealed partial class Session
     private static int? ExtraNumber(ScenarioAction action, string key) =>
         action.Extra?.TryGetValue(key, out var value) == true && value.TryGetInt32(out var number) ? number : null;
 
-    private void AskSkillCheck(ScenarioAction action)
-    {
-        var options = (action.Options ?? [])
-            .Select((o, i) => new PromptOption($"pass-{i}", Text($"{o.Skill} {o.Difficulty}: passed", $"{o.Skill} {o.Difficulty} : réussi")))
-            .Concat(action.Masterful is null ? [] : [new PromptOption("masterful", Text("Masterful Pass", "Réussite magistrale"))])
-            .Append(new PromptOption("fail", Text("Failed", "Raté")));
-        var who = action.Who is { ValueKind: JsonValueKind.Object } w ? w.Deserialize<Dictionary<string, string>>() : null;
-        Ask(PromptKinds.SkillCheck, who, options, action);
-    }
-
-    private void AnswerSkillCheck(ScenarioAction action, string option)
-    {
-        if (option == "fail")
-        {
-            Push(action.Fail ?? []);
-            return;
-        }
-
-        if (option == "masterful")
-        {
-            Push(action.Masterful ?? []);
-            return;
-        }
-
-        var chosen = action.Options![int.Parse(option["pass-".Length..], System.Globalization.CultureInfo.InvariantCulture)];
-        Push(chosen.Pass ?? action.Pass ?? []);
-    }
-
     private void ReadHiddenRule(string? id)
     {
         var rule = EncounterNode.HiddenRules.FirstOrDefault(r => r.Id == id);
@@ -336,7 +345,7 @@ internal sealed partial class Session
 
         Encounter.ReadHiddenRules.Add(rule.Id);
         Log("hiddenRule", rule.Text, Args(("rule", rule.Id), ("name", rule.Name?.GetValueOrDefault("en"))));
-        Push(rule.Actions);
+        Push(WithAuthor(rule.Actions));
         Fire(e => e.Trigger.On == "hiddenRuleRead" && (e.Trigger.Rule is null || e.Trigger.Rule == rule.Id));
     }
 
@@ -450,7 +459,10 @@ internal sealed partial class Session
 
         var encounter = Encounter;
         Log("navigate", diagram.Label, Args(("diagram", diagram.Id), ("page", Number(diagram.Page))));
+        EndParalyzedTurns();
         encounter.Activation = null;
+        encounter.LastStep = null;
+        encounter.Reactions.Clear();
         encounter.MapCleared = true;
         encounter.PlacedDiagrams.Clear();
         foreach (var token in encounter.Tokens.Where(t => !t.Removed))
@@ -458,6 +470,8 @@ internal sealed partial class Session
             token.Removed = true;
         }
 
+        // The board is cleared: what lay on it, or was held by an opponent, stays there
+        State.Campaign.Carried.RemoveAll(c => !c.Lost && !IsAdventurer(c.Carrier) && !IsAlly(c.Carrier));
         encounter.Combatants.RemoveAll(c => !c.Defeated);
         encounter.Waiting.Clear();
         encounter.InitiativeTrack = ActiveParty.Select(a => AdventurerCard + a.Name)
@@ -470,6 +484,7 @@ internal sealed partial class Session
         }
 
         encounter.CurrentTurn = -1;
+        encounter.TurnOf.Clear();
         LayDiagram(diagram);
         PlaceAdventurers(diagram.Map, diagram.Setup);
         foreach (var placement in diagram.Setup?.Combatants ?? [])
@@ -477,13 +492,17 @@ internal sealed partial class Session
             Spawn(SpawnOf(placement), fromSetup: true, placement.InitiativeCard, possibleSpawns: true);
         }
 
-        if (encounter.Round > 0)
+        // Between two rounds, the one that follows shuffles and begins the turn itself
+        if (encounter.Round > 0 && State.PendingActions.All(a => a.Do != InternalActions.FinishRound))
         {
             ShuffleTrack();
             encounter.PlayedCards.Clear();
             encounter.CurrentTurn = 0;
             Log("initiativeRebuilt", args: Args(("track", string.Join(", ", encounter.InitiativeTrack))));
-            BeginTurn();
+            if (State.PendingActions.All(a => a.Do != InternalActions.FirstTurn))
+            {
+                BeginTurn();
+            }
         }
     }
 

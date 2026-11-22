@@ -38,13 +38,14 @@ public static partial class ScenarioChecker
         "appendAiStep", "revealArea", "placeDiagram", "addEndCondition", "endEncounter", "addUrgency",
         "restoreCombatant", "replaceInitiativeCard", "defeatAdventurer", "navigate", "addVar", "branch", "askNumber",
         "abraxis", "unlockUpgrade", "joinParty", "leaveParty", "setInjured", "setUnselectable", "setActiveGroup",
+        "carry", "dropCarried", "loseCarried", "setCounter", "addCounter", "removeCounter", "drawAdventurers", "splitParty", "delay", "cancelDelay", "dealInitiative", "moveInitiative", "addInitiativeCard", "removeInitiativeCard", "modifyFigure",
     };
 
     /// <summary>The triggers the engine fires.</summary>
     public static readonly IReadOnlySet<string> Triggers = new HashSet<string>
     {
         "tokenActivated", "encounterStart", "roundStart", "roundEnd", "combatantDefeated", "adventurerDefeated",
-        "areaRevealed", "hiddenRuleRead",
+        "areaRevealed", "hiddenRuleRead", "turnStart", "turnEnd", "counter",
     };
 
     /// <summary>How an Adventurer activates a token (shown to the GM).</summary>
@@ -62,8 +63,8 @@ public static partial class ScenarioChecker
     };
 
     private static readonly HashSet<string> BuiltInVariables = ["round", "urgency", "gold"];
-    private static readonly string[] BooleanPrefixes = ["placed.", "activated.", "revealed.", "hiddenCard."];
-    private static readonly string[] CountPrefixes = ["defeated.", "alive."];
+    private static readonly string[] BooleanPrefixes = ["placed.", "activated.", "revealed.", "hiddenCard.", "carried.", "lost."];
+    private static readonly string[] CountPrefixes = ["defeated.", "alive.", "counter."];
 
     public static ScenarioReport Check(Scenario scenario, Catalog catalog)
     {
@@ -100,6 +101,9 @@ public static partial class ScenarioChecker
 
         /// <summary>Variables that hold true or false: declared flags, and those raised by setFlag.</summary>
         private readonly HashSet<string> _flags = [];
+
+        /// <summary>Every counter the scenario sets.</summary>
+        private readonly HashSet<string> _counters = [];
 
         /// <summary>Every variable the scenario declares or sets.</summary>
         private readonly HashSet<string> _variables = [];
@@ -173,6 +177,23 @@ public static partial class ScenarioChecker
                     CheckEncounter(node);
                 }
 
+                if (node.IsStoryRound)
+                {
+                    var exitConditions = node.SideQuests.Concat(node.VentureForth).SelectMany(e => e.If ?? []).ToList();
+                    CheckConditions(node.Id, exitConditions, [], [], []);
+                    if (node.VentureForth.Count > 0 && node.VentureForth.All(e => e.If is { Count: > 0 }))
+                    {
+                        Warn("NoUnconditionalExit", node.Id, "every 'ventureForth' has a condition: when none holds, the GM is shown them all");
+                    }
+                }
+
+                if (node.KeepBoardFrom is { } from && scenario.Nodes.All(n => n.Id != from || !n.IsEncounter))
+                {
+                    Error("UnknownBoard", node.Id, $"keepBoardFrom: no encounter '{from}'");
+                }
+
+                CheckRewardsAndChecks(node);
+
                 if (node.IsStoryRound && node.VentureForth.Count == 0)
                 {
                     Error("StoryRoundWithoutExit", node.Id, "a Story Round needs a 'ventureForth' choice: the game cannot go on");
@@ -205,9 +226,13 @@ public static partial class ScenarioChecker
                 {
                     _flags.Add(flag);
                 }
-                else if (action.Do == "setVar" && Extra(action, "var") is { } variable)
+                else if (action.Do is "setVar" or "drawAdventurers" or "askSkillCheck" && Extra(action, "var") is { } variable)
                 {
                     _variables.Add(variable);
+                }
+                else if (action.Do == "setCounter" && Extra(action, "id") is { } counter)
+                {
+                    _counters.Add(counter);
                 }
             }
 
@@ -219,6 +244,57 @@ public static partial class ScenarioChecker
             if (!EngineActions.Contains(action.Do))
             {
                 Warn("UnknownAction", where, $"action '{action.Do}' is skipped by the engine");
+            }
+        }
+
+        private void CheckRewardsAndChecks(Node node)
+        {
+            foreach (var action in ScenarioAction.Flatten(node.Mechanics
+                         .Concat(node.EndConditions.SelectMany(e => e.Mechanics))
+                         .Concat(node.Events.SelectMany(e => e.Actions))
+                         .Concat(node.HiddenRules.SelectMany(r => r.Actions))))
+            {
+                if (action.Do == "gainItem" && Extra(action, "pick") is { } pick && pick is not ("random" or "choice"))
+                {
+                    Error("BadPick", node.Id, $"gainItem: pick '{pick}' is neither random nor choice");
+                }
+                else if (action.Do == "askSkillCheck" && Extra(action, "mode") is { } mode && mode is not ("combined" or "collective"))
+                {
+                    Error("BadCheckMode", node.Id, $"askSkillCheck: mode '{mode}' is neither combined nor collective");
+                }
+            }
+
+            foreach (var esper in node.EncounterEspers.Where(e => catalog.FindCombatant(e.Ref) is null))
+            {
+                Error("UnknownEsper", node.Id, $"encounterEspers: combatant not in the catalogue '{esper.Ref}'");
+            }
+        }
+
+        /// <summary>Which defeat the rules call by themselves, and the rewards that continue the encounter.</summary>
+        private void CheckEnds(Node node)
+        {
+            foreach (var end in node.EndConditions.Where(e => e.BuiltIn is not null))
+            {
+                if (end.Kind != "lose" || end.Continues == true || !BuiltInEnds.IsKnown(end.BuiltIn!))
+                {
+                    Error("InvalidBuiltInEnd", node.Id, $"end condition '{end.Id}': builtIn is allDefeated or urgency4, on a defeat that ends the encounter");
+                }
+            }
+
+            foreach (var twice in node.EndConditions.Where(e => e.BuiltIn is not null).GroupBy(e => e.BuiltIn).Where(g => g.Count() > 1))
+            {
+                Warn("DuplicateBuiltInEnd", node.Id, $"several end conditions are '{twice.Key}': the first active one applies");
+            }
+
+            foreach (var end in node.EndConditions.Where(e => e.Continues == true && e.Next is not null))
+            {
+                Warn("IgnoredNext", node.Id, $"end condition '{end.Id}' continues the encounter: its next is not used");
+            }
+
+            var defeats = node.EndConditions.Where(e => e.Kind == "lose" && e.Continues != true).ToList();
+            if (defeats.Count(e => e.BuiltIn is null) > 1 && defeats.All(e => e.BuiltIn != BuiltInEnds.AllDefeated))
+            {
+                Warn("AmbiguousDefeat", node.Id, "several defeats: mark the one of a Defeated party with \"builtIn\": \"allDefeated\", or the GM is asked");
             }
         }
 
@@ -388,6 +464,7 @@ public static partial class ScenarioChecker
             var events = encounter.Events.Select(e => e.Id).ToHashSet();
             var rules = encounter.HiddenRules.Select(r => r.Id).ToHashSet();
             var ends = encounter.EndConditions.Select(e => e.Id).ToHashSet();
+            CheckEnds(encounter);
 
             // Tokens placed during play are known too
             actions.AddRange(encounter.EndConditions.SelectMany(e => ScenarioAction.Flatten(e.Mechanics)));
@@ -411,6 +488,11 @@ public static partial class ScenarioChecker
                 if (ev.Trigger.On == "areaRevealed" && ev.Trigger.Area is { } area && !areas.Contains(area))
                 {
                     Error("UnknownArea", $"{id}/{ev.Id}", $"unknown fog area '{area}'");
+                }
+
+                if (ev.Trigger.On == "counter" && (ev.Trigger.Counter is not { } counted || !_counters.Contains(counted)))
+                {
+                    Warn("UnknownCounter", $"{id}/{ev.Id}", $"trigger on a counter never set '{ev.Trigger.Counter}'");
                 }
 
                 CheckConditions($"{id}/{ev.Id}", ev.Conditions, knownKeys.Concat(encounter.Tokens.Keys).ToHashSet(), areas, diagrams);
@@ -477,7 +559,15 @@ public static partial class ScenarioChecker
                     Error("UnknownLootLevel", encounter.Id, $"{family ?? reference}: unknown loot level '{ownLevel}'");
                 }
 
-                if (reference is not null && catalog.FindCombatant(reference) is null)
+                if (reference?.StartsWith("figure:", StringComparison.Ordinal) == true)
+                {
+                    var figure = reference["figure:".Length..];
+                    if (figure != "root" && encounter.Figures.All(f => f.Id != figure))
+                    {
+                        Error("UnknownFigure", encounter.Id, $"figure not described in 'figures' '{figure}'");
+                    }
+                }
+                else if (reference is not null && catalog.FindCombatant(reference) is null)
                 {
                     Error("UnknownCombatant", encounter.Id, $"combatant not in the catalogue '{reference}'");
                 }

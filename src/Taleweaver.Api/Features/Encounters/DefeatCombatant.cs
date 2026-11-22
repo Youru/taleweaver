@@ -9,7 +9,7 @@ public static class DefeatCombatant
 {
     public static void Map(RouteGroupBuilder group) =>
         group.MapPost("/combatants/{instance}/defeat", async Task<Results<Ok<GameView>, ProblemHttpResult>> (
-                string id, string instance, GameRunner runner, CancellationToken cancellationToken) =>
-                (await runner.ExecuteAsync(id, GameCommand.Defeat(instance), cancellationToken)).ToResponse())
+                string id, string instance, string? author, GameRunner runner, CancellationToken cancellationToken) =>
+                (await runner.ExecuteAsync(id, GameCommand.Defeat(instance) with { Author = author }, cancellationToken)).ToResponse())
             .WithName("DefeatCombatant");
 }

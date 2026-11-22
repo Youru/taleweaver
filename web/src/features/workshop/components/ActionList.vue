@@ -13,7 +13,20 @@ import type { BoardPieces } from '@/features/table'
 import { pick } from '@/shared/lib/localized'
 import { usePreferences } from '@/shared/lib/preferences'
 import type { DraftAction, DraftNode, DraftScenario } from '../api/types'
-import { atOf, CARD_SIZES, isSimple, newAction, SIMPLE_ACTIONS, spotOf, type SimpleAction, type Spot } from '../lib/events'
+import {
+  ADVANCED_ACTIONS,
+  atOf,
+  CARD_SIZES,
+  isAdvanced,
+  isSimple,
+  newAction,
+  newAdvancedAction,
+  SIMPLE_ACTIONS,
+  spotOf,
+  type AdvancedAction,
+  type SimpleAction,
+  type Spot,
+} from '../lib/events'
 import { diagramsOf } from '../lib/diagrams'
 import { hiddenRulesOf } from '../lib/hiddenRules'
 import { mapOf, tokenKey } from '../lib/map'
@@ -57,21 +70,24 @@ function shift(index: number, by: number) {
   if (moved) list.splice(index + by, 0, moved)
   actions.value = list
 }
-function add(kind: SimpleAction | 'json') {
+function add(kind: SimpleAction | AdvancedAction | 'json') {
   actions.value = [
     ...actions.value,
     kind === 'json'
       ? { do: 'askChoice', question: { [language.value]: '' }, options: [] }
-      : newAction(kind, language.value),
+      : isAdvanced(kind)
+        ? newAdvancedAction(kind)
+        : newAction(kind, language.value),
   ]
 }
 
 const kinds = computed(() => [
   ...SIMPLE_ACTIONS.map((value) => ({ value, label: t(`workshop.events.do.${value}`) })),
+  ...Object.keys(ADVANCED_ACTIONS).map((value) => ({ value, label: t(`workshop.events.do.${value}`) })),
   { value: 'json', label: t('workshop.events.do.json') },
 ])
 const kindLabel = (kind: string) =>
-  (SIMPLE_ACTIONS as readonly string[]).includes(kind) ? t(`workshop.events.do.${kind}`) : kind
+  (SIMPLE_ACTIONS as readonly string[]).includes(kind) || isAdvanced(kind) ? t(`workshop.events.do.${kind}`) : kind
 
 // What the fields offer, from the encounter and the catalogue
 const disciplines = useDisciplines()
@@ -121,6 +137,22 @@ const endOptions = computed(() =>
     label: `${e.kind === 'lose' ? t('workshop.lose') : t('workshop.win')} · ${pick(e.text, language.value) || e.id}`,
   })),
 )
+const recipientOptions = computed(() => [
+  { value: '', label: t('workshop.events.toHandOut') },
+  { value: 'askAdventurer', label: t('workshop.events.askAdventurer') },
+  { value: 'author', label: t('workshop.events.author') },
+])
+const pickOptions = computed(() =>
+  ['named', 'random', 'choice'].map((value) => ({ value, label: t(`workshop.events.pick.${value}`) })),
+)
+const exceptOf = (value: unknown) => (Array.isArray(value) ? value.join(', ') : '')
+const namesOf = (typed: string | undefined) => {
+  const names = (typed ?? '')
+    .split(',')
+    .map((name) => name.trim())
+    .filter(Boolean)
+  return names.length ? names : undefined
+}
 const tierOptions = computed(() =>
   ['mundane', 'common', 'uncommon', 'rare'].map((value) => ({ value, label: t(`workshop.loot.${value}`) })),
 )
@@ -259,6 +291,14 @@ const num = (value: unknown) => (typeof value === 'number' ? value : undefined)
                 @update:model-value="(v) => patch(index, { count: v ?? 1 })"
               />
             </div>
+            <InputText
+              v-if="action.do === 'spawn'"
+              :model-value="str(action.spawnedBy) ?? ''"
+              size="small"
+              :aria-label="t('workshop.events.spawnedBy')"
+              :placeholder="t('workshop.events.spawnedBy')"
+              @update:model-value="(v) => patch(index, { spawnedBy: v })"
+            />
             <div class="row">
               <Select
                 :model-value="spotOf(action.at).kind === 'other' ? undefined : spotOf(action.at).kind"
@@ -327,6 +367,24 @@ const num = (value: unknown) => (typeof value === 'number' ? value : undefined)
               />
               {{ t('workshop.events.each') }}
             </label>
+            <Select
+              v-if="action.do === 'gainXp' && action.each !== true"
+              :model-value="str(action.who) ?? ''"
+              :options="recipientOptions"
+              option-label="label"
+              option-value="value"
+              editable
+              :aria-label="t('workshop.events.itemRecipient')"
+              @update:model-value="(v) => patch(index, { who: v })"
+            />
+            <InputText
+              v-if="action.do === 'gainXp' && action.each === true"
+              :model-value="exceptOf(action.except)"
+              size="small"
+              :placeholder="t('workshop.events.except')"
+              :aria-label="t('workshop.events.except')"
+              @change="(e) => patch(index, { except: namesOf((e.target as HTMLInputElement).value) })"
+            />
           </div>
 
           <div v-else-if="action.do === 'gainItem'" class="row">
@@ -346,6 +404,17 @@ const num = (value: unknown) => (typeof value === 'number' ? value : undefined)
               :placeholder="t('workshop.events.itemType')"
               @update:model-value="(v) => patch(index, { type: v })"
             />
+            <!-- A name typed is that adventurer's -->
+            <Select
+              :model-value="str(action.who) ?? ''"
+              :options="recipientOptions"
+              option-label="label"
+              option-value="value"
+              editable
+              :aria-label="t('workshop.events.itemRecipient')"
+              :placeholder="t('workshop.events.toHandOut')"
+              @update:model-value="(v) => patch(index, { who: v })"
+            />
             <InputNumber
               :model-value="num(action.count) ?? 1"
               :min="1"
@@ -353,6 +422,35 @@ const num = (value: unknown) => (typeof value === 'number' ? value : undefined)
               input-class="num"
               :aria-label="t('workshop.events.count')"
               @update:model-value="(v) => patch(index, { count: v ?? 1 })"
+            />
+            <Select
+              :model-value="str(action.pick) ?? 'named'"
+              :options="pickOptions"
+              option-label="label"
+              option-value="value"
+              :aria-label="t('workshop.events.howPicked')"
+              @update:model-value="(v) => patch(index, { pick: v === 'named' ? undefined : v })"
+            />
+            <label class="inline">
+              <ToggleSwitch
+                :model-value="action.each === true"
+                @update:model-value="(v) => patch(index, { each: v || undefined })"
+              />
+              {{ t('workshop.events.each') }}
+            </label>
+            <InputText
+              v-if="action.each === true"
+              :model-value="exceptOf(action.except)"
+              size="small"
+              :placeholder="t('workshop.events.except')"
+              :aria-label="t('workshop.events.except')"
+              @change="(e) => patch(index, { except: namesOf((e.target as HTMLInputElement).value) })"
+            />
+            <JsonField
+              :model-value="action.fallback"
+              :label="t('workshop.events.fallback')"
+              :rows="2"
+              @update:model-value="(v) => patch(index, { fallback: v })"
             />
           </div>
 

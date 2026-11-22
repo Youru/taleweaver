@@ -32,6 +32,22 @@ const log: LogEntry[] = [
 ]
 
 describe('currentTurn', () => {
+  it('shows what a round change triggers, while its question waits then with the first turn', () => {
+    const waiting: LogEntry[] = [...log, { code: 'roundEnd' }, { code: 'text', text: { en: 'The wall falls.' } }]
+
+    const between = currentTurn(encounter(), waiting)
+    const first = currentTurn(encounter({ currentTurn: 0 }), [
+      ...waiting,
+      { code: 'roundStart' },
+      { code: 'turn', args: { adventurer: 'Rook' } },
+    ])
+
+    expect(between.kind).toBe('between')
+    expect(between.entries.map((e) => e.code)).toEqual(['text'])
+    expect(first.kind).toBe('adventurer')
+    expect(first.entries.map((e) => e.code)).toEqual(['text'])
+  })
+
   it('is empty before the first round', () => {
     expect(currentTurn(encounter({ round: 0 }), [])).toEqual({ kind: 'before', entries: [] })
   })

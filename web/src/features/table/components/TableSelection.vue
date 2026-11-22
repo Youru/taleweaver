@@ -16,6 +16,7 @@ import type { ScenarioNode } from '@/features/scenarios'
 import { pick } from '@/shared/lib/localized'
 import { usePreferences } from '@/shared/lib/preferences'
 import type { BoardLayout, Selection } from '../lib/layout'
+import FigureMarks from './FigureMarks.vue'
 
 /** What can be done with the selected figure, token or hidden area. */
 const props = defineProps<{
@@ -210,6 +211,11 @@ function pickEffect(event: SelectChangeEvent) {
         <small v-else-if="adventurer">{{ t('table.adventurer') }}</small>
       </span>
       <Tag v-if="combatant?.aggro" :value="t('play.aggro')" severity="danger" />
+      <Tag
+        v-if="encounter.paralyzeImmune?.includes(selection.kind === 'figure' ? selection.id : '')"
+        :value="t('play.paralyzeImmune')"
+        severity="info"
+      />
       <Tag v-if="member?.defeated" :value="t('play.adventurerDefeatedTag')" severity="secondary" />
       <Button icon="pi pi-times" text rounded size="small" :aria-label="t('table.close')" @click="emit('close')" />
     </header>
@@ -369,6 +375,17 @@ function pickEffect(event: SelectChangeEvent) {
           @click="emit('duel', selection.id)"
         />
         <Button
+          v-if="combatant && !combatant.defeated"
+          :label="t('play.targeted')"
+          :title="t('play.targetedHint')"
+          icon="pi pi-bullseye"
+          size="small"
+          severity="secondary"
+          outlined
+          :disabled="locked || combatant.attacked"
+          @click="emit('command', { type: 'target', instance: combatant.instance })"
+        />
+        <Button
           v-if="vitalsTarget && !defeated"
           :label="t('play.defeat')"
           icon="pi pi-times-circle"
@@ -382,7 +399,37 @@ function pickEffect(event: SelectChangeEvent) {
       <p class="hint"><i class="pi pi-arrows-alt" aria-hidden="true" /> {{ t('table.moveHint') }}</p>
     </template>
 
+    <FigureMarks
+      v-if="effectTarget"
+      :id="effectTarget"
+      :encounter="encounter"
+      :party="party"
+      :cards="cards"
+      :locked="locked"
+      @command="emit('command', $event)"
+    />
     <template v-if="token">
+      <template v-if="token.type?.endsWith('/bulb')">
+        <Button
+          :label="token.flipped ? t('table.bulbFlipped') : t('table.flipBulb')"
+          icon="pi pi-refresh"
+          size="small"
+          severity="secondary"
+          :disabled="locked"
+          @click="emit('command', { type: 'flipToken', token: token.id })"
+        />
+      </template>
+      <template v-if="token.type?.endsWith('/poppet')">
+        <Button
+          v-for="figure in encounter.adventurers.filter((a) => !a.defeated)"
+          :key="figure.name"
+          :label="t('table.poppetBreak', { name: figure.name })"
+          size="small"
+          severity="secondary"
+          :disabled="locked"
+          @click="emit('command', { type: 'react', figure: token.id, kind: 'poppet', against: `adventurer:${figure.name}` })"
+        />
+      </template>
       <p v-if="tokenRule?.activation">{{ pick(tokenRule.activation, language) }}</p>
       <Button
         v-if="tokenRule"

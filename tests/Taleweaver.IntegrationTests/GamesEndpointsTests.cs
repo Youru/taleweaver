@@ -183,6 +183,17 @@ public class GamesEndpointsTests(HomebrewFactory factory) : IClassFixture<Homebr
     }
 
     [Fact]
+    public async Task TargetCombatant_WithoutDamage_IsKeptForAggro()
+    {
+        var game = await StartAsync();
+        await PostAsync($"/api/games/{game.Id}/answer", new AnswerQuestion.Request("continue", null));
+
+        var response = await _client.PostAsync($"/api/games/{game.Id}/encounter/combatants/brute-1/target", null, Token);
+
+        (await Read(response)).State.Encounter!.Combatants.Single(c => c.Instance == "brute-1").Attacked.Should().BeTrue();
+    }
+
+    [Fact]
     public async Task MoveInitiativeCard_NoPlaces_ReturnsValidationProblem()
     {
         var game = await StartAsync();
@@ -193,7 +204,7 @@ public class GamesEndpointsTests(HomebrewFactory factory) : IClassFixture<Homebr
     }
 
     [Fact]
-    public async Task GetGame_SavedByAnOlderEngine_IsReplayedUpToDate()
+    public async Task GetGame_SavedByAnOlderEngine_KeepsItsState()
     {
         var game = await StartAsync();
         await PostAsync($"/api/games/{game.Id}/answer", new AnswerQuestion.Request("continue", null));
@@ -204,9 +215,73 @@ public class GamesEndpointsTests(HomebrewFactory factory) : IClassFixture<Homebr
 
         var loaded = await _client.GetFromJsonAsync<GameView>($"/api/games/{game.Id}", JsonDefaults.Options, Token);
 
-        loaded!.State.Encounter!.Combatants.Single().Position.Should().Be(new Cell(2, 2));
-        (await store.GetAsync(game.Id, Token))!.EngineVersion.Should().Be(GameEngine.Version);
+        loaded!.State.Encounter!.Combatants.Single().Position.Should().BeNull();
+        loaded.CanUndo.Should().BeFalse();
+        loaded.UndoBlocked.Should().BeTrue();
+        (await store.GetAsync(game.Id, Token))!.EngineVersion.Should().Be(0, "reading writes nothing");
     }
+
+    [Fact]
+    public async Task Undo_AfterAnEngineUpdate_StopsAtTheStateFoundByTheUpdate()
+    {
+        var game = await StartAsync();
+        await PostAsync($"/api/games/{game.Id}/answer", new AnswerQuestion.Request("continue", null));
+        var old = await SaveAsOlderEngineAsync(game.Id);
+        using var scope = factory.Services.CreateScope();
+        var runner = scope.ServiceProvider.GetRequiredService<GameRunner>();
+
+        (await runner.ExecuteAsync(game.Id, GameCommand.NextTurn(), Token)).IsSuccess.Should().BeTrue();
+        var undone = await runner.UndoAsync(game.Id, Token);
+
+        Json(undone.Value.State).Should().Be(Json(old.State));
+        (await runner.UndoAsync(game.Id, Token)).Error.Should().Be(GameRunner.Errors.UndoBlocked);
+    }
+
+    [Fact]
+    public async Task Import_OfAnOlderEngine_KeepsItsStateAndItsBaseline()
+    {
+        var game = await StartAsync();
+        await PostAsync($"/api/games/{game.Id}/answer", new AnswerQuestion.Request("continue", null));
+        var old = await SaveAsOlderEngineAsync(game.Id);
+        var exported = await _client.GetByteArrayAsync($"/api/games/{game.Id}/export", Token);
+
+        var response = await _client.PostAsync("/api/games/import", new ByteArrayContent(exported) { Headers = { ContentType = new("application/json") } }, Token);
+
+        var imported = await Read(response);
+        Json(imported.State).Should().Be(Json(old.State));
+        imported.UndoBlocked.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task RestartFromLastEncounter_AfterAnUpdate_StartsFromItsCheckpoint()
+    {
+        var game = await StartAsync();
+        await PostAsync($"/api/games/{game.Id}/answer", new AnswerQuestion.Request("continue", null));
+        var old = await SaveAsOlderEngineAsync(game.Id);
+        var store = factory.Services.GetRequiredService<IGameStore>();
+        var finished = old.State.Clone();
+        finished.Status = GameStatus.Finished;
+        await store.SaveAsync(old with { State = finished }, Token);
+        using var scope = factory.Services.CreateScope();
+
+        var again = await scope.ServiceProvider.GetRequiredService<GameRunner>().RestartAsync(game.Id, fromLastEncounter: true, Token);
+
+        Json(again.Value.State).Should().Be(Json(old.State));
+    }
+
+    /// <summary>The game as an older engine would have left it: a state the history alone would not give.</summary>
+    private async Task<Game> SaveAsOlderEngineAsync(string id)
+    {
+        var store = factory.Services.GetRequiredService<IGameStore>();
+        var saved = (await store.GetAsync(id, Token))!;
+        saved.State.Encounter!.Combatants.ForEach(c => c.Position = null);
+        saved.EncounterStart?.State.Encounter!.Combatants.ForEach(c => c.Position = null);
+        var old = saved with { EngineVersion = 0 };
+        await store.SaveAsync(old, Token);
+        return old;
+    }
+
+    private static string Json(GameState state) => System.Text.Json.JsonSerializer.Serialize(state, JsonDefaults.Options);
 
     [Fact]
     public async Task AfterAnEnding_TheActIsExported_AndTheGameStartsAgainFromTheLastEncounterOrTheBeginning()
@@ -234,6 +309,26 @@ public class GamesEndpointsTests(HomebrewFactory factory) : IClassFixture<Homebr
         var again = await Read(await _client.PostAsJsonAsync($"/api/games/{game.Id}/restart", new RestartGame.Request(RestartGame.FromBeginning), JsonDefaults.Options, Token));
         again.State.Encounter.Should().BeNull();
         again.State.Options!.TougherMobs.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Play_WhatTheGmKeeps_IsSavedAndUndone()
+    {
+        var game = await StartAsync();
+        game = await PostAsync($"/api/games/{game.Id}/answer", new AnswerQuestion.Request("continue", null));
+        var play = $"/api/games/{game.Id}/play";
+
+        game = await PostAsync($"{play}/actions", new { figure = "adventurer:Rook", action = "dodge" });
+        game.State.Campaign.Party.Single(a => a.Name == "Rook").Stamina.Should().Be(2);
+        game = await PostAsync($"{play}/initiative/deal");
+        game.State.Encounter!.TrackDealt.Should().BeTrue();
+        game = await PostAsync($"{play}/reactions", new { figure = "adventurer:Rook", kind = "break", against = "brute-1" });
+        game.State.Encounter!.Reactions.Should().ContainSingle();
+
+        var undone = await PostAsync($"/api/games/{game.Id}/undo");
+
+        undone.State.Encounter!.Reactions.Should().BeEmpty();
+        undone.State.Encounter.TrackDealt.Should().BeTrue();
     }
 
     private async Task<GameView> StartAsync() =>

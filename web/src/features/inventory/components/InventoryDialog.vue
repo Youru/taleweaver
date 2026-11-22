@@ -102,7 +102,9 @@ const warnings = computed(() =>
       ? t('inventory.warnOver', { type: t(`inventory.types.${w.type}`), count: w.count, max: w.max })
       : w.kind === 'pack'
         ? t('inventory.warnPack', { count: w.count, max: w.max })
-        : t('inventory.warnRelic', { name: w.name }),
+        : w.kind === 'relic'
+          ? t('inventory.warnRelic', { name: w.name })
+          : t(`inventory.warn.${w.kind}`, { count: w.count ?? 0 }),
   ),
 )
 
@@ -112,6 +114,12 @@ const selected = computed(() => allItems(props.campaign).find((l) => l.owned.id 
 watch(selected, (now) => {
   if (!now) selectedId.value = null
 })
+/** The Party Stash gives back during a Story Round only (p. 24): signalled, the GM decides. */
+const outOfStoryRound = computed(
+  () =>
+    selected.value?.place.owner === 'stash' &&
+    (!!props.encounter || !props.campaign.storyRound || props.campaign.storyRound.phase === 'sideQuest'),
+)
 /** The card still to draw that the search is choosing a card for. */
 const replacing = ref<OwnedItem | null>(null)
 watch(
@@ -232,6 +240,9 @@ function isSelected(owned: OwnedItem, place: Place) {
           @draw="replacing = selected.owned"
           @close="selectedId = null"
         />
+        <p v-if="selected && !replacing && outOfStoryRound" class="stash-warning" role="status">
+          <i class="pi pi-exclamation-triangle" aria-hidden="true" /> {{ t('inventory.stashOutside') }}
+        </p>
         <div v-if="store && !(selected && !replacing)" class="store-switch">
           <Button
             :label="t('storyRound.storeOnly', { n: store.length })"

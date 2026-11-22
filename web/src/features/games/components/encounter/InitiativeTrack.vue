@@ -38,7 +38,7 @@ const thumbnail = useThumbnailWidth()
 /** An ally is played by the phone of the adventurer who brought it. */
 function seatOf(id: string) {
   const name = id.startsWith('adventurer:')
-    ? id.slice('adventurer:'.length)
+    ? id.slice('adventurer:'.length).split('#')[0]
     : props.encounter.allies?.find((a) => !a.defeated && a.trackCard === id)?.owner
   return name ? props.heldBy?.[name] : undefined
 }

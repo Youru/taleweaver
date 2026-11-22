@@ -35,6 +35,8 @@ export interface Fighter {
   id: string
   name: string
   kind: 'combatant' | 'adventurer'
+  /** Whose side: "adventurer", "combatant", or another camp. */
+  side: string
   /** Dice by colour; "*" when the card leaves it to another card. */
   pool: string[]
   defense: number | null
@@ -67,6 +69,9 @@ export type Equipment = Record<
   AdventurerSheet & { pierce: number; reminders: Reminder[]; items: string[]; variableDefense: string[] }
 >
 
+/** A combatant's side (play-spec A13). */
+export const sideOf = (c: { side?: string | null }) => (c.side === 'players' ? 'adventurer' : (c.side ?? 'combatant'))
+
 const numberOrNull = (value: number | string | undefined) => (typeof value === 'number' ? value : null)
 
 /** Every figure still in the encounter: the combatants, then the adventurers. */
@@ -85,16 +90,24 @@ export function fighters(
     .map((c): Fighter => {
       const card = cards.get(c.card)
       const stats = card?.stats
-      const abilities = symbolAbilities(card?.symbolAbilities, language)
+      // An opposing Esper uses its summoner's when they are better (p. 76): both are shown
+      const summoner = encounter.combatants.find((s) => s.instance === c.summoner)
+      const abilities = [
+        ...symbolAbilities(card?.symbolAbilities, language),
+        ...symbolAbilities(summoner ? cards.get(summoner.card)?.symbolAbilities : undefined, language),
+      ]
+      const named = pick(card?.name ?? c.name, language)
+      const casting = c.stats?.castingDie
       return {
         id: c.instance,
-        name: card ? `${c.instance} · ${pick(card.name, language)}` : c.instance,
+        name: named ? `${c.instance} · ${named}` : c.instance,
         kind: 'combatant',
-        pool: stats?.combatDice ?? [],
-        defense: numberOrNull(stats?.defense),
-        armor: numberOrNull(stats?.armor),
-        conviction: stats?.convictionDice ?? [],
-        casting: stats?.castingDie ?? null,
+        side: sideOf(c),
+        pool: c.stats?.combatDice ?? stats?.combatDice ?? [],
+        defense: c.stats?.defense ?? numberOrNull(stats?.defense),
+        armor: c.stats?.armor ?? numberOrNull(stats?.armor),
+        conviction: c.stats?.convictionDice ?? stats?.convictionDice ?? [],
+        casting: (Array.isArray(casting) ? casting[0] : casting) ?? stats?.castingDie ?? null,
         abilities,
         reminders: [
           ...(card?.passives ?? []).map((p) => ({ name: pick(p.name, language), text: pick(p.text, language) })),
@@ -116,6 +129,7 @@ export function fighters(
       id: `adventurer:${a.name}`,
       name: a.name,
       kind: 'adventurer',
+      side: 'adventurer',
       pool: sheet.pool,
       defense: sheet.defense,
       armor: sheet.armor,
@@ -145,6 +159,7 @@ export function fighters(
         id,
         name,
         kind: 'adventurer',
+        side: 'adventurer',
         pool: sheet.pool,
         defense: sheet.defense,
         armor: sheet.armor,

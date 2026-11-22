@@ -14,6 +14,7 @@ import type {
 
 const games = '/api/games'
 const e = encodeURIComponent
+const by = (author?: string | null) => (author ? `?author=${e(author)}` : '')
 
 export const gamesApi = {
   list: (signal?: AbortSignal) => http<GameSummary[]>(games, { signal }),
@@ -29,6 +30,7 @@ export const gamesApi = {
   undo: (id: string) => http<GameView>(`${games}/${e(id)}/undo`, { method: 'POST' }),
   encounter: (id: string, command: EncounterCommand) => {
     const base = `${games}/${e(id)}/encounter`
+    const play = `${games}/${e(id)}/play`
     switch (command.type) {
       case 'nextTurn':
         return http<GameView>(`${base}/next-turn`, { method: 'POST' })
@@ -40,7 +42,12 @@ export const gamesApi = {
       case 'damage':
         return http<GameView>(`${base}/combatants/${e(command.instance)}/damage`, {
           method: 'POST',
-          body: { amount: command.amount, fromOpponent: command.fromOpponent, tokens: command.tokens },
+          body: {
+            amount: command.amount,
+            fromOpponent: command.fromOpponent,
+            tokens: command.tokens,
+            author: command.author ?? undefined,
+          },
         })
       case 'effect':
         return http<GameView>(`${base}/combatants/${e(command.instance)}/effects`, {
@@ -48,11 +55,60 @@ export const gamesApi = {
           body: { effect: command.effect, active: command.active },
         })
       case 'defeat':
-        return http<GameView>(`${base}/combatants/${e(command.instance)}/defeat`, { method: 'POST' })
+        return http<GameView>(`${base}/combatants/${e(command.instance)}/defeat${by(command.author)}`, { method: 'POST' })
+      case 'target':
+        return http<GameView>(`${base}/combatants/${e(command.instance)}/target`, { method: 'POST' })
       case 'activateToken':
-        return http<GameView>(`${base}/tokens/${e(command.token)}/activation`, { method: 'POST' })
+        return http<GameView>(`${base}/tokens/${e(command.token)}/activation${by(command.author)}`, { method: 'POST' })
       case 'endCondition':
-        return http<GameView>(`${base}/end-conditions/${e(command.endCondition)}`, { method: 'POST' })
+        return http<GameView>(`${base}/end-conditions/${e(command.endCondition)}${by(command.author)}`, { method: 'POST' })
+      case 'spend':
+        return http<GameView>(`${play}/actions`, {
+          method: 'POST',
+          body: { figure: command.figure, action: command.action },
+        })
+      case 'react':
+        return http<GameView>(`${play}/reactions`, {
+          method: 'POST',
+          body: { figure: command.figure, kind: command.kind, against: command.against },
+        })
+      case 'endReaction':
+        return http<GameView>(`${play}/reactions/current`, { method: 'DELETE' })
+      case 'noInstruction':
+        return http<GameView>(`${play}/no-instruction`, { method: 'POST' })
+      case 'card':
+        return http<GameView>(`${play}/cards`, {
+          method: 'PUT',
+          body: { figure: command.figure, card: command.card, mark: command.mark, value: command.value },
+        })
+      case 'abilityToken':
+        return http<GameView>(`${play}/ability-tokens`, {
+          method: 'PUT',
+          body: { figure: command.figure, token: command.token, value: command.value },
+        })
+      case 'tether':
+        return http<GameView>(`${play}/tethers`, {
+          method: 'PUT',
+          body: { figure: command.figure, target: command.target },
+        })
+      case 'flipToken':
+        return http<GameView>(`${play}/tokens/${e(command.token)}/flip`, { method: 'POST' })
+      case 'reequipped':
+        return http<GameView>(`${play}/reequips/${e(command.adventurer)}`, { method: 'POST' })
+      case 'carry':
+        return http<GameView>(`${play}/carried/${e(command.id)}`, {
+          method: 'PUT',
+          body: { figure: command.figure, lost: command.lost ?? false },
+        })
+      case 'counter':
+        return http<GameView>(`${play}/counters/${e(command.id)}`, { method: 'POST', body: { by: command.by } })
+      case 'deal':
+        return http<GameView>(`${play}/initiative/deal`, { method: 'POST' })
+      case 'summonEsper':
+        return http<GameView>(`${play}/espers`, {
+          method: 'POST',
+          body: { card: command.card, summoner: command.summoner },
+        })
       case 'move':
         return http<GameView>(`${base}/figures/${e(command.figure)}/position`, { method: 'PUT', body: command.to })
       case 'revealArea':

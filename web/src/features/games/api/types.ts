@@ -12,6 +12,8 @@ export interface GameView {
   createdAt: string
   updatedAt: string
   canUndo: boolean
+  /** What is left to undo predates an update of the app */
+  undoBlocked: boolean
   state: GameState
 }
 
@@ -98,6 +100,36 @@ export interface CampaignState {
     name?: LocalizedText | null
   }[]
   freeRespecs?: string[]
+  /** Who may Re-Equip for free now. */
+  freeReequip?: string[]
+  counters?: Counter[]
+  carried?: CarriedThing[]
+  variables?: Record<string, unknown>
+}
+
+export interface Counter {
+  id: string
+  name?: LocalizedText | null
+  value: number
+  on?: string | null
+}
+
+export interface CarriedThing {
+  id: string
+  name?: LocalizedText | null
+  carrier?: string | null
+  position?: Cell | null
+  lost?: boolean
+}
+
+export interface FigureStats {
+  health?: number | null
+  defense?: number | null
+  armor?: number | null
+  movement?: number | null
+  combatDice?: string[] | null
+  convictionDice?: string[] | null
+  castingDie?: string | string[] | null
 }
 
 export interface StoryRoundState {
@@ -126,6 +158,11 @@ export interface AdventurerState {
   staminaRecovery?: number
   staminaMax?: number
   summonTokens?: number
+  /** Cards other than items, by catalogue id. */
+  exhaustedCards?: string[]
+  usedCards?: string[]
+  flippedCards?: string[]
+  abilityTokens?: Record<string, number> | null
   /** Conduit cards earned, and the one in the place of the Adventurer Card (rulebook p. 77). */
   conduits?: string[]
   conduitForm?: string | null
@@ -143,6 +180,8 @@ export interface OwnedItem {
   /** itemLoot, monsterLoot, uniqueLoot, scenario, gm. */
   source?: string | null
   flipped: boolean
+  exhausted?: boolean
+  used?: boolean
   /** Item Upgrades attached (catalogue ids). */
   upgrades?: string[]
 }
@@ -183,6 +222,16 @@ export interface EncounterState {
   adventurers: AdventurerFigure[]
   activeEndConditions: string[]
   activation?: { initiativeCard: string; figures: string[]; step: number }
+  /** Who lost a turn to Paralyze: immune until the end of the encounter. */
+  paralyzeImmune?: string[]
+  /** The reactions under way: the turn waits. */
+  reactions?: { kind: string; figure: string; against?: string | null }[]
+  /** An AI step may still prove impossible. */
+  lastStep?: object | null
+  tethers?: Record<string, string> | null
+  trackDealt?: boolean
+  participants?: string[] | null
+  delayed?: { id: string; round: number; at: 'start' | 'end'; text?: LocalizedText | null }[]
 }
 
 export interface CombatantState {
@@ -199,7 +248,23 @@ export interface CombatantState {
   /** Maximum HP when an option changes the card's. */
   health?: number | null
   aggro: boolean
+  /** Targeted since its last turn. */
+  attacked?: boolean
   defeated: boolean
+  abilityTokens?: Record<string, number> | null
+  /** The name of a figure the scenario describes. */
+  name?: LocalizedText | null
+  /** Numbers in the place of the card's. */
+  stats?: FigureStats | null
+  /** "players", or another camp; none: the opponents. */
+  side?: string | null
+  addedTags?: string[]
+  removedTags?: string[]
+  skippedSteps?: number[]
+  asleep?: boolean
+  untargetable?: boolean
+  summoner?: string | null
+  force?: number | null
 }
 
 export type PromptKind =
@@ -212,12 +277,21 @@ export type PromptKind =
   | 'adventurer'
   | 'storyRound'
   | 'abraxis'
+  | 'activeGroup'
+  | 'arrival'
+  | 'status'
 
 export interface Prompt {
   kind: PromptKind
   question?: LocalizedText
   options: { id: string; label?: LocalizedText }[]
   instance?: string
+  /** Who decides: the GM types their answer. */
+  decider?: string | null
+  max?: number | null
+  testers?: { name: string; skills: Record<string, number> }[] | null
+  checks?: { skill?: string | null; difficulty?: number | null }[] | null
+  action?: { effects?: string[] | null } | null
 }
 
 export interface LogEntry {
@@ -249,6 +323,9 @@ export type PartyCommand =
 export type Answer =
   | { option: string; value?: undefined }
   | { value: number; option?: undefined }
+  /** A total rolled for a skill ("total-0") by `instance`, or the Damage of Poison ("apply"). */
+  | { option: string; value: number; instance?: string }
+  | { adventurers: string[]; option?: undefined; value?: undefined }
   /** A round of Abraxis: each player's symbols extra or missing, `value` the points everyone loses. */
   | { misses: number[]; value: number; option?: undefined }
 
@@ -256,7 +333,7 @@ export type Answer =
 export type EncounterCommand =
   | { type: 'nextTurn' }
   /** fromOpponent, tokens: a Loyal Esper's Damage (its summoner takes it too; Summon tokens discarded). */
-  | { type: 'damage'; instance: string; amount: number; fromOpponent?: boolean; tokens?: number }
+  | { type: 'damage'; instance: string; amount: number; fromOpponent?: boolean; tokens?: number; author?: string | null }
   | { type: 'summon'; adventurer: string; card: string }
   | { type: 'addAlly'; card: string; owner?: string }
   | { type: 'dismissAlly'; ally: string; ignoreDamage?: boolean }
@@ -264,9 +341,25 @@ export type EncounterCommand =
   /** No card: the Adventurer Card again. */
   | { type: 'conduitForm'; adventurer: string; card?: string }
   | { type: 'effect'; instance: string; effect: string; active: boolean }
-  | { type: 'defeat'; instance: string }
-  | { type: 'activateToken'; token: string }
-  | { type: 'endCondition'; endCondition: string }
+  | { type: 'defeat'; instance: string; author?: string | null }
+  | { type: 'target'; instance: string }
+  | { type: 'activateToken'; token: string; author?: string | null }
+  | { type: 'endCondition'; endCondition: string; author?: string | null }
+  | { type: 'spend'; figure: string; action: string }
+  | { type: 'react'; figure: string; kind: string; against?: string }
+  | { type: 'endReaction' }
+  | { type: 'noInstruction' }
+  | { type: 'card'; figure: string; card: string; mark: 'exhausted' | 'used' | 'flipped'; value: boolean }
+  | { type: 'abilityToken'; figure: string; token: string; value: number }
+  /** No target: the Tether removed. */
+  | { type: 'tether'; figure: string; target?: string }
+  | { type: 'flipToken'; token: string }
+  | { type: 'reequipped'; adventurer: string }
+  /** No figure: put down. */
+  | { type: 'carry'; id: string; figure?: string; lost?: boolean }
+  | { type: 'counter'; id: string; by: number }
+  | { type: 'deal' }
+  | { type: 'summonEsper'; card: string; summoner: string }
   /** figure: a combatant's instance, or "adventurer:<name>". */
   | { type: 'move'; figure: string; to: Cell }
   | { type: 'revealArea'; area: string }
@@ -298,6 +391,7 @@ export interface BoardToken {
   /** Squares covered, when the scenario gives them. */
   area?: Rect
   removed: boolean
+  flipped?: boolean
 }
 
 export interface AdventurerFigure {

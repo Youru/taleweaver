@@ -8,10 +8,13 @@ using Taleweaver.Api.Storage;
 namespace Taleweaver.Api.Features.Games;
 
 /// <summary>Current state of a game, as returned by every game and encounter command.</summary>
-public sealed record GameView(string Id, string Scenario, IReadOnlyList<string> Party, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt, bool CanUndo, GameState State)
+public sealed record GameView(string Id, string Scenario, IReadOnlyList<string> Party, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt, bool CanUndo, bool UndoBlocked, GameState State)
 {
     public static GameView Of(Game game) =>
-        new(game.Id, game.Scenario, PartyOf(game), game.CreatedAt, game.UpdatedAt, game.Commands.Count > 0, game.State);
+        new(game.Id, game.Scenario, PartyOf(game), game.CreatedAt, game.UpdatedAt,
+            game.Commands.Count > (game.Baseline?.CommandCount ?? 0),
+            game.Baseline is { CommandCount: > 0 } baseline && game.Commands.Count <= baseline.CommandCount,
+            game.State);
 
     /// <summary>A prepared game started without names: its party is in the state.</summary>
     public static IReadOnlyList<string> PartyOf(Game game) =>
@@ -50,8 +53,13 @@ public sealed class GameRunner(IGameStore games, IContentStore content, CatalogP
         }
     }
 
+    /// <summary>How many entered nodes are kept: each is a whole state in the saved file.</summary>
+    private const int KeptCheckpoints = 5;
+
     public static class Errors
     {
+        public static readonly Error UndoBlocked = Error.Conflict("Games.UndoBlocked", "The app was updated since: what came before cannot be undone.");
+
         public static Error NotFound(string id) => Error.NotFound("Games.NotFound", $"No game '{id}'.");
 
         public static Error ScenarioNotFound(string id) => Error.NotFound("Games.ScenarioNotFound", $"No scenario '{id}'.");
@@ -73,6 +81,7 @@ public sealed class GameRunner(IGameStore games, IContentStore content, CatalogP
         }
 
         var now = time.GetUtcNow();
+        var state = GameEngine.Start(context.Value, party);
         var game = new Game
         {
             Id = Guid.NewGuid().ToString("N"),
@@ -84,15 +93,16 @@ public sealed class GameRunner(IGameStore games, IContentStore content, CatalogP
             CreatedAt = now,
             UpdatedAt = now,
             EngineVersion = GameEngine.Version,
-            State = GameEngine.Start(context.Value, party),
+            State = state,
+            EncounterStart = state.Encounter is { Ended: false } ? new Checkpoint(0, GameEngine.Version, state) : null,
         };
         await games.SaveAsync(game, cancellationToken);
         return game;
     }
 
     /// <summary>
-    /// A saved game, brought up to date: a state computed by an older engine is rebuilt from the history.
-    /// If the history no longer applies (scenario changed since), the saved state is kept as it is.
+    /// A saved game. A state computed by an older engine is kept as it is and becomes the baseline of the game.
+    /// Nothing is written: the next change saves it, one at a time with the others.
     /// </summary>
     public async Task<Result<Game>> LoadAsync(string id, CancellationToken cancellationToken)
     {
@@ -101,14 +111,17 @@ public sealed class GameRunner(IGameStore games, IContentStore content, CatalogP
             return Errors.NotFound(id);
         }
 
-        if (game.EngineVersion >= GameEngine.Version)
-        {
-            return game;
-        }
-
-        var replayed = await ReplayAsync(game, cancellationToken, touch: false);
-        return replayed.IsSuccess ? replayed.Value : game;
+        return Upgrade(game);
     }
+
+    private static Game Upgrade(Game game) => game.EngineVersion >= GameEngine.Version
+        ? game
+        : game with
+        {
+            EngineVersion = GameEngine.Version,
+            Baseline = new Checkpoint(game.Commands.Count, game.EngineVersion, game.State),
+            Checkpoints = [],
+        };
 
     public Task<Result<Game>> ExecuteAsync(string id, GameCommand command, CancellationToken cancellationToken) =>
         OneAtATimeAsync(id, () => ApplyAsync(id, command, cancellationToken), cancellationToken);
@@ -134,7 +147,18 @@ public sealed class GameRunner(IGameStore games, IContentStore content, CatalogP
             return state.Error!;
         }
 
-        return await SaveAsync(game with { Commands = [.. game.Commands, command], State = state.Value }, cancellationToken);
+        var changed = game with { Commands = [.. game.Commands, command], State = state.Value };
+        if (state.Value.Campaign.VisitedNodes.Count > game.State.Campaign.VisitedNodes.Count)
+        {
+            var entered = new Checkpoint(changed.Commands.Count, GameEngine.Version, state.Value);
+            changed = changed with
+            {
+                Checkpoints = game.Checkpoints.Append(entered).TakeLast(KeptCheckpoints).ToList(),
+                EncounterStart = state.Value.Encounter is { Ended: false } ? entered : game.EncounterStart,
+            };
+        }
+
+        return await SaveAsync(changed, cancellationToken);
     }
 
     /// <summary>Would the command apply now? Nothing is saved (a player's request is checked when it is made).</summary>
@@ -162,35 +186,56 @@ public sealed class GameRunner(IGameStore games, IContentStore content, CatalogP
 
     private async Task<Result<Game>> ReplayWithoutLastAsync(string id, CancellationToken cancellationToken)
     {
-        if (await games.GetAsync(id, cancellationToken) is not { } game)
+        var loaded = await LoadAsync(id, cancellationToken);
+        if (!loaded.IsSuccess)
         {
-            return Errors.NotFound(id);
+            return loaded.Error!;
         }
 
+        var game = loaded.Value;
         if (game.Commands.Count == 0)
         {
             return Errors.NothingToUndo;
         }
 
+        if (game.Commands.Count <= game.Baseline?.CommandCount)
+        {
+            return Errors.UndoBlocked;
+        }
+
         return await ReplayAsync(game with { Commands = game.Commands.Take(game.Commands.Count - 1).ToList() }, cancellationToken);
     }
 
-    /// <summary>Rebuilds the state from the history (import of an exported game, undo).</summary>
-    public async Task<Result<Game>> ReplayAsync(Game game, CancellationToken cancellationToken, bool touch = true)
+    /// <summary>An exported game under a new id: one of an older engine keeps the state it was exported with.</summary>
+    public Task<Result<Game>> ImportAsync(Game game, CancellationToken cancellationToken) =>
+        ReplayAsync(Upgrade(game) with { Id = Guid.NewGuid().ToString("N") }, cancellationToken);
+
+    /// <summary>Rebuilds the state from the last checkpoint the history still holds, or from the start without one.</summary>
+    private async Task<Result<Game>> ReplayAsync(Game game, CancellationToken cancellationToken)
     {
+        var count = game.Commands.Count;
+        game = game with
+        {
+            Checkpoints = game.Checkpoints.Where(c => c.CommandCount <= count).ToList(),
+            EncounterStart = game.EncounterStart?.CommandCount <= count ? game.EncounterStart : null,
+        };
+        var from = game.Checkpoints.LastOrDefault() ?? game.Baseline;
+
         var context = await ContextAsync(game.Scenario, game.Seed, game.Options, cancellationToken);
         if (!context.IsSuccess)
         {
             return context.Error!;
         }
 
-        var state = GameEngine.Replay(context.Value, game.Party, game.Commands);
+        var state = from is null
+            ? GameEngine.Replay(context.Value, game.Party, game.Commands)
+            : GameEngine.Replay(context.Value, from.State, game.Commands.Skip(from.CommandCount));
         if (!state.IsSuccess)
         {
             return state.Error!;
         }
 
-        return await SaveAsync(game with { State = state.Value }, cancellationToken, touch);
+        return await SaveAsync(game with { State = state.Value }, cancellationToken);
     }
 
     /// <summary>
@@ -218,11 +263,25 @@ public sealed class GameRunner(IGameStore games, IContentStore content, CatalogP
             if (game.Party.Count == 0 && departure >= 0)
             {
                 var now = time.GetUtcNow();
-                var again = game with { Id = Guid.NewGuid().ToString("N"), Seed = Random.Shared.Next(), CreatedAt = now, Commands = game.Commands.Take(departure + 1).ToList() };
+                var again = game with { Id = Guid.NewGuid().ToString("N"), Seed = Random.Shared.Next(), CreatedAt = now, Commands = game.Commands.Take(departure + 1).ToList(), Baseline = null, Checkpoints = [], EncounterStart = null };
                 return await ReplayAsync(again, cancellationToken);
             }
 
             return await StartAsync(game.Scenario, game.Party, game.Options, cancellationToken);
+        }
+
+        if (game.EncounterStart is { } start)
+        {
+            // Entered before an update: that state is where the new game's history begins to be replayable
+            var resumed = game with
+            {
+                Id = Guid.NewGuid().ToString("N"),
+                CreatedAt = time.GetUtcNow(),
+                Commands = game.Commands.Take(start.CommandCount).ToList(),
+                Checkpoints = game.Checkpoints.Where(c => c.CommandCount < start.CommandCount).Append(start).ToList(),
+                Baseline = start.CommandCount <= game.Baseline?.CommandCount ? start : game.Baseline,
+            };
+            return await ReplayAsync(resumed, cancellationToken);
         }
 
         var context = await ContextAsync(game.Scenario, game.Seed, game.Options, cancellationToken);
@@ -231,6 +290,7 @@ public sealed class GameRunner(IGameStore games, IContentStore content, CatalogP
             return context.Error!;
         }
 
+        // No such checkpoint (a game saved before they existed): found again in the history
         var state = GameEngine.Start(context.Value, game.Party);
         var visits = 0;
         var entered = -1;
@@ -261,13 +321,13 @@ public sealed class GameRunner(IGameStore games, IContentStore content, CatalogP
             return Errors.NoEncounterPlayed;
         }
 
-        var copy = game with { Id = Guid.NewGuid().ToString("N"), CreatedAt = time.GetUtcNow(), Commands = game.Commands.Take(entered).ToList() };
+        var copy = game with { Id = Guid.NewGuid().ToString("N"), CreatedAt = time.GetUtcNow(), Commands = game.Commands.Take(entered).ToList(), Baseline = null, Checkpoints = [], EncounterStart = null };
         return await ReplayAsync(copy, cancellationToken);
     }
 
-    private async Task<Game> SaveAsync(Game game, CancellationToken cancellationToken, bool touch = true)
+    private async Task<Game> SaveAsync(Game game, CancellationToken cancellationToken)
     {
-        var saved = game with { EngineVersion = GameEngine.Version, UpdatedAt = touch ? time.GetUtcNow() : game.UpdatedAt };
+        var saved = game with { EngineVersion = GameEngine.Version, UpdatedAt = time.GetUtcNow() };
         await games.SaveAsync(saved, cancellationToken);
         foreach (var observer in observers)
         {

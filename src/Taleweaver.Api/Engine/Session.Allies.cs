@@ -107,7 +107,7 @@ internal sealed partial class Session
             }
             else if (fromSetup && State.Campaign.AllyConditions.TryGetValue(ally.Id, out var before))
             {
-                var half = (ally.Health ?? 0) / 2;
+                var half = HalfRoundedUp(ally.Health ?? 0);
                 ally.Damage = before.Defeated || before.Damage > half ? half : before.Damage;
             }
 
@@ -186,6 +186,7 @@ internal sealed partial class Session
 
     private void DefeatAlly(AllyState ally)
     {
+        DropCarriedBy(AllyPrefix + ally.Id, ally.Position);
         LeaveBoard(ally);
         Log("allyDefeated", args: Args(("ally", NameOf(ally))));
         // Only an event that names this ally: a family's is about the opponents
@@ -194,7 +195,9 @@ internal sealed partial class Session
 
     private void LeaveBoard(AllyState ally)
     {
+        CutTethers(AllyPrefix + ally.Id);
         ally.Defeated = true;
+        ally.AbilityTokens = null;
         ally.Position = null;
         ally.Effects.Clear();
         if (LivingAllies().All(a => a.TrackCard != ally.TrackCard))
@@ -240,6 +243,7 @@ internal sealed partial class Session
     {
         if (State.Encounter is { } encounter)
         {
+            State.Campaign.LootDrawn = [.. encounter.LootDrawn];
             foreach (var ally in encounter.Allies)
             {
                 if (ally.Esper && ally.Owner is not null)
@@ -255,6 +259,13 @@ internal sealed partial class Session
                     State.Campaign.AllyConditions[ally.Id] = new AllyCondition(ally.Damage, ally.Defeated);
                 }
             }
+        }
+
+        if (State.Encounter is { } left)
+        {
+            KeepBoard(left);
+            LeaveCarriedBehind();
+            State.Campaign.Counters.RemoveAll(c => !c.Keep);
         }
 
         State.Encounter = null;

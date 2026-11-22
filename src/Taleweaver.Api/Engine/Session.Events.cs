@@ -31,7 +31,7 @@ internal sealed partial class Session
             actions.AddRange(ev.Actions);
         }
 
-        Push(actions);
+        Push(WithAuthor(actions));
     }
 
     /// <summary>
@@ -70,7 +70,7 @@ internal sealed partial class Session
             return false;
         }
 
-        if (condition.EndConditionActive is { } end && !Encounter.ActiveEndConditions.Contains(end))
+        if (condition.EndConditionActive is { } end && State.Encounter?.ActiveEndConditions.Contains(end) != true)
         {
             return false;
         }
@@ -82,18 +82,25 @@ internal sealed partial class Session
     private JsonElement? Variable(string name)
     {
         var (prefix, rest) = name.IndexOf('.') is var dot and > 0 ? (name[..dot], name[(dot + 1)..]) : (name, "");
+        // Read between encounters too (Story Round exits): what only an encounter has is then 0 or false
+        var encounter = State.Encounter;
         object? value = prefix switch
         {
-            "round" => Encounter.Round,
-            "urgency" => Encounter.Urgency,
+            "round" => encounter?.Round ?? 0,
+            "urgency" => encounter?.Urgency ?? 0,
             "gold" => State.Campaign.Gold,
-            "placed" => Encounter.PlacedDiagrams.Contains(rest),
-            "activated" => Encounter.ActivatedTokens.Contains(rest),
+            "counter" => State.Campaign.Counters.FirstOrDefault(c => c.Id == rest)?.Value ?? 0,
+            "carried" => State.Campaign.Carried.Any(c => c.Id == rest && c.Carrier is not null),
+            "lost" => State.Campaign.Carried.Any(c => c.Id == rest && c.Lost),
+            "placed" => encounter?.PlacedDiagrams.Contains(rest) == true,
+            "activated" => encounter?.ActivatedTokens.Contains(rest) == true,
             "hiddenCard" => State.Campaign.RevealedHiddenCards.Contains(rest),
-            "revealed" => Encounter.RevealedAreas.Contains(rest),
+            "revealed" => encounter?.RevealedAreas.Contains(rest) == true,
+            "defeated" or "alive" when encounter is null => 0,
             "defeated" => Encounter.Combatants.Count(c => c.Defeated && (c.Family == rest || BaseFamilyOf(c) == rest)),
             // Those still under the fog are left to defeat: "none alive" is not true before they appeared
-            "alive" => Alive().Count(c => c.Family == rest || BaseFamilyOf(c) == rest) + Encounter.Waiting.Count(w => FamilyToCome(w.Action) == rest),
+            "alive" when rest.StartsWith("side:", StringComparison.Ordinal) => CountOfSide(rest["side:".Length..]),
+            "alive" => Alive().Count(c => IsOpponent(c) && (c.Family == rest || BaseFamilyOf(c) == rest)) + Encounter.Waiting.Count(w => FamilyToCome(w.Action) == rest),
             _ => null,
         };
         if (value is not null)
@@ -103,6 +110,9 @@ internal sealed partial class Session
 
         return State.Campaign.Variables.TryGetValue(name, out var stored) ? stored : null;
     }
+
+    private int CountOfSide(string side) =>
+        Alive().Count(c => SideOf(c) == side) + Encounter.Waiting.Count(w => (ExtraString(w.Action, "side") ?? EnemiesSide) == side);
 
     private string? FamilyToCome(ScenarioAction action) =>
         action.Family ?? (action.Ref is { } id && Catalog.FindCombatant(id) is { } card && !AllyRules.IsCommand(card) ? card.Family : null);

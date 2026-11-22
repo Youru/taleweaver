@@ -2,7 +2,7 @@ namespace Taleweaver.Api.Engine;
 
 /// <summary>
 /// A saved game: how it started (scenario, party, seed) and every command since, plus the resulting state.
-/// The state can always be rebuilt from the rest; it is kept to load the game without replaying it.
+/// The saved state is the reference: it is never recomputed by a newer engine, the history is replayed from a checkpoint only.
 /// </summary>
 public sealed record Game
 {
@@ -31,4 +31,16 @@ public sealed record Game
     public IReadOnlyList<GameCommand> Commands { get; init; } = [];
 
     public required GameState State { get; init; }
+
+    /// <summary>The state found by a newer engine: the history before it is never replayed, nor undone.</summary>
+    public Checkpoint? Baseline { get; init; }
+
+    /// <summary>The last nodes entered: undo replays from them, whatever changed in the content before.</summary>
+    public IReadOnlyList<Checkpoint> Checkpoints { get; init; } = [];
+
+    /// <summary>The state on entering the last encounter, to play it again after an Ending.</summary>
+    public Checkpoint? EncounterStart { get; init; }
 }
+
+/// <summary>The state of a game after its first <see cref="CommandCount"/> commands.</summary>
+public sealed record Checkpoint(int CommandCount, int EngineVersion, GameState State);

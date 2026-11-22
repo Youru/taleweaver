@@ -8,6 +8,13 @@ namespace Taleweaver.Api.Engine;
 /// </summary>
 public sealed class AllyState
 {
+    /// <summary>Its Abilities Exhausted, or Used this encounter.</summary>
+    public List<string> ExhaustedCards { get; set; } = [];
+
+    public List<string> UsedCards { get; set; } = [];
+
+    public Dictionary<string, int>? AbilityTokens { get; set; }
+
     /// <summary>Unique in the encounter ("zulfiqar"); its figure is "ally:&lt;id&gt;".</summary>
     public required string Id { get; set; }
 

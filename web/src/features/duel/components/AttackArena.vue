@@ -36,7 +36,10 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{
   apply: [instance: string, amount: number]
+  /** Targeted without Damage: it counts for Aggro. */
+  targeted: [instance: string]
   remember: [fighter: Fighter, patch: Partial<AdventurerSheet>]
+  spend: [figure: Fighter, action: string]
 }>()
 
 const { t } = useI18n()
@@ -147,11 +150,35 @@ function newRoll() {
   dodgeFace.value = null
   typedRoll.value = null
   applied.value = false
+  paid.value = false
+}
+
+/** Dodge and a paid Empower of this roll, and whether they are counted. */
+const paid = ref(false)
+const costs = computed(() => [
+  ...(empower.value && !alwaysEmpowered.value && props.attacker.kind === 'adventurer'
+    ? [{ figure: props.attacker, action: 'empower' }]
+    : []),
+  ...(dodge.value && !mods.value.noDodge && props.target.kind === 'adventurer'
+    ? [{ figure: props.target, action: 'dodge' }]
+    : []),
+])
+function pay() {
+  if (paid.value) return
+  costs.value.forEach(({ figure, action }) => emit('spend', figure, action))
+  paid.value = true
 }
 
 function apply() {
   if (!outcome.value) return
+  pay()
   emit('apply', props.target.id, outcome.value.final)
+  applied.value = true
+}
+
+function markTargeted() {
+  pay()
+  emit('targeted', props.target.id)
   applied.value = true
 }
 
@@ -271,15 +298,24 @@ function costIcons(ability: SymbolAbility): SymbolName[] {
           <li v-if="outcome.hit" class="note">{{ t('duel.difference', { n: outcome.difference }) }}</li>
         </ol>
         <div class="actions">
-          <template v-if="target.kind === 'combatant' && outcome.final > 0">
+          <template v-if="target.kind === 'combatant' && (outcome.final > 0 || attacker.kind !== 'combatant')">
             <Button
-              v-if="!applied"
+              v-if="!applied && outcome.final === 0"
+              :label="t('duel.targeted')"
+              icon="pi pi-check"
+              :disabled="locked"
+              @click="markTargeted"
+            />
+            <Button
+              v-else-if="!applied"
               :label="t('duel.apply', { n: outcome.final, name: target.id })"
               icon="pi pi-check"
               :disabled="locked"
               @click="apply"
             />
-            <span v-else class="done"><i class="pi pi-check" /> {{ t('duel.applied') }}</span>
+            <span v-else class="done"
+              ><i class="pi pi-check" /> {{ t(outcome.final > 0 ? 'duel.applied' : 'duel.noted') }}</span
+            >
           </template>
           <span v-else-if="outcome.final > 0">{{
             t('duel.adventurerTakes', { n: outcome.final, name: target.name })

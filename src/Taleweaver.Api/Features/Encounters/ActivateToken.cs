@@ -9,7 +9,7 @@ public static class ActivateToken
 {
     public static void Map(RouteGroupBuilder group) =>
         group.MapPost("/tokens/{token}/activation", async Task<Results<Ok<GameView>, ProblemHttpResult>> (
-                string id, string token, GameRunner runner, CancellationToken cancellationToken) =>
-                (await runner.ExecuteAsync(id, GameCommand.ActivateToken(token), cancellationToken)).ToResponse())
+                string id, string token, string? author, GameRunner runner, CancellationToken cancellationToken) =>
+                (await runner.ExecuteAsync(id, GameCommand.ActivateToken(token) with { Author = author }, cancellationToken)).ToResponse())
             .WithName("ActivateToken");
 }
