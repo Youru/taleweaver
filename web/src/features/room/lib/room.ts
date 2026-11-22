@@ -17,6 +17,19 @@ export const CODE_LENGTH = 6
 /** A whole code: 6 letters, or the 4 of a room opened before 2026-11-21 and still open. */
 export const isCode = (code: string) => code.length === CODE_LENGTH || code.length === 4
 
+/** What the GM may leave to a seat without being asked (same list as the API). */
+export const trustable = [
+  'moveItem',
+  'flipItem',
+  'useItem',
+  'buyItem',
+  'attachUpgrade',
+  'learnDiscipline',
+  'damage',
+  'effect',
+  'allyDamage',
+] as const
+
 /** No 0/O/1/I/L in a room code. */
 export function normalizeCode(text: string): string {
   return text
@@ -72,7 +85,7 @@ export function turnOf(
   // An ally plays by the hand of who brought it
   const owner = (card: string | undefined) => {
     const name = card?.startsWith(ADVENTURER)
-      ? card.slice(ADVENTURER.length)
+      ? card.slice(ADVENTURER.length).split('#')[0]
       : encounter.allies?.find((a) => !a.defeated && a.trackCard === card)?.owner
     return name && mine.includes(name) ? name : undefined
   }
@@ -157,6 +170,13 @@ export function describeRequest(
       return { key: 'room.request.dismissAlly', args: { ally: allyName(command.ally) } }
     case 'allyDamage':
       return { key: 'room.request.allyDamage', args: { ally: allyName(command.ally), amount: String(command.amount) } }
+    case 'stamina':
+    case 'endTurn':
+    case 'mark':
+    case 'spendToken':
+      return { key: `room.request.${command.type}`, args: { adventurer: command.adventurer } }
+    case 'claim':
+      return { key: 'room.request.claim', args: { adventurer: command.adventurer, item: itemName(command.item) } }
     case 'learnDiscipline':
       return {
         key: 'room.request.learnDiscipline',
@@ -175,6 +195,26 @@ export function asGameCommand(command: PlayerCommand): GameCommand | null {
     case 'chooseAdventurer':
     case 'releaseAdventurer':
       return null
+    // The GM spends a token from the figure itself
+    case 'spendToken':
+      return null
+    case 'stamina':
+      return { kind: 'encounter', command: { type: 'stamina', adventurer: command.adventurer, value: command.amount } }
+    case 'endTurn':
+      return { kind: 'encounter', command: { type: 'nextTurn' } }
+    case 'mark':
+      return {
+        kind: 'encounter',
+        command: {
+          type: 'card',
+          figure: `adventurer:${command.adventurer}`,
+          card: command.card,
+          mark: command.effect,
+          value: command.active,
+        },
+      }
+    case 'claim':
+      return { kind: 'items', command: { type: 'move', id: command.item, owner: command.adventurer, slot: 'pack' } }
     case 'summon':
     case 'earnConduit':
     case 'conduitForm':

@@ -190,6 +190,11 @@ internal sealed partial class Session
             return ItemErrors.UnknownOwner(command.Owner);
         }
 
+        if (command.Option == "unassigned" && !ReferenceEquals(found.List, State.Campaign.Unassigned))
+        {
+            return Error.Conflict("Items.AlreadyHandedOut", $"'{command.Instance}' was handed out already.");
+        }
+
         if (ExchangeBarred(found.List, command.Owner))
         {
             return ItemErrors.NoExchange;

@@ -88,6 +88,19 @@ internal sealed partial class Session(GameState state, GameContext context)
                 return Reequipped(command.Instance);
         }
 
+        if (command.Type == GameCommands.Correct)
+        {
+            return command.Effect == Corrections.Spawn && State.Prompt is { Kind: not PromptKinds.AiCondition }
+                ? GameEngine.Errors.AwaitingAnswer
+                : Correct(command);
+        }
+
+        // A player ticks the SP spent whatever the GM is being asked
+        if (command.Type == GameCommands.SetStamina && !IsAlly(command.Instance))
+        {
+            return SetStamina(command.Instance, command.Value ?? 0);
+        }
+
         // An Achievement may only be known once the encounter is won: allowed until it is left.
         if (command.Type == GameCommands.CompleteAchievement && State.Encounter is { Ended: true })
         {
@@ -100,7 +113,6 @@ internal sealed partial class Session(GameState state, GameContext context)
             return command.Type switch
             {
                 GameCommands.Damage when IsAdventurer(command.Instance) => DamageAdventurer(command.Instance, command.Value ?? 0),
-                GameCommands.SetStamina => SetStamina(command.Instance, command.Value ?? 0),
                 _ => GameEngine.Errors.NotInEncounter,
             };
         }
@@ -115,6 +127,12 @@ internal sealed partial class Session(GameState state, GameContext context)
         if (command.Type == GameCommands.MoveInitiative)
         {
             return MoveInitiative(command.Card, command.Value ?? 0);
+        }
+
+        if (command.Type == GameCommands.NextTurn && command.Card is { } said
+            && (Encounter.InitiativeTrack.ElementAtOrDefault(Encounter.CurrentTurn) != said || Encounter.Round != command.Value))
+        {
+            return Error.Conflict("Encounters.TurnPassed", "That turn is over already.");
         }
 
         // While a figure goes through its AI steps, the GM may still report what happens on the board.
@@ -134,6 +152,9 @@ internal sealed partial class Session(GameState state, GameContext context)
         return command.Type switch
         {
             GameCommands.DealInitiative when reportsAllowed => DealCommand(),
+            GameCommands.Ready when reportsAllowed => Ready(),
+            GameCommands.Several when reportsAllowed => Several(command.Figures, command.Effect, command.Value ?? 0, command.Active ?? true),
+            GameCommands.Ready or GameCommands.Several => GameEngine.Errors.AwaitingAnswer,
             GameCommands.SummonEsper when reportsAllowed => SummonEsper(command.Card, command.Instance, command.To),
             GameCommands.DealInitiative or GameCommands.SummonEsper or GameCommands.Counter => GameEngine.Errors.AwaitingAnswer,
             GameCommands.Spend when reportsAllowed => Spend(command.Instance, command.Effect),
@@ -151,7 +172,6 @@ internal sealed partial class Session(GameState state, GameContext context)
             GameCommands.SetStamina when reportsAllowed && IsAlly(command.Instance) => SetAllyStamina(command.Instance, command.Value ?? 0),
             GameCommands.Damage when reportsAllowed && IsAdventurer(command.Instance) => Deal(command.Instance, command.Value ?? 0),
             GameCommands.Defeat when reportsAllowed && IsAdventurer(command.Instance) => DefeatAdventurerCommand(command.Instance),
-            GameCommands.SetStamina when reportsAllowed => SetStamina(command.Instance, command.Value ?? 0),
             GameCommands.Damage when reportsAllowed => Deal(command.Instance, command.Value ?? 0),
             GameCommands.SetEffect when reportsAllowed => SetEffect(command.Instance, command.Effect, command.Active ?? true),
             GameCommands.Defeat when reportsAllowed => Defeat(command.Instance),

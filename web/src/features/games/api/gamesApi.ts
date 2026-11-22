@@ -10,6 +10,7 @@ import type {
   HiddenCard,
   ItemCommand,
   PartyCommand,
+  TableCommand,
 } from './types'
 
 const games = '/api/games'
@@ -34,6 +35,12 @@ export const gamesApi = {
     switch (command.type) {
       case 'nextTurn':
         return http<GameView>(`${base}/next-turn`, { method: 'POST' })
+      case 'correct':
+        return http<GameView>(`${play}/corrections`, { method: 'POST', body: command })
+      case 'ready':
+        return http<GameView>(`${play}/ready`, { method: 'POST' })
+      case 'several':
+        return http<GameView>(`${play}/several`, { method: 'POST', body: command })
       case 'achievement':
         return http<GameView>(`${base}/achievements/${e(command.achievement)}`, {
           method: 'POST',
@@ -147,6 +154,27 @@ export const gamesApi = {
         return http<GameView>(`${games}/${e(id)}/party/${e(command.adventurer)}/stamina`, {
           method: 'PUT',
           body: { value: command.value },
+        })
+    }
+  },
+  table: (id: string, command: TableCommand) => {
+    const base = `${games}/${e(id)}/session`
+    switch (command.type) {
+      case 'note':
+        return http<GameView>(`${base}/notes`, {
+          method: 'POST',
+          body: { text: command.text, kind: command.kind, page: command.page },
+        })
+      case 'deleteNote':
+        return http<GameView>(`${base}/notes/${e(command.id)}`, { method: 'DELETE' })
+      case 'players':
+        return http<GameView>(`${base}/players`, { method: 'PUT', body: { players: command.players } })
+      case 'pause':
+        return http<GameView>(`${base}/pause`, { method: 'PUT', body: { paused: command.paused } })
+      case 'revert':
+        return http<GameView>(`${games}/${e(id)}/revert`, {
+          method: 'POST',
+          body: { actions: command.actions, outOf: command.outOf },
         })
     }
   },

@@ -29,6 +29,13 @@ test('a player chooses on their phone, the GM sets out', async ({ page, browser 
   await expect(page.getByRole('button', { name: 'Continuer' })).toBeVisible()
   await expect(phone.getByRole('heading', { name: 'Choisis ton aventurier' })).toHaveCount(0)
   await expect(phone.getByRole('tab', { name: 'Journal' })).toBeVisible()
+  await phone.getByRole('button', { name: 'Règles', exact: true }).click()
+  const rules = phone.getByRole('dialog')
+  await expect(rules.locator('.row.question')).toHaveCount(47)
+  await rules.getByRole('searchbox').fill('que se passe-t-il quand on meurt')
+  await rules.getByRole('searchbox').press('Enter')
+  await expect(rules.getByRole('article').getByRole('heading', { level: 2 })).toHaveText('Being Defeated')
+  await expect(rules.locator('.answer')).toBeInViewport()
   await context.close()
 })
 

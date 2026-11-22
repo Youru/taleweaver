@@ -20,6 +20,7 @@ export type {
 } from './api/types'
 export type { AllyOptionKind, AllyState } from './api/allies'
 export type { ChoiceChange, PartyPreparation } from './api/preparation'
+export { default as PauseScreen } from './components/comfort/PauseScreen.vue'
 export { adventurerId } from './lib/preparation'
 export { useErrorText } from './lib/useErrorText'
 export { default as ChoiceEditor } from './components/preparation/ChoiceEditor.vue'

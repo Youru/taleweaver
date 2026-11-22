@@ -13,6 +13,7 @@ import {
   cardsInPlay,
   CountersBar,
   EncounterBar,
+  PauseScreen,
   useGame,
   useGameCommand,
   urgencyMax,
@@ -74,6 +75,7 @@ function run(value: EncounterCommand) {
 </script>
 
 <template>
+  <PauseScreen v-if="game.data.value?.table.paused" />
   <main class="table-page">
     <div v-if="game.isPending.value" class="center">
       <ProgressSpinner :aria-label="t('common.loading')" />

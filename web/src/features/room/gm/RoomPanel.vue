@@ -19,7 +19,7 @@ import type { Autonomy } from '../api/types'
 import { roomGmApi } from '../api/roomApi'
 import { useRoomHub } from '../api/roomHub'
 import type { RoomView } from '../api/types'
-import { joinUrls, seatColors } from '../lib/room'
+import { joinUrls, seatColors, trustable } from '../lib/room'
 
 /**
  * The GM's room panel (room-spec §4.1, §4.3, §7): open/close, code and QR code, the seats and the adventurers each
@@ -184,6 +184,7 @@ function refuse(id: string) {
   const reason = window.prompt(t('room.request.refuseReason')) ?? undefined
   void run(() => roomGmApi.refuse(props.gameId, id, reason || undefined))
 }
+const trusts = computed(() => trustable.map((value) => ({ value, label: t(`room.gm.trust.${value}`) })))
 watch(
   room,
   (value) =>
@@ -290,13 +291,22 @@ useRoomHub(
           />
         </label>
         <p v-if="room.requests.length === 0" class="muted">{{ t('room.request.none') }}</p>
+        <Button
+          v-if="pendingCount > 1"
+          icon="pi pi-check-square"
+          :label="t('room.request.acceptAll', { n: pendingCount })"
+          class="accept-all"
+          :disabled="busy"
+          @click="run(() => roomGmApi.acceptAll(gameId))"
+        />
         <RequestList
-          v-else
+          v-if="room.requests.length"
           gm
           :requests="room.requests"
           :busy="busy"
           :item-name="itemName"
           :discipline-name="disciplineName"
+          @accept-from="(seat) => run(() => roomGmApi.acceptAll(gameId, seat))"
           @accept="(id) => run(() => roomGmApi.accept(gameId, id))"
           @refuse="refuse"
         />
@@ -357,6 +367,16 @@ useRoomHub(
                 :disabled="busy"
                 @update:model-value="(value: string[]) => assign(seat.id, value)"
               />
+              <MultiSelect
+                :model-value="seat.trusted ?? []"
+                :options="trusts"
+                option-label="label"
+                option-value="value"
+                :placeholder="t('room.gm.trust.none')"
+                :aria-label="t('room.gm.trust.label', { name: seat.displayName })"
+                :disabled="busy"
+                @update:model-value="(value: string[]) => run(() => roomGmApi.trust(gameId, seat.id, value))"
+              />
             </li>
           </ul>
         </section>
@@ -401,6 +421,9 @@ useRoomHub(
   align-items: center;
   gap: 0.5rem;
   margin: 0 0 0.5rem;
+}
+.accept-all {
+  margin-bottom: 0.5rem;
 }
 .autonomy {
   display: flex;

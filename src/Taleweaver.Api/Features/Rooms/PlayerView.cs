@@ -26,7 +26,8 @@ public sealed record PlayerView(
     IReadOnlyList<ShopItem>? Shop,
     IReadOnlyList<UpgradeOffer> Upgrades,
     PartyPreparation? Preparation,
-    string? Cards = null);
+    string? Cards = null,
+    bool Paused = false);
 
 /// <summary>The seat as its phone knows it.</summary>
 public sealed record PlayerSeat(string Id, string DisplayName, string Color, string? Followed);
@@ -113,9 +114,11 @@ public static class PlayerViewProjector
         Scenario? played = null)
     {
         var campaign = state.Campaign;
-        var active = campaign.ActiveGroup?.ToHashSet()
+        // An encounter's imposed participants play it, whoever the Active Group is (A2)
+        var active = (state.Encounter is { Ended: false, Participants: { } imposed } ? imposed : null)?.ToHashSet()
+            ?? campaign.ActiveGroup?.ToHashSet()
             ?? campaign.Party.Where(a => !a.Injured && !a.Unselectable).Select(a => a.Name).ToHashSet();
-        var mine = campaign.Party.Where(a => adventurers.Contains(a.Name)).Select(WithoutGmMarks).ToList();
+        var mine = campaign.Party.Where(a => adventurers.Contains(a.Name)).ToList();
         var encounter = state.Encounter is { } e ? EncounterOf(e, played ?? scenario, catalog, adventurers) : null;
 
         return new PlayerView(
@@ -187,19 +190,7 @@ public static class PlayerViewProjector
         return lines.TakeLast(LogLength).ToList();
     }
 
-    /// <summary>The GM's follow-up of cards and tokens (play-spec R4) is not on the phones: lot 6 decides.</summary>
-    private static AdventurerState WithoutGmMarks(AdventurerState member)
-    {
-        var copy = Copy(member);
-        copy.ExhaustedCards = [];
-        copy.UsedCards = [];
-        copy.FlippedCards = [];
-        copy.AbilityTokens = null;
-        copy.Equipped = member.Equipped.Select(WithoutGmMarks).ToList();
-        copy.Pack = member.Pack.Select(WithoutGmMarks).ToList();
-        return copy;
-    }
-
+    /// <summary>A seat sees the marks of its own adventurers (play-spec J4b), never those left on a shared card.</summary>
     private static OwnedItem WithoutGmMarks(OwnedItem owned)
     {
         if (!owned.Exhausted && !owned.Used)
@@ -215,6 +206,10 @@ public static class PlayerViewProjector
 
     private static T Copy<T>(T value) =>
         System.Text.Json.JsonSerializer.Deserialize<T>(System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(value, Common.JsonDefaults.Options), Common.JsonDefaults.Options)!;
+
+    /// <summary>A figure the scenario describes has no card: its name is the one said at the table.</summary>
+    private static LocalizedText? NameOf(CombatantState figure, Combatant? card) =>
+        figure.Name is { } named ? named : card?.Name;
 
     private static PlayerEncounter EncounterOf(EncounterState e, Scenario? played, Catalog? catalog, IReadOnlyCollection<string> mine)
     {
@@ -233,7 +228,7 @@ public static class PlayerViewProjector
         inView.Select(c =>
         {
             var card = catalog?.FindCombatant(c.Card);
-            return new PlayerCombatant(c.Instance, c.Card, c.Family, c.Number, c.InitiativeCards.ToList(), c.Damage, c.Effects.ToList(), c.Defeated, card?.Name, card?.Image, c.Health ?? card?.Stats?.Health?.Value);
+            return new PlayerCombatant(c.Instance, c.Card, c.Family, c.Number, c.InitiativeCards.ToList(), c.Damage, c.Effects.ToList(), c.Defeated, NameOf(c, card), card?.Image, c.Health ?? card?.Stats?.Health?.Value);
         }).ToList(),
         e.Activation is { } a ? new PlayerActivation(a.InitiativeCard, a.Figures.ToList()) : null,
         e.Adventurers.ToDictionary(f => f.Name, f => (IReadOnlyList<string>)f.Effects.ToList()),

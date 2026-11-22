@@ -13,6 +13,7 @@ import { pick } from '@/shared/lib/localized'
 import { usePreferences } from '@/shared/lib/preferences'
 import type { PlayerCommand, PlayerRequest, PlayerView } from '../api/types'
 import RequestList from '../components/RequestList.vue'
+import LootClaims from './LootClaims.vue'
 
 /**
  * The player mat of the adventurer: tap a card to see it in full, front or back, and ask for what to do with it
@@ -23,6 +24,8 @@ const props = defineProps<{
   adventurer: AdventurerState
   gold: number
   stash: OwnedItem[]
+  /** Gained, still to hand out. */
+  loot?: OwnedItem[]
   /** The Item Upgrades for sale now. */
   upgrades?: PlayerView['upgrades']
   /** The other members of the party, who may be handed a card. */
@@ -102,6 +105,13 @@ function move(owner: string, slot?: 'equipped' | 'pack') {
 <template>
   <div class="equipment">
     <p class="gold"><i class="pi pi-wallet" aria-hidden="true" /> {{ t('play.gold', { gold }) }}</p>
+    <LootClaims
+      v-if="act && loot?.length"
+      :loot="loot"
+      :adventurer="adventurer.name"
+      :requests="requests ?? []"
+      :act="act"
+    />
     <section v-if="requests?.length" class="mine">
       <h3>{{ t('room.request.mine') }}</h3>
       <RequestList :requests="[...requests].reverse()" :item-name="itemName" @cancel="(id) => cancel?.(id)" />

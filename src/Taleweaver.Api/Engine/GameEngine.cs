@@ -24,8 +24,9 @@ public static class GameEngine
     /// 16: who did it, rewards and Skill Checks, the group, what is carried.
     /// 17: the Status Phase asks, reactions, cards and Ability tokens, Disease and Tether.
     /// 18: counters, the track arranged, sides, figures of the scenario, kept boards, effects for later, opposing Espers.
+    /// 19: corrections, Ready, several figures at once, a turn ended by its player.
     /// </summary>
-    public const int Version = 18;
+    public const int Version = 19;
 
     public static class Errors
     {

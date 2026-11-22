@@ -22,6 +22,7 @@ public static class GamesEndpoints
         GetGame.Map(group);
         AnswerQuestion.Map(group);
         UndoLastAction.Map(group);
+        TableEndpoints.Map(group);
         DeleteGame.Map(group);
         ExportGame.Map(group);
         ImportGame.Map(group);

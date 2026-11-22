@@ -17,6 +17,20 @@ export interface Reference {
   combatantTokens: RuleEntry[]
 }
 
+/** The cleaned rulebook and its glossary (GET /api/rulebook). */
+export interface Rulebook {
+  chapters: { id: string; markdown: string }[]
+  glossary: string
+}
+
+export function useRulebook() {
+  return useQuery({
+    queryKey: ['rulebook'],
+    queryFn: ({ signal }) => http<Rulebook>('/api/rulebook', { signal }),
+    staleTime: Infinity,
+  })
+}
+
 export function useReference() {
   return useQuery({
     queryKey: ['catalog', 'reference'],

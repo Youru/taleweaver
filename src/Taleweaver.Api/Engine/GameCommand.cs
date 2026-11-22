@@ -174,6 +174,26 @@ public sealed record GameCommand
     public static GameCommand SummonEsper(string card, string summoner, Cell? at = null) =>
         new() { Type = GameCommands.SummonEsper, Card = card, Instance = summoner, To = at };
 
+    /// <summary>Several: the figures concerned.</summary>
+    public IReadOnlyList<string>? Figures { get; init; }
+
+    /// <summary>One of <see cref="Corrections"/>: what it is about (adventurer, flag, card, step) and what it becomes.</summary>
+    public static GameCommand Correct(string field, int? value = null, string? instance = null, string? item = null, string? option = null, string? card = null, bool? active = null) =>
+        new() { Type = GameCommands.Correct, Effect = field, Value = value, Instance = instance, Item = item, Option = option, Card = card, Active = active };
+
+    public static GameCommand Ready() => new() { Type = GameCommands.Ready };
+
+    /// <summary>Damage, or an Effect, on several figures at once.</summary>
+    public static GameCommand Several(IReadOnlyList<string> figures, int? amount, string? effect, bool? active) =>
+        new() { Type = GameCommands.Several, Figures = figures, Value = amount, Effect = effect, Active = active };
+
+    /// <summary>"I am done", said during the turn of <paramref name="card"/> in <paramref name="round"/>: no other turn is ended.</summary>
+    public static GameCommand EndTurnOf(string card, int round) => new() { Type = GameCommands.NextTurn, Card = card, Value = round };
+
+    /// <summary>A player's claim on what waits to be handed out: nothing once someone has it.</summary>
+    public static GameCommand Claim(string id, string adventurer) =>
+        new() { Type = GameCommands.MoveItem, Instance = id, Owner = adventurer, Slot = "pack", Option = "unassigned" };
+
     public static GameCommand NextTurn() => new() { Type = GameCommands.NextTurn };
 
     public static GameCommand Damage(string instance, int amount) => new() { Type = GameCommands.Damage, Instance = instance, Value = amount };
@@ -226,6 +246,9 @@ public static class GameCommands
 {
     public const string Answer = "answer";
     public const string NextTurn = "nextTurn";
+    public const string Correct = "correct";
+    public const string Ready = "ready";
+    public const string Several = "several";
     public const string CompleteAchievement = "completeAchievement";
     public const string Damage = "damage";
     public const string SetEffect = "setEffect";

@@ -82,3 +82,10 @@ describe('describeRequest', () => {
     })
   })
 })
+
+describe("a second initiative card", () => {
+  it("is still the turn of its adventurer", () => {
+    const track = { round: 1, ended: false, initiativeTrack: ['adventurer:Rook#2'], currentTurn: 0, playedCards: ['adventurer:Rook#2'] }
+    expect(turnOf(track, ['Rook']).playing).toBe('Rook')
+  })
+})

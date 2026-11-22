@@ -1,3 +1,5 @@
 export { useReference } from './api/queries'
 export { ruleOfToken } from './lib/reference'
+export { default as RulesBrowser } from './components/RulesBrowser.vue'
+export { openRules } from './lib/panel'
 export { default as ReferenceDialog } from './components/ReferenceDialog.vue'

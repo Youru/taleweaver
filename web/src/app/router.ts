@@ -35,6 +35,7 @@ export const router = createRouter({
     },
     { path: '/', name: 'home', component: () => import('@/features/home/pages/HomePage.vue') },
     { path: '/games/:id', name: 'play', component: () => import('@/features/games/pages/PlayPage.vue'), props: true },
+    { path: '/rules', name: 'rules', component: () => import('@/features/reference/pages/RulesPage.vue') },
     {
       path: '/workshop',
       name: 'workshop',

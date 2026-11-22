@@ -233,6 +233,37 @@ public sealed partial class RoomService(RoomStore store, TimeProvider time)
         return outcome;
     }
 
+    /// <summary>What the GM takes from this seat without being asked, among <see cref="PlayerCommands.Trustable"/>.</summary>
+    public async Task<Result<Room>> TrustAsync(string gameId, string seatId, IReadOnlyList<string> types, CancellationToken cancellationToken)
+    {
+        if (types.FirstOrDefault(t => !PlayerCommands.Trustable.Contains(t)) is { } other)
+        {
+            return PlayerCommands.Errors.NotAllowed(other);
+        }
+
+        var outcome = await Locked<Result<Room>>(rooms =>
+        {
+            if (rooms.GetValueOrDefault(gameId) is not { } room)
+            {
+                return Errors.NoRoom(gameId);
+            }
+
+            if (room.Seats.FirstOrDefault(s => s.Id == seatId) is not { } seat)
+            {
+                return Errors.SeatNotFound(seatId);
+            }
+
+            seat.Trusted = types.Distinct().ToList();
+            return room;
+        });
+        if (outcome.IsSuccess)
+        {
+            await SaveAndNotify(outcome.Value, cancellationToken);
+        }
+
+        return outcome;
+    }
+
     public async Task<Result<Room>> RemoveSeatAsync(string gameId, string seatId, CancellationToken cancellationToken)
     {
         var outcome = await Locked<Result<Room>>(rooms =>
@@ -325,7 +356,7 @@ public sealed partial class RoomService(RoomStore store, TimeProvider time)
         room.GameId,
         room.Code,
         room.Status,
-        room.Seats.Select(s => new SeatView(s.Id, s.DisplayName, s.Color, s.Adventurers, s.Followed, s.LastSeen, IsConnected(s.Id))).ToList(),
+        room.Seats.Select(s => new SeatView(s.Id, s.DisplayName, s.Color, s.Adventurers, s.Followed, s.LastSeen, IsConnected(s.Id), s.Trusted)).ToList(),
         Network.LanAddresses(),
         room.ScreenTokenHash is not null,
         room.Autonomy,

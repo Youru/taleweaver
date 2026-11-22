@@ -12,6 +12,7 @@ using Taleweaver.Api.Features.Play;
 using Taleweaver.Api.Features.Preparation;
 using Taleweaver.Api.Features.Print;
 using Taleweaver.Api.Features.Rooms;
+using Taleweaver.Api.Features.Rulebook;
 using Taleweaver.Api.Features.Scenarios;
 using Taleweaver.Api.Storage;
 
@@ -41,7 +42,7 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
-app.MapPacksEndpoints().MapScenariosEndpoints().MapGamesEndpoints().MapEncountersEndpoints().MapPlayEndpoints().MapItemsEndpoints().MapPartyEndpoints().MapPreparationEndpoints().MapAlliesEndpoints().MapPrintEndpoints().MapRoomEndpoints();
+app.MapPacksEndpoints().MapScenariosEndpoints().MapGamesEndpoints().MapEncountersEndpoints().MapPlayEndpoints().MapItemsEndpoints().MapPartyEndpoints().MapPreparationEndpoints().MapAlliesEndpoints().MapPrintEndpoints().MapRoomEndpoints().MapRulebookEndpoints();
 
 // Built now so that it listens to the rooms from the start.
 app.Services.GetRequiredService<RoomNotifier>();

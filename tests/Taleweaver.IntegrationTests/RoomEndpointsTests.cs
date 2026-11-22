@@ -49,7 +49,7 @@ public class RoomEndpointsTests(HomebrewFactory factory) : IClassFixture<Homebre
 
         using var document = JsonDocument.Parse(json);
         document.RootElement.EnumerateObject().Select(p => p.Name).Should().BeSubsetOf(
-            ["version", "gameId", "scenarioTitle", "roomCode", "seat", "impersonated", "adventurers", "party", "gold", "stash", "unassigned", "encounter", "log", "requests", "autonomy", "shop", "upgrades", "preparation", "cards"]);
+            ["version", "gameId", "scenarioTitle", "roomCode", "seat", "impersonated", "adventurers", "party", "gold", "stash", "unassigned", "encounter", "log", "requests", "autonomy", "shop", "upgrades", "preparation", "cards", "paused"]);
         json.Should().NotContain("\"prompt\"").And.NotContain("hiddenText").And.NotContain("\"variables\"").And.NotContain("aiSteps");
         document.RootElement.GetProperty("log").EnumerateArray().Select(l => l.GetProperty("entry").GetProperty("code").GetString())
             .Should().NotBeEmpty().And.OnlyContain(code => PlayerViewProjector.PublicLogCodes.Contains(code!));

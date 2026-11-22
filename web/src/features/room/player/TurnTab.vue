@@ -13,6 +13,7 @@ import { usePreferences } from '@/shared/lib/preferences'
 import type { PlayerCommand, PlayerView } from '../api/types'
 import { turnOf } from '../lib/room'
 import AlliesSection from './AlliesSection.vue'
+import HandSection from './HandSection.vue'
 
 /**
  * The encounter as the table sees it (room-spec §5.1, Tour): whose turn it is, the initiative track, the effects
@@ -33,6 +34,7 @@ const encounter = computed(() => props.view.encounter!)
 /** The track component reads an encounter of the GM's: the phone's carries the fields it needs. */
 const asEncounter = computed(() => encounter.value as unknown as EncounterState)
 const mine = computed(() => props.view.adventurers.map((a) => a.name))
+const followedState = computed(() => props.view.adventurers.find((a) => a.name === props.followed))
 const turn = computed(() => turnOf(encounter.value, mine.value))
 const labelOf = (card: string | undefined) =>
   initiativeTrack(asEncounter.value, initiative.data.value ?? []).find((c) => c.id === card)?.label ?? card ?? ''
@@ -80,6 +82,8 @@ const opponents = computed(() => encounter.value.combatants.filter((c) => !c.def
       <i class="pi pi-hourglass" aria-hidden="true" />
       {{ t('room.player.getReady', { name: turn.next, after: labelOf(turn.after) }) }}
     </div>
+
+    <HandSection v-if="act && followedState" :key="followed" :view="view" :adventurer="followedState" :act="act" />
 
     <InitiativeTrack v-if="encounter.round > 0" :encounter="asEncounter" large />
     <p v-else class="muted">{{ t('room.player.notStarted') }}</p>

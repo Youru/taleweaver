@@ -142,6 +142,7 @@ const tones: Record<string, LogTone> = {
   skillFailed: 'alert',
   skillPassed: 'reward',
   noInstruction: 'ai',
+  corrected: 'alert',
   asleep: 'ai',
   spent: 'muted',
   cardMarked: 'muted',
@@ -201,6 +202,12 @@ export function formatLog(
   ] as const) {
     const key = `${group}.${args[name]}`
     if (args[name] && hasMessage(key)) args[name] = translate(key, {})
+  }
+  if (entry.code === 'corrected') {
+    const field = `log.correctedField.${args.field}`
+    if (hasMessage(field)) args.field = translate(field, {})
+    const about = args.about ? ` (${shortId(args.about)})` : ''
+    args.change = `${about}${args.from !== undefined ? ` ${args.from} →` : ''} ${args.to ?? '–'}`
   }
   const code =
     entry.code === 'itemAdded' && args.price

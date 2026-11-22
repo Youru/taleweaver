@@ -50,6 +50,9 @@ public sealed class Seat
     /// <summary>The adventurers the GM gave this seat: an adventurer is held by at most one seat.</summary>
     public List<string> Adventurers { get; set; } = [];
 
+    /// <summary>The kinds of request the GM takes from this seat without being asked (play-spec M14).</summary>
+    public List<string> Trusted { get; set; } = [];
+
     /// <summary>The adventurer the phone shows now (display only, sent back by the phone).</summary>
     public string? Followed { get; set; }
 
@@ -67,7 +70,7 @@ public sealed record RoomView(
     string Autonomy,
     IReadOnlyList<PlayerRequest> Requests);
 
-public sealed record SeatView(string Id, string DisplayName, string Color, IReadOnlyList<string> Adventurers, string? Followed, DateTimeOffset LastSeen, bool Connected);
+public sealed record SeatView(string Id, string DisplayName, string Color, IReadOnlyList<string> Adventurers, string? Followed, DateTimeOffset LastSeen, bool Connected, IReadOnlyList<string> Trusted);
 
 /// <summary>What a phone sees of a room before joining it; the game tells it whether it already has a seat here (the code changes at each opening).</summary>
 public sealed record RoomSummary(string Code, string GameId, string Scenario, LocalizedText? ScenarioTitle, IReadOnlyList<string> Seats);

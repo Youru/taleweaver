@@ -20,6 +20,10 @@ export const roomGmApi = {
     http<RoomView>(`/api/games/${e(gameId)}/room/requests/${e(request)}/accept`, { method: 'POST' }),
   refuse: (gameId: string, request: string, reason?: string) =>
     http<RoomView>(`/api/games/${e(gameId)}/room/requests/${e(request)}/refuse`, { method: 'POST', body: { reason } }),
+  acceptAll: (gameId: string, seat?: string) =>
+    http<RoomView>(`/api/games/${e(gameId)}/room/requests/accept-all`, { method: 'POST', body: { seat } }),
+  trust: (gameId: string, seatId: string, types: string[]) =>
+    http<RoomView>(`/api/games/${e(gameId)}/room/seats/${e(seatId)}/trust`, { method: 'PUT', body: { types } }),
   settings: (gameId: string, autonomy: Autonomy) =>
     http<RoomView>(`/api/games/${e(gameId)}/room/settings`, { method: 'PUT', body: { autonomy } }),
   show: (gameId: string, image: string, caption?: string, seat?: string) =>

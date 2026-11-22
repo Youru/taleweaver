@@ -61,7 +61,7 @@ export function initiativeTrack(encounter: EncounterState, cards: readonly Initi
     const adventurer = id.startsWith(ADVENTURER)
     const ally = id.startsWith(ALLY)
     const printed = ally ? id.slice(ALLY.length) : id
-    const card = adventurer ? adventurerCard(shortId(id), cards) : byId.get(printed)
+    const card = adventurer ? adventurerCard(id.slice(ADVENTURER.length).split('#')[0] ?? '', cards) : byId.get(printed)
     const figures = adventurer || ally ? [] : figuresOf(encounter, id, state)
     return {
       id,

@@ -149,6 +149,7 @@ public static class Network
     [
         "/api/catalog/items", "/api/catalog/item-upgrades", "/api/catalog/disciplines", "/api/catalog/adventurers",
         "/api/catalog/effects", "/api/catalog/initiative", "/api/catalog/board",
+        "/api/catalog/reference",
     ];
 
     private static async Task<bool> AllowedFromAPhone(HttpContext context)
@@ -160,7 +161,9 @@ public static class Network
         }
 
         // The images and the tables a phone draws with: never the search of the whole catalogue (every combatant, the bosses too).
-        var readable = path.StartsWithSegments("/api/assets") || PhoneCatalog.Any(table => path.Equals(table, StringComparison.OrdinalIgnoreCase));
+        var readable = path.StartsWithSegments("/api/assets")
+            || path.Equals("/api/rulebook", StringComparison.OrdinalIgnoreCase) // filtered: PlayerRulebook
+            || PhoneCatalog.Any(table => path.Equals(table, StringComparison.OrdinalIgnoreCase));
         return readable && HttpMethods.IsGet(context.Request.Method)
             && (await context.RequestServices.GetRequiredService<RoomService>().OpenRoomsAsync()).Count > 0;
     }

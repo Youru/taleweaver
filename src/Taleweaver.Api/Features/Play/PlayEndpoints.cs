@@ -27,6 +27,20 @@ public static class PlayEndpoints
 
     public sealed record CounterRequest(int By);
 
+    public sealed record CorrectionRequest(string Field, int? Value = null, string? Instance = null, string? Item = null, string? Text = null, string? Card = null, bool? Active = null);
+
+    public sealed record SeveralRequest(IReadOnlyList<string> Figures, int? Amount = null, string? Effect = null, bool? Active = null);
+
+    public sealed class SeveralValidator : AbstractValidator<SeveralRequest>
+    {
+        public SeveralValidator()
+        {
+            RuleFor(r => r.Figures).NotEmpty();
+            RuleFor(r => r).Must(r => (r.Amount is null) != (r.Effect is null)).WithMessage("Damage, or an Effect.");
+            RuleFor(r => r.Amount).InclusiveBetween(-99, 99).NotEqual(0);
+        }
+    }
+
     public sealed record EsperRequest(string Card, string Summoner, Cell? At = null);
 
     public sealed class TokenValidator : AbstractValidator<TokenRequest>
@@ -68,6 +82,12 @@ public static class PlayEndpoints
             Run(id, GameCommand.DealInitiative(), runner, ct)).WithName("DealInitiative");
         group.MapPost("/espers", (string id, EsperRequest r, GameRunner runner, CancellationToken ct) =>
             Run(id, GameCommand.SummonEsper(r.Card, r.Summoner, r.At), runner, ct)).WithName("SummonEsper");
+        group.MapPost("/corrections", (string id, CorrectionRequest r, GameRunner runner, CancellationToken ct) =>
+            Run(id, GameCommand.Correct(r.Field, r.Value, r.Instance, r.Item, r.Text, r.Card, r.Active), runner, ct)).WithName("Correct");
+        group.MapPost("/ready", (string id, GameRunner runner, CancellationToken ct) =>
+            Run(id, GameCommand.Ready(), runner, ct)).WithName("Ready");
+        group.MapPost("/several", (string id, SeveralRequest r, GameRunner runner, CancellationToken ct) =>
+            Run(id, GameCommand.Several(r.Figures, r.Amount, r.Effect, r.Active), runner, ct)).WithValidation<SeveralRequest>().WithName("SeveralFigures");
         return app;
     }
 

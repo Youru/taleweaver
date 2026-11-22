@@ -42,6 +42,10 @@ public static class RoomEndpoints
             .AddSingleton<IGameObserver>(sp => sp.GetRequiredService<RoomNotifier>());
     }
 
+    public sealed record TrustRequest(IReadOnlyList<string>? Types);
+
+    public sealed record AcceptAllRequest(string? Seat = null);
+
     public static IEndpointRouteBuilder MapRoomEndpoints(this IEndpointRouteBuilder app)
     {
         app.MapHub<RoomHub>("/hubs/room");
@@ -80,30 +84,41 @@ public static class RoomEndpoints
         group.MapDelete("/seats/{seat}", async Task<Results<Ok<RoomView>, ProblemHttpResult>> (string id, string seat, RoomService rooms, CancellationToken ct) =>
                 ToResponse(await rooms.RemoveSeatAsync(id, seat, ct), rooms))
             .WithName("RemoveSeat");
+        group.MapPut("/seats/{seat}/trust", async Task<Results<Ok<RoomView>, ProblemHttpResult>> (string id, string seat, TrustRequest request, RoomService rooms, CancellationToken ct) =>
+            {
+                var trusted = await rooms.TrustAsync(id, seat, request.Types ?? [], ct);
+                return trusted.IsSuccess ? TypedResults.Ok(rooms.ViewOf(trusted.Value)) : trusted.Error!.ToProblem();
+            })
+            .WithName("TrustSeat");
+
         group.MapPut("/settings", async Task<Results<Ok<RoomView>, ProblemHttpResult>> (string id, SettingsRequest request, RoomService rooms, CancellationToken ct) =>
                 ToResponse(await rooms.SetAutonomyAsync(id, request.Autonomy, ct), rooms))
             .WithName("SetRoomSettings");
         // A player's request (room-spec §6.2): accepted, it goes the GM's own way (GameRunner), into the history,
         // undone like any command; if it no longer applies, the player gets the reason.
-        group.MapPost("/requests/{request}/accept", async Task<Results<Ok<RoomView>, ProblemHttpResult>> (
-                string id, string request, RoomService rooms, GameRunner runner, CancellationToken ct) =>
+        group.MapPost("/requests/accept-all", async Task<Results<Ok<RoomView>, ProblemHttpResult>> (
+                string id, AcceptAllRequest request, RoomService rooms, GameRunner runner, CancellationToken ct) =>
             {
-                var taken = await rooms.ResolveAsync(id, request, RequestStatus.Accepted, null, null, ct);
-                if (!taken.IsSuccess)
+                if (await rooms.GetAsync(id) is not { } room)
                 {
-                    return taken.Error!.ToProblem();
+                    return RoomService.Errors.NoRoom(id).ToProblem();
                 }
 
-                var (room, accepted) = taken.Value;
-                var outcome = accepted.Command.Type == PlayerCommand.TakeAdventurer
-                    ? await GiveAdventurer(room, accepted, runner, rooms, ct)
-                    : await runner.ExecuteAsync(id, accepted.Command.ToGameCommand(accepted.By), ct);
-                if (!outcome.IsSuccess)
+                // In the order they came; one that no longer applies fails alone
+                var waiting = room.Requests.Where(r => r.Status == RequestStatus.Pending && (request.Seat is null || r.SeatId == request.Seat)).Select(r => r.Id).ToList();
+                foreach (var pending in waiting)
                 {
-                    await rooms.FailAsync(room, accepted, outcome.Error!.Code, ct);
+                    await AcceptAsync(id, pending, rooms, runner, ct);
                 }
 
                 return TypedResults.Ok(rooms.ViewOf(room));
+            })
+            .WithName("AcceptAllRequests");
+        group.MapPost("/requests/{request}/accept", async Task<Results<Ok<RoomView>, ProblemHttpResult>> (
+                string id, string request, RoomService rooms, GameRunner runner, CancellationToken ct) =>
+            {
+                var accepted = await AcceptAsync(id, request, rooms, runner, ct);
+                return accepted.IsSuccess ? TypedResults.Ok(rooms.ViewOf(accepted.Value)) : accepted.Error!.ToProblem();
             })
             .WithName("AcceptRequest");
         group.MapPost("/requests/{request}/refuse", async Task<Results<Ok<RoomView>, ProblemHttpResult>> (
@@ -159,6 +174,26 @@ public static class RoomEndpoints
                 return TypedResults.Ok(await notifier.ViewAsync(game.Value, await rooms.GetAsync(id), null, [adventurer], ct));
             })
             .WithName("ImpersonateAdventurer");
+    }
+
+    private static async Task<Result<Room>> AcceptAsync(string id, string request, RoomService rooms, GameRunner runner, CancellationToken ct)
+    {
+        var taken = await rooms.ResolveAsync(id, request, RequestStatus.Accepted, null, null, ct);
+        if (!taken.IsSuccess)
+        {
+            return taken.Error!;
+        }
+
+        var (room, accepted) = taken.Value;
+        var outcome = accepted.Command.Type == PlayerCommand.TakeAdventurer
+            ? await GiveAdventurer(room, accepted, runner, rooms, ct)
+            : await runner.ExecuteAsync(id, accepted.Command.ToGameCommand(accepted.By), ct);
+        if (!outcome.IsSuccess)
+        {
+            await rooms.FailAsync(room, accepted, outcome.Error!.Code, ct);
+        }
+
+        return room;
     }
 
     private static void MapPhone(RouteGroupBuilder group)
@@ -241,6 +276,11 @@ public static class RoomEndpoints
                     return game.Error!.ToProblem();
                 }
 
+                if (game.Value.Table.Paused)
+                {
+                    return PlayerCommands.Errors.Paused.ToProblem();
+                }
+
                 if (command.Type is PlayerCommand.ChooseAdventurer or PlayerCommand.ReleaseAdventurer)
                 {
                     var applied = await AdventurerChoices.ApplyAsync(room, me, command, runner, rooms, catalogs, ct);
@@ -256,6 +296,26 @@ public static class RoomEndpoints
                 if (PlayerCommands.Check(command, me.Adventurers, game.Value.State.Campaign, game.Value.State.Encounter) is { } refused)
                 {
                     return refused.ToProblem();
+                }
+
+                command = PlayerCommands.Complete(command, game.Value.State);
+                if (PlayerCommands.IsOwnHand(command))
+                {
+                    // No request kept: a tap per SP would push the waiting ones out of the phone's list
+                    var done = await runner.ExecuteAsync(room.GameId, command.ToGameCommand(me.DisplayName), ct);
+                    if (!done.IsSuccess)
+                    {
+                        return done.Error!.ToProblem();
+                    }
+
+                    var updated = await ViewOf(room, me, runner, notifier, ct);
+                    return updated.IsSuccess ? TypedResults.Ok(updated.Value) : updated.Error!.ToProblem();
+                }
+
+                if (command.Type is PlayerCommand.EndTurn or PlayerCommand.Claim
+                    && room.Requests.Any(r => r.SeatId == me.Id && r.Status == RequestStatus.Pending && r.Command == command))
+                {
+                    return PlayerCommands.Errors.AlreadyAsked.ToProblem();
                 }
 
                 // A secret Discipline is not learnt by guessing its id: it costs no XP
@@ -307,7 +367,7 @@ public static class RoomEndpoints
                 }
 
                 var engine = command.ToGameCommand(me.DisplayName);
-                if (PlayerCommands.IsFree(command, room.Autonomy, me.Adventurers, game.Value.State))
+                if (PlayerCommands.IsFree(command, room.Autonomy, me.Adventurers, game.Value.State) || me.Trusted.Contains(command.Type))
                 {
                     var applied = await runner.ExecuteAsync(room.GameId, engine, ct);
                     if (!applied.IsSuccess)

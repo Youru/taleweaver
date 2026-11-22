@@ -69,7 +69,7 @@ public sealed class RoomNotifier : IGameObserver
         var played = game.State.Bounty is { } bounty ? await _content.GetScenarioAsync(bounty.Scenario, cancellationToken) : scenario;
         var catalog = await _catalog.GetAsync(cancellationToken);
         var view = PlayerViewProjector.Project(game.Id, game.UpdatedAt.ToUnixTimeMilliseconds(), game.State, scenario?.Title, adventurers, room, seat, catalog, scenario, played);
-        return view with { Cards = await _cards.FingerprintAsync(game, cancellationToken) };
+        return view with { Cards = await _cards.FingerprintAsync(game, cancellationToken), Paused = game.Table.Paused };
     }
 
     private async Task RoomChangedAsync(Room room)

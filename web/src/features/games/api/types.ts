@@ -15,7 +15,32 @@ export interface GameView {
   /** What is left to undo predates an update of the app */
   undoBlocked: boolean
   state: GameState
+  table: GameTable
+  /** The journal line each action began at; -1: it cannot be gone back on. */
+  actions: number[]
 }
+
+/** What is of the table rather than of the rules. */
+export interface GameTable {
+  sessions: { at: string; line: number }[]
+  notes: { id: string; at: string; kind: 'note' | 'ruling'; text: string; page?: number | null }[]
+  players: TablePlayer[]
+  paused: boolean
+}
+
+export interface TablePlayer {
+  adventurer: string
+  player?: string | null
+  present: boolean
+  tonight?: string | null
+}
+
+export type TableCommand =
+  | { type: 'note'; text: string; kind: 'note' | 'ruling'; page?: number }
+  | { type: 'deleteNote'; id: string }
+  | { type: 'players'; players: TablePlayer[] }
+  | { type: 'pause'; paused: boolean }
+  | { type: 'revert'; actions: number; outOf: number }
 
 export interface GameState {
   scenario: string
@@ -222,6 +247,10 @@ export interface EncounterState {
   adventurers: AdventurerFigure[]
   activeEndConditions: string[]
   activation?: { initiativeCard: string; figures: string[]; step: number }
+  ready?: boolean
+  roundLog?: { aiStepTrue?: boolean; defeated?: number; spawned?: number; waived?: boolean }
+  /** Under the fog. */
+  waiting?: { area: string }[]
   /** Who lost a turn to Paralyze: immune until the end of the encounter. */
   paralyzeImmune?: string[]
   /** The reactions under way: the turn waits. */
@@ -367,6 +396,18 @@ export type EncounterCommand =
   | { type: 'moveInitiative'; card: string; by: number }
   /** The adventurer now holds `value` SP. */
   | { type: 'stamina'; adventurer: string; value: number }
+  | {
+      type: 'correct'
+      field: string
+      value?: number
+      instance?: string
+      item?: string
+      text?: string
+      card?: string
+      active?: boolean
+    }
+  | { type: 'ready' }
+  | { type: 'several'; figures: string[]; amount?: number; effect?: string; active?: boolean }
   | { type: 'achievement'; achievement: string; adventurer: string }
 
 export interface Cell {

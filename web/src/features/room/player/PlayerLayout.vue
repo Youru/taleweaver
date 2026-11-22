@@ -4,7 +4,8 @@ import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 import Message from 'primevue/message'
 import { useAdventurers, useItems } from '@/features/catalog'
-import { formatLog, GameJournal } from '@/features/games'
+import { formatLog, GameJournal, PauseScreen } from '@/features/games'
+import { RulesBrowser } from '@/features/reference'
 import Button from 'primevue/button'
 import Dialog from 'primevue/dialog'
 import SelectButton from 'primevue/selectbutton'
@@ -43,6 +44,10 @@ provide(thumbnailWidthKey, 320)
 const settings = usePlayerSettings()
 if (!props.view.impersonated) useWakeLock(settings)
 const settingsOpen = ref(false)
+// The rules, any time: before the departure, waiting, in play (rules-spec §4)
+const rulesOpen = ref(false)
+const ruleTyped = ref('')
+const ruleSection = ref('')
 const languages = [
   { value: 'fr', label: 'Français' },
   { value: 'en', label: 'English' },
@@ -204,6 +209,7 @@ function touchEnd(event: TouchEvent) {
 
 <template>
   <div class="player" :style="{ '--seat': color }">
+    <PauseScreen v-if="view.paused" />
     <header>
       <div class="switcher" role="tablist" :aria-label="t('room.player.switcher')">
         <button
@@ -237,6 +243,14 @@ function touchEnd(event: TouchEvent) {
         <span class="dot" aria-hidden="true" />
         {{ view.impersonated ? t('room.player.gm') : view.seat?.displayName }}
       </span>
+      <Button
+        icon="pi pi-question-circle"
+        text
+        rounded
+        :aria-label="t('reference.title')"
+        :title="t('reference.title')"
+        @click="rulesOpen = true"
+      />
       <Button
         icon="pi pi-cog"
         text
@@ -334,6 +348,7 @@ function touchEnd(event: TouchEvent) {
           :gold="view.gold"
           :stash="view.stash"
           :upgrades="view.upgrades"
+          :loot="view.unassigned"
           :others="others"
           :requests="view.requests"
           :act="act"
@@ -399,6 +414,15 @@ function touchEnd(event: TouchEvent) {
         </li>
       </ul>
       <p v-if="askError" class="error">{{ askError }}</p>
+    </Dialog>
+    <Dialog
+      v-model:visible="rulesOpen"
+      modal
+      :header="t('reference.title')"
+      :style="{ width: '100vw', height: '100dvh', maxHeight: '100dvh', margin: 0 }"
+      :content-style="{ flex: 1, minHeight: 0, padding: '0 0.6rem 0.6rem' }"
+    >
+      <RulesBrowser v-model:typed="ruleTyped" v-model:section="ruleSection" player />
     </Dialog>
     <Dialog v-model:visible="settingsOpen" modal dismissable-mask :header="t('room.player.settings.title')">
       <div class="settings">

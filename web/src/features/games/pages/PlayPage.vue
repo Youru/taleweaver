@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 import Badge from 'primevue/badge'
 import Button from 'primevue/button'
+import Menu from 'primevue/menu'
 import Message from 'primevue/message'
 import ProgressSpinner from 'primevue/progressspinner'
 import Tab from 'primevue/tab'
@@ -16,7 +17,7 @@ import { useAiAdvice } from '@/features/ai'
 import { useCombatants, useItems } from '@/features/catalog'
 import { DuelDialog } from '@/features/duel'
 import { RoomPanel, roomGmApi } from '@/features/room'
-import { ReferenceDialog } from '@/features/reference'
+import { openRules } from '@/features/reference'
 import { showToPlayersKey, type ShowToPlayers } from '@/shared/lib/showToPlayers'
 import { InventoryDialog } from '@/features/inventory'
 import { useScenario } from '@/features/scenarios'
@@ -25,7 +26,7 @@ import { pick } from '@/shared/lib/localized'
 import { usePreferences } from '@/shared/lib/preferences'
 import { useGame, useGameCommand } from '../api/queries'
 import type { PreparationCommand } from '../api/preparation'
-import type { Answer, Cell, EncounterCommand, ItemCommand, PartyCommand } from '../api/types'
+import type { Answer, Cell, EncounterCommand, ItemCommand, PartyCommand, TableCommand } from '../api/types'
 import type { HeldBy } from '../lib/initiativeTrack'
 import CombatantList from '../components/encounter/CombatantList.vue'
 import EncounterBar from '../components/encounter/EncounterBar.vue'
@@ -52,6 +53,15 @@ import { cardsInPlay } from '../lib/cardsInPlay'
 import { urgencyMax } from '../lib/options'
 import { useErrorText } from '../lib/useErrorText'
 import { encounterOver as isEncounterOver, storyPage } from '../lib/storyPage'
+import ConsumablesDialog from '../components/comfort/ConsumablesDialog.vue'
+import CorrectionDialog from '../components/comfort/CorrectionDialog.vue'
+import EncounterWatch from '../components/comfort/EncounterWatch.vue'
+import PauseScreen from '../components/comfort/PauseScreen.vue'
+import ReadingDialog from '../components/comfort/ReadingDialog.vue'
+import RevertDialog from '../components/comfort/RevertDialog.vue'
+import SessionDialog from '../components/comfort/SessionDialog.vue'
+import SeveralDialog from '../components/comfort/SeveralDialog.vue'
+import { consumablesAtRisk, waitingFor } from '../lib/comfort'
 
 /**
  * The GM's view. In an encounter: the table in the middle, and beside it the turn being played
@@ -115,8 +125,26 @@ function preparationCommand(value: PreparationCommand) {
   command.mutate({ kind: 'preparation', command: value })
 }
 
-function answer(value: Answer) {
+function sendAnswer(value: Answer) {
   command.mutate({ kind: 'answer', answer: value })
+}
+
+/** Explore discards the Consumables left: their list first (play-spec M18). */
+const consumablesOpen = ref(false)
+function answer(value: Answer) {
+  const campaign = state.value?.campaign
+  if (campaign && state.value?.prompt?.kind === 'storyRound' && value.option === 'explore') {
+    const typeOf = (id: string) => catalogItems.data.value?.find((i) => i.id === id)?.type
+    if (consumablesAtRisk(campaign, typeOf).length) {
+      consumablesOpen.value = true
+      return
+    }
+  }
+  sendAnswer(value)
+}
+
+function tableCommand(value: TableCommand) {
+  command.mutate({ kind: 'table', command: value })
 }
 
 /** Who did what is being reported: proposed from the turn, changed by the GM. */
@@ -174,7 +202,6 @@ const pendingRequests = ref(0)
 /** While the room is open, the cards of the page can be shown on the phones (room-spec §7.5). */
 const roomIsOpen = ref(false)
 const players = ref<{ id: string; name: string }[]>([])
-const referenceOpen = ref(false)
 const sheetOpen = ref(false)
 /** The scenario being read: the Bounty's, during one. */
 const readScenario = computed(() => state.value?.bounty?.scenario ?? game.data.value?.scenario ?? '')
@@ -214,6 +241,42 @@ function partyCommand(value: PartyCommand) {
   command.mutate({ kind: 'party', command: value })
 }
 
+// The GM's tools (play-spec lot 5)
+const correctOpen = ref(false)
+const severalOpen = ref(false)
+const sessionOpen = ref(false)
+const readingOpen = ref(false)
+const revertLine = ref<number | null>(null)
+const toolsMenu = useTemplateRef<{ toggle: (event: Event) => void }>('toolsMenu')
+const inFight = computed(() => !!encounter.value && !encounterOver.value)
+const tools = computed(() => [
+  { label: t('comfort.tools.session'), icon: 'pi pi-calendar', command: () => (sessionOpen.value = true) },
+  { label: t('comfort.tools.reading'), icon: 'pi pi-book', command: () => (readingOpen.value = true) },
+  {
+    label: t('comfort.tools.correct'),
+    icon: 'pi pi-pencil',
+    disabled: !!state.value?.preparation || state.value?.status === 'Finished',
+    command: () => (correctOpen.value = true),
+  },
+  {
+    label: t('comfort.tools.several'),
+    icon: 'pi pi-clone',
+    disabled: !inFight.value,
+    command: () => (severalOpen.value = true),
+  },
+  { label: t('comfort.tools.pause'), icon: 'pi pi-pause', command: () => tableCommand({ type: 'pause', paused: true }) },
+])
+const seatNames = computed(() => Object.fromEntries(Object.entries(heldBy.value).map(([a, seat]) => [a, seat.name])))
+/** "Waiting for" (play-spec M15): the adventurer, and who plays them tonight. */
+const waited = computed(() => {
+  if (!state.value || state.value.preparation || state.value.status === 'Finished') return null
+  const name = waitingFor(state.value)
+  if (!name) return t('comfort.waiting', { who: t('comfort.waitingGm') })
+  const at = game.data.value?.table.players.find((p) => p.adventurer === name)
+  const player = (at?.present === false ? at.tonight : at?.player) || seatNames.value[name]
+  return t('comfort.waiting', { who: player ? `${name} (${player})` : name })
+})
+
 function moveFigure(figure: string, to: Cell) {
   encounterCommand({ type: 'move', figure, to })
 }
@@ -235,6 +298,7 @@ function moveFigure(figure: string, to: Cell) {
           icon="pi pi-flag"
           :value="t('storyRound.bountyPlaying', { name: pick(scenario.data.value?.title, language) })"
         />
+        <Tag v-if="waited" severity="secondary" icon="pi pi-hourglass" :value="waited" />
         <span>{{ t('play.gold', { gold: state.campaign.gold }) }}</span>
         <span
           v-for="adventurer in state.campaign.party"
@@ -293,11 +357,20 @@ function moveFigure(figure: string, to: Cell) {
           :label="t('reference.open')"
           severity="secondary"
           text
-          @click="referenceOpen = true"
+          @click="openRules"
         />
         <RouterLink v-if="encounter" :to="{ name: 'table', params: { id } }" target="_blank">
           <Button icon="pi pi-external-link" :label="t('table.openTable')" severity="secondary" text />
         </RouterLink>
+        <Button
+          icon="pi pi-wrench"
+          :label="t('comfort.tools.open')"
+          severity="secondary"
+          text
+          aria-haspopup="true"
+          @click="toolsMenu?.toggle($event)"
+        />
+        <Menu ref="toolsMenu" :model="tools" popup />
         <!-- A disabled button shows no tooltip: the span carries the reason -->
         <span :title="game.data.value.undoBlocked ? t('play.undoBlocked') : undefined">
           <Button
@@ -327,7 +400,52 @@ function moveFigure(figure: string, to: Cell) {
         @inventory="inventoryOpen = true"
         @room="roomOpen = true"
       />
-      <ReferenceDialog v-model:open="referenceOpen" />
+      <PauseScreen
+        v-if="game.data.value.table.paused"
+        resumable
+        :busy="command.isPending.value"
+        @resume="tableCommand({ type: 'pause', paused: false })"
+      />
+      <CorrectionDialog
+        v-model:open="correctOpen"
+        :state="state"
+        :nodes="scenario.data.value?.nodes ?? []"
+        :busy="command.isPending.value"
+        :error="commandError"
+        @command="encounterCommand"
+      />
+      <SessionDialog
+        v-model:open="sessionOpen"
+        :game-id="id"
+        :state="state"
+        :table="game.data.value.table"
+        :nodes="scenario.data.value?.nodes ?? []"
+        :seats="seatNames"
+        :busy="command.isPending.value"
+        @command="tableCommand"
+      />
+      <ReadingDialog v-model:open="readingOpen" :page="page" :names="state.campaign.party.map((a) => a.name)" />
+      <SeveralDialog
+        v-if="encounter"
+        v-model:open="severalOpen"
+        :encounter="encounter"
+        :locked="reportsLocked"
+        @command="encounterCommand"
+      />
+      <ConsumablesDialog
+        v-model:open="consumablesOpen"
+        :campaign="state.campaign"
+        :busy="command.isPending.value"
+        @command="itemCommand"
+        @confirm="sendAnswer({ option: 'explore' })"
+      />
+      <RevertDialog
+        v-model:line="revertLine"
+        :log="state.log"
+        :actions="game.data.value.actions"
+        :busy="command.isPending.value"
+        @confirm="(actions, outOf) => tableCommand({ type: 'revert', actions, outOf })"
+      />
       <AdventureSheetDialog :id="id" v-model:open="sheetOpen" :state="state" />
       <RoomPanel
         v-model:open="roomOpen"
@@ -409,6 +527,16 @@ function moveFigure(figure: string, to: Cell) {
               @duel="openDuel"
               @move="moveFigure"
             />
+            <EncounterWatch
+              :encounter="encounter"
+              :node="node"
+              :campaign="state.campaign"
+              :scenario="readScenario"
+              :options="state.options"
+              :unplaced="unplaced.length"
+              :locked="reportsLocked"
+              @command="encounterCommand"
+            />
             <TurnTools
               v-model:author="author"
               :encounter="encounter"
@@ -474,7 +602,7 @@ function moveFigure(figure: string, to: Cell) {
                   />
                 </TabPanel>
                 <TabPanel value="journal">
-                  <GameJournal :log="state.log" class="journal" />
+                  <GameJournal :log="state.log" revertible class="journal" @revert="revertLine = $event" />
                 </TabPanel>
                 <TabPanel value="goals">
                   <EncounterTrackers
@@ -525,7 +653,7 @@ function moveFigure(figure: string, to: Cell) {
               <GameJournal :log="page" page class="journal" />
             </TabPanel>
             <TabPanel value="journal" class="page-panel">
-              <GameJournal :log="state.log" class="journal" />
+              <GameJournal :log="state.log" revertible class="journal" @revert="revertLine = $event" />
             </TabPanel>
           </TabPanels>
         </Tabs>

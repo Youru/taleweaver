@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Button from 'primevue/button'
 import Tag from 'primevue/tag'
@@ -16,8 +17,20 @@ const props = defineProps<{
   itemName: (id: string) => string
   disciplineName?: (id: string) => string
 }>()
-const emit = defineEmits<{ accept: [id: string]; refuse: [id: string]; cancel: [id: string] }>()
+const emit = defineEmits<{ accept: [id: string]; acceptFrom: [seat: string]; refuse: [id: string]; cancel: [id: string] }>()
 const { t, te } = useI18n()
+
+/** The GM's queue by player (play-spec M14): the pending ones together, then the answers. */
+const groups = computed(() => {
+  if (!props.gm) return [{ seat: '', by: '', waiting: 0, list: props.requests }]
+  const bySeat = new Map<string, PlayerRequest[]>()
+  for (const request of props.requests.filter((r) => r.status === 'pending'))
+    bySeat.set(request.seatId, [...(bySeat.get(request.seatId) ?? []), request])
+  return [
+    ...[...bySeat].map(([seat, list]) => ({ seat, by: list[0]?.by ?? '', waiting: list.length, list })),
+    { seat: '', by: '', waiting: 0, list: props.requests.filter((r) => r.status !== 'pending') },
+  ]
+})
 
 function text(request: PlayerRequest) {
   const { key, args } = describeRequest(request.command, props.itemName, props.disciplineName)
@@ -43,7 +56,18 @@ const severity: Record<PlayerRequest['status'], string> = {
 
 <template>
   <ul class="requests">
-    <li v-for="request in requests" :key="request.id" :class="request.status">
+    <template v-for="group in groups" :key="group.seat">
+    <li v-if="group.waiting > 1" class="line">
+      <strong class="what">{{ t('room.request.from', { name: group.by, n: group.waiting }) }}</strong>
+      <Button
+        icon="pi pi-check-square"
+        :label="t('room.request.acceptFrom')"
+        size="small"
+        :disabled="busy"
+        @click="emit('acceptFrom', group.seat)"
+      />
+    </li>
+    <li v-for="request in group.list" :key="request.id" :class="request.status">
       <div class="line">
         <strong v-if="gm">{{ request.by }}</strong>
         <span class="what">{{ text(request) }}</span>
@@ -80,6 +104,7 @@ const severity: Record<PlayerRequest['status'], string> = {
         />
       </div>
     </li>
+    </template>
   </ul>
 </template>
 

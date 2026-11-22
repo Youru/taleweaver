@@ -375,6 +375,10 @@ public sealed class EncounterState
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool TrackDealt { get; set; }
 
+    /// <summary>The GM said "Ready" before the first round.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool Ready { get; set; }
+
     /// <summary>Cards never shuffled, and their place: front, back, or a number (1 first).</summary>
     public Dictionary<string, string>? FixedCards { get; set; }
 
@@ -553,6 +557,10 @@ public sealed class RoundLog
     public int Defeated { get; set; }
 
     public int Spawned { get; set; }
+
+    /// <summary>The GM called off the Urgency this round was announced to give.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool Waived { get; set; }
 }
 
 public sealed class Activation

@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import { computed, toValue, type MaybeRefOrGetter } from 'vue'
 import { gamesApi } from './gamesApi'
 import type { PreparationCommand } from './preparation'
-import type { Answer, EncounterCommand, GameOptions, GameView, ItemCommand, PartyCommand } from './types'
+import type { Answer, EncounterCommand, GameOptions, GameView, ItemCommand, PartyCommand, TableCommand } from './types'
 
 export const gameKeys = {
   all: ['games'] as const,
@@ -78,6 +78,7 @@ export function useDeleteGame() {
 export type GameCommand =
   | { kind: 'answer'; answer: Answer }
   | { kind: 'undo' }
+  | { kind: 'table'; command: TableCommand }
   | { kind: 'encounter'; command: EncounterCommand }
   | { kind: 'items'; command: ItemCommand }
   | { kind: 'party'; command: PartyCommand }
@@ -96,6 +97,8 @@ export function useGameCommand(id: MaybeRefOrGetter<string>) {
           return gamesApi.answer(gameId, command.answer)
         case 'undo':
           return gamesApi.undo(gameId)
+        case 'table':
+          return gamesApi.table(gameId, command.command)
         case 'encounter':
           return gamesApi.encounter(gameId, command.command)
         case 'items':

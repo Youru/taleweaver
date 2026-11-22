@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
+import Button from 'primevue/button'
 import { assetUrl } from '@/shared/api/assets'
 import { usePreferences } from '@/shared/lib/preferences'
 import type { LogEntry } from '../api/types'
@@ -16,7 +17,10 @@ const props = defineProps<{
   page?: boolean
   /** Adventurers whose lines stand out (a player's own, in the room). */
   highlight?: string[]
+  /** Each line offers to go back to before it (play-spec M2). */
+  revertible?: boolean
 }>()
+const emit = defineEmits<{ revert: [line: number] }>()
 
 const { t, te } = useI18n()
 const { language } = storeToRefs(usePreferences())
@@ -130,6 +134,17 @@ onBeforeUnmount(() => observer?.disconnect())
         <li v-else-if="block.kind === 'line'" :class="[block.line.tone, { mine: block.line.mine }]">
           <strong v-if="block.line.title">{{ block.line.title }}</strong>
           <p v-if="block.line.text">{{ block.line.text }}</p>
+          <Button
+            v-if="revertible"
+            class="back"
+            icon="pi pi-undo"
+            text
+            rounded
+            size="small"
+            :title="t('comfort.revert.line')"
+            :aria-label="t('comfort.revert.line')"
+            @click="emit('revert', index)"
+          />
         </li>
       </template>
     </ol>
@@ -154,6 +169,22 @@ li {
   padding: 0.35rem 0.6rem;
   border-left: 3px solid var(--p-content-border-color);
   margin-bottom: 0.25rem;
+}
+li:has(> .back) {
+  position: relative;
+  padding-right: 2.2rem;
+}
+.back {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 1.8rem;
+  height: 1.8rem;
+  opacity: 0.45;
+}
+.back:hover,
+.back:focus-visible {
+  opacity: 1;
 }
 li p {
   margin: 0.2rem 0 0;

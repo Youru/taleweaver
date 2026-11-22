@@ -75,7 +75,8 @@ public sealed record PlayerCommand(
     IReadOnlyList<string>? Items = null,
     IReadOnlyList<string>? Disciplines = null,
     string? Card = null,
-    string? Ally = null)
+    string? Ally = null,
+    string? Token = null)
 {
     /// <summary>Before the departure (roadmap §5.3): this adventurer for the seat, with a kit and purchases.</summary>
     public const string ChooseAdventurer = "chooseAdventurer";
@@ -117,6 +118,21 @@ public sealed record PlayerCommand(
     /// <summary>An Effect gained or lost (<c>Active</c>) by one of the seat's adventurers, in an encounter.</summary>
     public const string SetEffect = "effect";
 
+    /// <summary>The SP held now (<c>Amount</c>), ticked by the player: applies at once (play-spec J4).</summary>
+    public const string Stamina = "stamina";
+
+    /// <summary>"I am done" (J4): the GM ends the turn. The card and the round are the server's.</summary>
+    public const string EndTurn = "endTurn";
+
+    /// <summary>One of the adventurer's cards (<c>Card</c>) Exhausted or Used, or no longer: applies at once (J4b).</summary>
+    public const string Mark = "mark";
+
+    /// <summary>One Ability token (<c>Token</c>) spent: applies at once (J4b). <c>Amount</c>, what is left, is the server's.</summary>
+    public const string SpendToken = "spendToken";
+
+    /// <summary>"I want it" on an item still to hand out (J15): the GM decides.</summary>
+    public const string Claim = "claim";
+
     /// <summary>The engine command it becomes, naming who asked for it.</summary>
     public GameCommand ToGameCommand(string by) => (Type switch
     {
@@ -132,12 +148,60 @@ public sealed record PlayerCommand(
         DismissAlly => GameCommand.DismissAlly(Ally!),
         AllyDamage => GameCommand.Damage(Ally!, Amount ?? 0),
         SetEffect => GameCommand.SetEffect("adventurer:" + Adventurer, Effect!, Active ?? true),
+        Stamina => GameCommand.SetStamina(Adventurer!, Amount ?? 0),
+        EndTurn => GameCommand.EndTurnOf(Card!, Amount ?? 0),
+        Mark => GameCommand.MarkCard("adventurer:" + Adventurer, Card!, Effect!, Active ?? true),
+        SpendToken => GameCommand.AbilityToken("adventurer:" + Adventurer, Token!, Amount ?? 0),
+        Claim => GameCommand.Claim(Item!, Adventurer!),
         _ => GameCommand.LearnDiscipline(Adventurer!, Discipline!, 0),
     }) with { By = by };
 }
 
 public static class PlayerCommands
 {
+    /// <summary>What the GM may leave to a seat (M14). Never the end of a turn, a claim nor an adventurer: the GM decides those.</summary>
+    public static readonly IReadOnlySet<string> Trustable = new HashSet<string>
+    {
+        PlayerCommand.MoveItem, PlayerCommand.FlipItem, PlayerCommand.UseItem, PlayerCommand.BuyItem, PlayerCommand.AttachUpgrade,
+        PlayerCommand.LearnDiscipline, PlayerCommand.Damage, PlayerCommand.SetEffect, PlayerCommand.AllyDamage,
+    };
+
+    /// <summary>The player's own hand (play-spec lot 6): applied at once and written in the journal, nothing to validate.</summary>
+    public static bool IsOwnHand(PlayerCommand command) =>
+        command.Type is PlayerCommand.Stamina or PlayerCommand.Mark or PlayerCommand.SpendToken;
+
+    /// <summary>What only the server may fill in: the turn being ended, what a token leaves.</summary>
+    public static PlayerCommand Complete(PlayerCommand command, GameState state) => command.Type switch
+    {
+        PlayerCommand.EndTurn when state.Encounter is { } fight =>
+            command with { Card = fight.InitiativeTrack.ElementAtOrDefault(fight.CurrentTurn), Amount = fight.Round },
+        PlayerCommand.SpendToken when command.Token is { } token
+            && state.Campaign.Party.FirstOrDefault(a => a.Name == command.Adventurer) is { } member =>
+            command with { Amount = Math.Max(0, TokensOf(member, token) - 1) },
+        _ => command,
+    };
+
+    private static int TokensOf(AdventurerState member, string token) =>
+        token == "summon" ? member.SummonTokens : member.AbilityTokens?.GetValueOrDefault(token) ?? 0;
+
+    private static bool IsTheirTurn(EncounterState? encounter, string adventurer)
+    {
+        if (encounter is not { Ended: false, Round: > 0 } || encounter.InitiativeTrack.ElementAtOrDefault(encounter.CurrentTurn) is not { } card)
+        {
+            return false;
+        }
+
+        return card.Split('#')[0] == "adventurer:" + adventurer || encounter.Allies.Any(a => !a.Defeated && a.TrackCard == card && a.Owner == adventurer);
+    }
+
+    /// <summary>The cards of an adventurer that can carry a mark: never an id the phone made up.</summary>
+    private static bool IsTheirCard(AdventurerState member, string card) =>
+        member.Equipped.Concat(member.Pack).Any(i => i.Id == card)
+        || member.Disciplines.Any(d => d.Id == card)
+        || member.Equipped.SelectMany(i => i.Upgrades).Contains(card)
+        || member.Conduits.Contains(card)
+        || card == "card:" + member.Name;
+
     public static class Errors
     {
         public static Error NotAllowed(string type) => Error.Validation("Rooms.CommandNotAllowed", $"A player may not ask for '{type}'.");
@@ -145,6 +209,14 @@ public static class PlayerCommands
         public static Error ItemNotYours(string item) => Error.Forbidden("Rooms.ItemNotAccessible", $"Item '{item}' is not held by this seat's adventurers nor in the stash.");
 
         public static readonly Error RequestNotPending = Error.Conflict("Rooms.RequestNotPending", "This request was already dealt with.");
+
+        public static readonly Error NotYourTurn = Error.Conflict("Rooms.NotYourTurn", "It is not this adventurer's turn.");
+
+        public static readonly Error AlreadyAsked = Error.Conflict("Rooms.AlreadyAsked", "The GM has this request already.");
+
+        public static readonly Error NothingToClaim = Error.Conflict("Rooms.NothingToClaim", "This item is not waiting to be handed out.");
+
+        public static readonly Error Paused = Error.Conflict("Rooms.Paused", "The game is paused.");
 
         public static Error RequestNotFound(string id) => Error.NotFound("Rooms.RequestNotFound", $"No request '{id}'.");
 
@@ -214,6 +286,23 @@ public static class PlayerCommands
                 }
 
                 return command.Type == PlayerCommand.SetEffect && string.IsNullOrWhiteSpace(command.Effect) ? Errors.NotAllowed(command.Type) : null;
+            case PlayerCommand.Stamina or PlayerCommand.EndTurn or PlayerCommand.Mark or PlayerCommand.SpendToken or PlayerCommand.Claim:
+                if (string.IsNullOrEmpty(command.Adventurer) || !mine.Contains(command.Adventurer)
+                    || campaign.Party.FirstOrDefault(a => a.Name == command.Adventurer) is not { } member)
+                {
+                    return RoomService.Errors.AdventurerNotAccessible(command.Adventurer ?? "");
+                }
+
+                return command.Type switch
+                {
+                    PlayerCommand.Stamina when command.Amount is not (>= 0 and <= 99) => Errors.NotAllowed(command.Type),
+                    PlayerCommand.EndTurn when !IsTheirTurn(encounter, member.Name) => Errors.NotYourTurn,
+                    PlayerCommand.Mark when command.Effect is not ("exhausted" or "used") => Errors.NotAllowed(command.Type),
+                    PlayerCommand.Mark when command.Card is not { } marked || !IsTheirCard(member, marked) => Errors.ItemNotYours(command.Card ?? ""),
+                    PlayerCommand.SpendToken when command.Token is not { } token || TokensOf(member, token) == 0 => Errors.NotAllowed(command.Type),
+                    PlayerCommand.Claim when command.Item is not { } claimed || campaign.Unassigned.All(i => i.Id != claimed) => Errors.NothingToClaim,
+                    _ => null,
+                };
             case PlayerCommand.TakeAdventurer:
                 if (string.IsNullOrEmpty(command.Adventurer) || campaign.Party.All(a => a.Name != command.Adventurer))
                 {

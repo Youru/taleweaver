@@ -9,6 +9,7 @@ export type {
   Diagram,
   FogArea,
   Store,
+  SpecialRule,
   StoryExit,
 } from './api/types'
 export { useScenario, useScenarios } from './api/queries'

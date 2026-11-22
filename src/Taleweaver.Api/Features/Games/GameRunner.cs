@@ -8,13 +8,21 @@ using Taleweaver.Api.Storage;
 namespace Taleweaver.Api.Features.Games;
 
 /// <summary>Current state of a game, as returned by every game and encounter command.</summary>
-public sealed record GameView(string Id, string Scenario, IReadOnlyList<string> Party, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt, bool CanUndo, bool UndoBlocked, GameState State)
+public sealed record GameView(string Id, string Scenario, IReadOnlyList<string> Party, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt, bool CanUndo, bool UndoBlocked, GameState State, GameTable Table, IReadOnlyList<int> Actions)
 {
     public static GameView Of(Game game) =>
         new(game.Id, game.Scenario, PartyOf(game), game.CreatedAt, game.UpdatedAt,
             game.Commands.Count > (game.Baseline?.CommandCount ?? 0),
             game.Baseline is { CommandCount: > 0 } baseline && game.Commands.Count <= baseline.CommandCount,
-            game.State);
+            game.State,
+            game.Table,
+            ActionsOf(game));
+
+    /// <summary>The journal line each action began at; -1: it cannot be gone back on.</summary>
+    private static IReadOnlyList<int> ActionsOf(Game game) =>
+        Enumerable.Range(0, game.Commands.Count)
+            .Select(i => i < (game.Baseline?.CommandCount ?? 0) || i >= game.LogMarks.Count ? -1 : game.LogMarks[i])
+            .ToList();
 
     /// <summary>A prepared game started without names: its party is in the state.</summary>
     public static IReadOnlyList<string> PartyOf(Game game) =>
@@ -56,9 +64,14 @@ public sealed class GameRunner(IGameStore games, IContentStore content, CatalogP
     /// <summary>How many entered nodes are kept: each is a whole state in the saved file.</summary>
     private const int KeptCheckpoints = 5;
 
+    /// <summary>Longer without a command: another evening.</summary>
+    private static readonly TimeSpan SessionGap = TimeSpan.FromHours(4);
+
     public static class Errors
     {
         public static readonly Error UndoBlocked = Error.Conflict("Games.UndoBlocked", "The app was updated since: what came before cannot be undone.");
+
+        public static readonly Error HistoryChanged = Error.Conflict("Games.HistoryChanged", "The game went on meanwhile: choose the line again.");
 
         public static Error NotFound(string id) => Error.NotFound("Games.NotFound", $"No game '{id}'.");
 
@@ -95,6 +108,7 @@ public sealed class GameRunner(IGameStore games, IContentStore content, CatalogP
             EngineVersion = GameEngine.Version,
             State = state,
             EncounterStart = state.Encounter is { Ended: false } ? new Checkpoint(0, GameEngine.Version, state) : null,
+            Table = new GameTable { Sessions = [new PlaySession(now, 0)], PlayedAt = now },
         };
         await games.SaveAsync(game, cancellationToken);
         return game;
@@ -147,7 +161,14 @@ public sealed class GameRunner(IGameStore games, IContentStore content, CatalogP
             return state.Error!;
         }
 
-        var changed = game with { Commands = [.. game.Commands, command], State = state.Value };
+        var changed = game with
+        {
+            Commands = [.. game.Commands, command],
+            // A game begun before the marks: what came earlier has none
+            LogMarks = [.. game.LogMarks, .. Enumerable.Repeat(-1, Math.Max(0, game.Commands.Count - game.LogMarks.Count)), game.State.Log.Count],
+            Table = Playing(game),
+            State = state.Value,
+        };
         if (state.Value.Campaign.VisitedNodes.Count > game.State.Campaign.VisitedNodes.Count)
         {
             var entered = new Checkpoint(changed.Commands.Count, GameEngine.Version, state.Value);
@@ -206,6 +227,63 @@ public sealed class GameRunner(IGameStore games, IContentStore content, CatalogP
         return await ReplayAsync(game with { Commands = game.Commands.Take(game.Commands.Count - 1).ToList() }, cancellationToken);
     }
 
+    /// <summary>Back to the first <paramref name="actions"/> commands, if the history still has the length the GM saw.</summary>
+    public Task<Result<Game>> RevertAsync(string id, int actions, int outOf, CancellationToken cancellationToken) =>
+        OneAtATimeAsync(id, async () =>
+        {
+            var loaded = await LoadAsync(id, cancellationToken);
+            if (!loaded.IsSuccess)
+            {
+                return loaded.Error!;
+            }
+
+            var game = loaded.Value;
+            if (outOf != game.Commands.Count)
+            {
+                return Errors.HistoryChanged;
+            }
+
+            if (actions < 0 || actions >= outOf)
+            {
+                return Errors.NothingToUndo;
+            }
+
+            if (actions < game.Baseline?.CommandCount)
+            {
+                return Errors.UndoBlocked;
+            }
+
+            return await ReplayAsync(game with { Commands = game.Commands.Take(actions).ToList() }, cancellationToken);
+        }, cancellationToken);
+
+    /// <summary>Notes, players, pause: no command, the state stays as it is.</summary>
+    public Task<Result<Game>> ChangeTableAsync(string id, Func<GameTable, DateTimeOffset, GameTable> change, CancellationToken cancellationToken) =>
+        OneAtATimeAsync(id, async () =>
+        {
+            var loaded = await LoadAsync(id, cancellationToken);
+            if (!loaded.IsSuccess)
+            {
+                return loaded.Error!;
+            }
+
+            return await SaveAsync(loaded.Value with { Table = change(loaded.Value.Table, time.GetUtcNow()) }, cancellationToken);
+        }, cancellationToken);
+
+    private GameTable Playing(Game game)
+    {
+        var now = time.GetUtcNow();
+        var table = game.Table;
+        var resumes = table.Sessions.Count == 0 || now - (table.PlayedAt ?? game.UpdatedAt) > SessionGap;
+        return table with { PlayedAt = now, Sessions = resumes ? [.. table.Sessions, new PlaySession(now, game.State.Log.Count)] : table.Sessions };
+    }
+
+    /// <summary>A game begun again keeps who plays and what was ruled, not the evenings nor the pause.</summary>
+    private GameTable NewTable(Game game)
+    {
+        var now = time.GetUtcNow();
+        return game.Table with { Sessions = [new PlaySession(now, 0)], PlayedAt = now, Paused = false };
+    }
+
     /// <summary>An exported game under a new id: one of an older engine keeps the state it was exported with.</summary>
     public Task<Result<Game>> ImportAsync(Game game, CancellationToken cancellationToken) =>
         ReplayAsync(Upgrade(game) with { Id = Guid.NewGuid().ToString("N") }, cancellationToken);
@@ -217,6 +295,7 @@ public sealed class GameRunner(IGameStore games, IContentStore content, CatalogP
         game = game with
         {
             Checkpoints = game.Checkpoints.Where(c => c.CommandCount <= count).ToList(),
+            LogMarks = game.LogMarks.Take(count).ToList(),
             EncounterStart = game.EncounterStart?.CommandCount <= count ? game.EncounterStart : null,
         };
         var from = game.Checkpoints.LastOrDefault() ?? game.Baseline;
@@ -263,7 +342,7 @@ public sealed class GameRunner(IGameStore games, IContentStore content, CatalogP
             if (game.Party.Count == 0 && departure >= 0)
             {
                 var now = time.GetUtcNow();
-                var again = game with { Id = Guid.NewGuid().ToString("N"), Seed = Random.Shared.Next(), CreatedAt = now, Commands = game.Commands.Take(departure + 1).ToList(), Baseline = null, Checkpoints = [], EncounterStart = null };
+                var again = game with { Id = Guid.NewGuid().ToString("N"), Seed = Random.Shared.Next(), CreatedAt = now, Commands = game.Commands.Take(departure + 1).ToList(), Baseline = null, Checkpoints = [], EncounterStart = null, Table = NewTable(game) };
                 return await ReplayAsync(again, cancellationToken);
             }
 
@@ -280,6 +359,7 @@ public sealed class GameRunner(IGameStore games, IContentStore content, CatalogP
                 Commands = game.Commands.Take(start.CommandCount).ToList(),
                 Checkpoints = game.Checkpoints.Where(c => c.CommandCount < start.CommandCount).Append(start).ToList(),
                 Baseline = start.CommandCount <= game.Baseline?.CommandCount ? start : game.Baseline,
+                Table = NewTable(game),
             };
             return await ReplayAsync(resumed, cancellationToken);
         }
@@ -321,7 +401,7 @@ public sealed class GameRunner(IGameStore games, IContentStore content, CatalogP
             return Errors.NoEncounterPlayed;
         }
 
-        var copy = game with { Id = Guid.NewGuid().ToString("N"), CreatedAt = time.GetUtcNow(), Commands = game.Commands.Take(entered).ToList(), Baseline = null, Checkpoints = [], EncounterStart = null };
+        var copy = game with { Id = Guid.NewGuid().ToString("N"), CreatedAt = time.GetUtcNow(), Commands = game.Commands.Take(entered).ToList(), Baseline = null, Checkpoints = [], EncounterStart = null, Table = NewTable(game) };
         return await ReplayAsync(copy, cancellationToken);
     }
 

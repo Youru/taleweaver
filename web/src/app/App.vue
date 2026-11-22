@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 import ConfirmDialog from 'primevue/confirmdialog'
 import SelectButton from 'primevue/selectbutton'
+import { openRules, ReferenceDialog } from '@/features/reference'
 import { usePreferences } from '@/shared/lib/preferences'
 
 const { t, locale } = useI18n()
@@ -18,6 +19,12 @@ watch(
   },
   { immediate: true },
 )
+/** From a game the rules open over it; elsewhere they are a page. */
+function toRules(event: MouseEvent) {
+  if (!route.path.startsWith('/games/') || event.ctrlKey || event.metaKey || event.shiftKey) return
+  event.preventDefault()
+  openRules()
+}
 const languages = [
   { label: 'FR', value: 'fr' },
   { label: 'EN', value: 'en' },
@@ -29,6 +36,10 @@ const languages = [
     <RouterLink to="/" class="brand">{{ t('app.title') }}</RouterLink>
     <nav class="nav">
       <RouterLink :to="{ name: 'workshop' }">{{ t('app.workshop') }}</RouterLink>
+      <a v-if="route.path.startsWith('/games/')" href="/rules" :title="t('reference.shortcut')" @click="toRules">
+        {{ t('reference.open') }}
+      </a>
+      <RouterLink v-else :to="{ name: 'rules' }" :title="t('reference.shortcut')">{{ t('reference.open') }}</RouterLink>
     </nav>
     <SelectButton
       v-model="language"
@@ -40,6 +51,7 @@ const languages = [
     />
   </header>
   <RouterView />
+  <ReferenceDialog />
   <ConfirmDialog />
 </template>
 
@@ -58,6 +70,9 @@ const languages = [
 .nav {
   flex: 1;
   margin-left: 1.5rem;
+}
+.nav a + a {
+  margin-left: 1.25rem;
 }
 .nav a {
   color: rgb(243 233 216 / 0.75);
@@ -80,5 +95,16 @@ const languages = [
   color: var(--mid-cream);
   text-decoration: none;
   text-shadow: 0 1px 2px rgb(0 0 0 / 0.5);
+}
+@media (max-width: 30rem) {
+  .top {
+    flex-wrap: wrap;
+    row-gap: 0.4rem;
+  }
+  .nav {
+    order: 1;
+    flex-basis: 100%;
+    margin-left: 0;
+  }
 }
 </style>

@@ -223,7 +223,7 @@ internal sealed partial class Session
     private void FinishRound()
     {
         var log = Encounter.RoundLog;
-        if (!log.AiStepTrue && log.Defeated == 0 && log.Spawned == 0)
+        if (!log.Waived && !log.AiStepTrue && log.Defeated == 0 && log.Spawned == 0)
         {
             AddUrgency(1);
         }

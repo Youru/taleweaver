@@ -47,6 +47,11 @@ export type PlayerCommand =
   | { type: 'dismissAlly'; ally: string }
   | { type: 'allyDamage'; ally: string; amount: number }
   | { type: 'effect'; adventurer: string; effect: string; active: boolean }
+  | { type: 'stamina'; adventurer: string; amount: number }
+  | { type: 'endTurn'; adventurer: string }
+  | { type: 'mark'; adventurer: string; card: string; effect: 'exhausted' | 'used'; active: boolean }
+  | { type: 'spendToken'; adventurer: string; token: string }
+  | { type: 'claim'; adventurer: string; item: string }
 
 export interface PlayerRequest {
   id: string
@@ -68,6 +73,8 @@ export interface SeatView {
   followed?: string | null
   lastSeen: string
   connected: boolean
+  /** The kinds of request the GM takes from this seat without being asked. */
+  trusted?: string[]
 }
 
 export interface RoomSummary {
@@ -108,6 +115,8 @@ export interface PlayerView {
   upgrades?: { upgrade: string; prices: Record<string, number> }[]
   /** Before the departure: what the rules offer. */
   preparation?: PartyPreparation | null
+  /** The GM paused the game. */
+  paused?: boolean
 }
 
 /** The encounter as the table sees it: never the AI, the hidden rules nor the end conditions. */
