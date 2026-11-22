@@ -1,6 +1,6 @@
 # Taleweaver
 
-Back-end de l'outil : éditeur de scénarios et compagnon de jeu pour Middara. Architecture : [docs/design/backend-architecture.md](../docs/design/backend-architecture.md). Standards : skill `dotnet-backend`.
+Back-end de l'outil : éditeur de scénarios et compagnon de jeu pour Middara. Architecture : [docs/design/backend-architecture.md](../docs/design/backend-architecture.md). Standards : skill `dotnet-backend`. Où est quoi et quoi toucher ensemble : [guide de reprise](../docs/dev-guide.md).
 
 ⚠️ L'API sert le contenu sous droits du dépôt (`packs/`, `scenarios/`, `assets/`) : elle écoute sur `localhost`. Le créateur autorise l'usage des assets tant qu'il n'est pas commercial (2026-11-20) : une ouverture au réseau, pour la room et le jeu à distance, est possible, jamais payante.
 
@@ -106,6 +106,8 @@ npm run typecheck && npm run lint && npm test && npm run e2e
 ```bash
 cd taleweaver && dotnet test
 ```
+
+- Si l'API tourne déjà (fichiers verrouillés) : `dotnet test --artifacts-path "$PWD/obj/side-build"`.
 
 - Lancer `dotnet test` depuis `taleweaver/`. C'est là que `global.json` active Microsoft Testing Platform : avec le SDK .NET 10, le mode VSTest refuse xUnit v3.
 - **Tests unitaires** : ils lisent le vrai contenu du dépôt (packs et Blight of Rhamsted).
