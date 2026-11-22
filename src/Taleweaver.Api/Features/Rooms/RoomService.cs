@@ -16,6 +16,9 @@ public sealed partial class RoomService(RoomStore store, TimeProvider time)
     /// <summary>No 0/O/1/I/L: nothing to mistake when read aloud or typed on a phone.</summary>
     private const string CodeAlphabet = "ABCDEFGHJKMNPQRSTUVWXYZ";
 
+    /// <summary>6 letters (decided on 2026-11-21): 148 million codes, out of reach of guessing even beyond the Wi-Fi.</summary>
+    public const int CodeLength = 6;
+
     public static readonly IReadOnlyList<string> Colors = ["teal", "amber", "rose", "violet", "lime", "sky"];
 
     public static class Errors
@@ -399,7 +402,7 @@ public sealed partial class RoomService(RoomStore store, TimeProvider time)
     {
         while (true)
         {
-            var code = string.Concat(Enumerable.Range(0, 4).Select(_ => CodeAlphabet[RandomNumberGenerator.GetInt32(CodeAlphabet.Length)]));
+            var code = string.Concat(Enumerable.Range(0, CodeLength).Select(_ => CodeAlphabet[RandomNumberGenerator.GetInt32(CodeAlphabet.Length)]));
             if (!taken.Contains(code))
             {
                 return code;

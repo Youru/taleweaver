@@ -11,12 +11,15 @@ export const seatColors: Record<string, string> = {
   sky: '#0ea5e9',
 }
 
+/** Letters of a room code (same as the API): 6, without 0/O/1/I/L. */
+export const CODE_LENGTH = 6
+
 /** No 0/O/1/I/L in a room code. */
 export function normalizeCode(text: string): string {
   return text
     .toUpperCase()
     .replace(/[^A-Z]/g, '')
-    .slice(0, 4)
+    .slice(0, CODE_LENGTH)
 }
 
 /**

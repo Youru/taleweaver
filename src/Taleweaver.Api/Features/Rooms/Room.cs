@@ -8,7 +8,7 @@ public sealed class Room
 {
     public required string GameId { get; set; }
 
-    /// <summary>4 letters without 0/O/1/I/L ("KRVA"): what the players type or the QR code carries.</summary>
+    /// <summary>6 letters without 0/O/1/I/L ("KRVAMP"): what the players type or the QR code carries; it lasts as long as the room.</summary>
     public required string Code { get; set; }
 
     public string Status { get; set; } = RoomStatus.Open;

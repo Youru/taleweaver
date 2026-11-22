@@ -13,7 +13,7 @@ describe('room', () => {
   })
 
   it('keeps 4 letters of a typed code', () => {
-    expect(normalizeCode(' kr-va9z ')).toBe('KRVA')
+    expect(normalizeCode(' kr-va9mpq z ')).toBe('KRVAMP')
   })
 
   it('counts the XP left and wraps the swipe', () => {

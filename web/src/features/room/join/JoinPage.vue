@@ -11,7 +11,7 @@ import { pick } from '@/shared/lib/localized'
 import { usePreferences } from '@/shared/lib/preferences'
 import { roomPlayerApi } from '../api/roomApi'
 import type { RoomSummary } from '../api/types'
-import { normalizeCode, seatColors } from '../lib/room'
+import { CODE_LENGTH, normalizeCode, seatColors } from '../lib/room'
 import { storeProfile, storeSeat, storedProfile, storedSeat } from '../lib/seatStorage'
 
 /** /join/:code?: one screen, a name and a colour (room-spec §4.2). A phone that already sat here goes straight back. */
@@ -27,7 +27,7 @@ const color = ref(profile?.color ?? 'teal')
 const room = ref<RoomSummary>()
 const error = ref<string>()
 const busy = ref(false)
-const canJoin = computed(() => code.value.length === 4 && displayName.value.trim().length > 0 && !busy.value)
+const canJoin = computed(() => code.value.length === CODE_LENGTH && displayName.value.trim().length > 0 && !busy.value)
 
 function message(e: unknown) {
   const codeOf = e instanceof ApiError ? e.code : undefined
@@ -40,7 +40,7 @@ function message(e: unknown) {
 async function find() {
   room.value = undefined
   error.value = undefined
-  if (code.value.length !== 4) return
+  if (code.value.length !== CODE_LENGTH) return
   if (storedSeat(code.value)) {
     void router.replace({ name: 'player', params: { code: code.value } })
     return
@@ -82,7 +82,13 @@ onMounted(find)
     <form @submit.prevent="join">
       <label>
         <span>{{ t('room.join.code') }}</span>
-        <InputText v-model="code" class="code" autocomplete="off" autocapitalize="characters" maxlength="4" />
+        <InputText
+          v-model="code"
+          class="code"
+          autocomplete="off"
+          autocapitalize="characters"
+          :maxlength="CODE_LENGTH"
+        />
       </label>
       <label>
         <span>{{ t('room.join.name') }}</span>

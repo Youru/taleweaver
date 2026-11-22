@@ -22,7 +22,7 @@ public class RoomEndpointsTests(HomebrewFactory factory) : IClassFixture<Homebre
     {
         var game = await StartGame();
         var room = await Read<RoomView>(await _gm.PostAsync($"/api/games/{game.Id}/room", null, Token));
-        room.Code.Should().MatchRegex("^[A-HJKMNP-Z]{4}$");
+        room.Code.Should().MatchRegex("^[A-HJKMNP-Z]{6}$");
 
         var phone = Phone();
         var joined = await Read<RoomEndpoints.JoinResponse>(await phone.PostAsJsonAsync($"/api/rooms/{room.Code.ToLowerInvariant()}/seats", new RoomEndpoints.JoinRequest("Léa", "rose"), JsonDefaults.Options, Token));
