@@ -2,9 +2,7 @@
 import { computed, nextTick, provide, ref, useTemplateRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
-import Badge from 'primevue/badge'
 import Button from 'primevue/button'
-import Menu from 'primevue/menu'
 import Message from 'primevue/message'
 import ProgressSpinner from 'primevue/progressspinner'
 import Tab from 'primevue/tab'
@@ -12,12 +10,11 @@ import TabList from 'primevue/tablist'
 import TabPanel from 'primevue/tabpanel'
 import TabPanels from 'primevue/tabpanels'
 import Tabs from 'primevue/tabs'
-import Tag from 'primevue/tag'
+import { useRouter } from 'vue-router'
 import { useAiAdvice } from '@/features/ai'
 import { useCombatants, useItems } from '@/features/catalog'
 import { DuelDialog } from '@/features/duel'
 import { RoomPanel, roomGmApi } from '@/features/room'
-import { openRules } from '@/features/reference'
 import { showToPlayersKey, type ShowToPlayers } from '@/shared/lib/showToPlayers'
 import { InventoryDialog } from '@/features/inventory'
 import { useScenario } from '@/features/scenarios'
@@ -44,7 +41,9 @@ import PreparationPanel from '../components/preparation/PreparationPanel.vue'
 import AchievementList from '../components/AchievementList.vue'
 import AdventureSheetDialog from '../components/AdventureSheetDialog.vue'
 import EndingPanel from '../components/EndingPanel.vue'
+import GameBar from '../components/GameBar.vue'
 import GameJournal from '../components/GameJournal.vue'
+import PartyHud from '../components/PartyHud.vue'
 import PromptPanel from '../components/PromptPanel.vue'
 import StoryRoundPanel from '../components/StoryRoundPanel.vue'
 import { storeItems } from '../lib/storyRound'
@@ -247,7 +246,6 @@ const severalOpen = ref(false)
 const sessionOpen = ref(false)
 const readingOpen = ref(false)
 const revertLine = ref<number | null>(null)
-const toolsMenu = useTemplateRef<{ toggle: (event: Event) => void }>('toolsMenu')
 const inFight = computed(() => !!encounter.value && !encounterOver.value)
 const tools = computed(() => [
   { label: t('comfort.tools.session'), icon: 'pi pi-calendar', command: () => (sessionOpen.value = true) },
@@ -264,18 +262,34 @@ const tools = computed(() => [
     disabled: !inFight.value,
     command: () => (severalOpen.value = true),
   },
-  { label: t('comfort.tools.pause'), icon: 'pi pi-pause', command: () => tableCommand({ type: 'pause', paused: true }) },
+  {
+    label: t('comfort.tools.pause'),
+    icon: 'pi pi-pause',
+    command: () => tableCommand({ type: 'pause', paused: true }),
+  },
 ])
 const seatNames = computed(() => Object.fromEntries(Object.entries(heldBy.value).map(([a, seat]) => [a, seat.name])))
 /** "Waiting for" (play-spec M15): the adventurer, and who plays them tonight. */
+const waitedName = computed(() =>
+  !state.value || state.value.preparation || state.value.status === 'Finished' ? undefined : waitingFor(state.value),
+)
 const waited = computed(() => {
-  if (!state.value || state.value.preparation || state.value.status === 'Finished') return null
-  const name = waitingFor(state.value)
-  if (!name) return t('comfort.waiting', { who: t('comfort.waitingGm') })
+  const name = waitedName.value
+  if (name === undefined) return null
+  if (!name) return t('comfort.waitingGm')
   const at = game.data.value?.table.players.find((p) => p.adventurer === name)
   const player = (at?.present === false ? at.tonight : at?.player) || seatNames.value[name]
-  return t('comfort.waiting', { who: player ? `${name} (${player})` : name })
+  return player ? `${name} (${player})` : name
 })
+const hud = computed(() => ({
+  party: state.value?.campaign.party ?? [],
+  pieces: pieces.data.value,
+  gold: state.value?.campaign.gold ?? 0,
+  waiting: waited.value,
+  waitedName: waitedName.value,
+}))
+const router = useRouter()
+const tableUrl = computed(() => router.resolve({ name: 'table', params: { id: props.id } }).href)
 
 function moveFigure(figure: string, to: Cell) {
   encounterCommand({ type: 'move', figure, to })
@@ -291,98 +305,28 @@ function moveFigure(figure: string, to: Cell) {
       {{ t('common.error', { message: game.error.value?.message ?? '' }) }}
     </Message>
     <template v-else-if="state && game.data.value">
-      <header class="top">
-        <h1>{{ pick(campaignScenario.data.value?.title, language) || game.data.value.scenario }}</h1>
-        <Tag
-          v-if="state.bounty"
-          icon="pi pi-flag"
-          :value="t('storyRound.bountyPlaying', { name: pick(scenario.data.value?.title, language) })"
-        />
-        <Tag v-if="waited" severity="secondary" icon="pi pi-hourglass" :value="waited" />
-        <span>{{ t('play.gold', { gold: state.campaign.gold }) }}</span>
-        <span
-          v-for="adventurer in state.campaign.party"
-          :key="adventurer.name"
-          :class="{ benched: adventurer.injured || adventurer.unselectable || adventurer.defeated }"
-        >
-          {{ adventurer.name }} · {{ t('play.xp', { xp: adventurer.xp }) }}
-          <template v-if="adventurer.health">
-            · {{ adventurer.damage ?? 0 }}/{{ adventurer.health }} {{ t('play.health') }}</template
-          >
-          <template v-if="adventurer.defeated"> · {{ t('play.adventurerDefeatedTag') }}</template>
-          <template v-if="adventurer.injured"> · {{ t('storyRound.injured') }}</template>
-          <template v-if="adventurer.unselectable"> · {{ t('storyRound.unselectable') }}</template>
-        </span>
-        <Button
-          v-if="!state.preparation"
-          class="inventory-button"
-          icon="pi pi-briefcase"
-          :label="t('inventory.open')"
-          severity="secondary"
-          text
-          @click="inventoryOpen = true"
-        >
-          <template #default>
-            <i class="pi pi-briefcase" aria-hidden="true" />
-            <span>{{ t('inventory.open') }}</span>
-            <Badge
-              v-if="toHandOut"
-              :value="toHandOut"
-              severity="warn"
-              :aria-label="t('inventory.toHandOut', { n: toHandOut })"
-            />
-          </template>
-        </Button>
-        <Button
-          icon="pi pi-mobile"
-          :label="t('room.gm.button')"
-          :badge="pendingRequests ? String(pendingRequests) : undefined"
-          badge-severity="warn"
-          severity="secondary"
-          text
-          @click="roomOpen = true"
-        />
-        <Button
-          icon="pi pi-file"
-          :label="t('sheet.open')"
-          :badge="
-            state.campaign.revealedHiddenCards.length ? String(state.campaign.revealedHiddenCards.length) : undefined
+      <Teleport defer to="#app-bar">
+        <GameBar
+          :title="pick(campaignScenario.data.value?.title, language) || game.data.value.scenario"
+          :bounty="
+            state.bounty
+              ? t('storyRound.bountyPlaying', { name: pick(scenario.data.value?.title, language) })
+              : undefined
           "
-          severity="secondary"
-          text
-          @click="sheetOpen = true"
+          :preparing="!!state.preparation"
+          :to-hand-out="toHandOut"
+          :requests="pendingRequests"
+          :revealed="state.campaign.revealedHiddenCards.length"
+          :can-undo="game.data.value.canUndo && !command.isPending.value"
+          :undo-blocked="!!game.data.value.undoBlocked"
+          :tools="tools"
+          @undo="command.mutate({ kind: 'undo' })"
+          @inventory="inventoryOpen = true"
+          @room="roomOpen = true"
+          @sheet="sheetOpen = true"
         />
-        <Button
-          icon="pi pi-question-circle"
-          :label="t('reference.open')"
-          severity="secondary"
-          text
-          @click="openRules"
-        />
-        <RouterLink v-if="encounter" :to="{ name: 'table', params: { id } }" target="_blank">
-          <Button icon="pi pi-external-link" :label="t('table.openTable')" severity="secondary" text />
-        </RouterLink>
-        <Button
-          icon="pi pi-wrench"
-          :label="t('comfort.tools.open')"
-          severity="secondary"
-          text
-          aria-haspopup="true"
-          @click="toolsMenu?.toggle($event)"
-        />
-        <Menu ref="toolsMenu" :model="tools" popup />
-        <!-- A disabled button shows no tooltip: the span carries the reason -->
-        <span :title="game.data.value.undoBlocked ? t('play.undoBlocked') : undefined">
-          <Button
-            icon="pi pi-undo"
-            :label="t('play.undo')"
-            severity="secondary"
-            text
-            :disabled="!game.data.value.canUndo || command.isPending.value"
-            @click="command.mutate({ kind: 'undo' })"
-          />
-        </span>
-      </header>
+      </Teleport>
+      <PartyHud v-if="!inFight || state.preparation" v-bind="hud" show-xp />
       <Message v-if="commandError" severity="error" closable @close="command.reset()">{{ commandError }}</Message>
       <ReequipNotice
         :campaign="state.campaign"
@@ -491,7 +435,9 @@ function moveFigure(figure: string, to: Cell) {
           :busy="command.isPending.value"
           @next-turn="encounterCommand({ type: 'nextTurn' })"
           @move-card="(card, by) => encounterCommand({ type: 'moveInitiative', card, by })"
-        />
+        >
+          <PartyHud v-bind="hud" />
+        </EncounterBar>
         <div class="encounter">
           <TableView
             v-model:selected="selected"
@@ -502,10 +448,20 @@ function moveFigure(figure: string, to: Cell) {
             :locked="reportsLocked"
             :hint="ai.hint.value"
             :arrived="arrived"
+            :party="state.campaign.party"
+            :window-url="tableUrl"
             selection-outside
             @command="encounterCommand"
             @duel="openDuel"
-          />
+          >
+            <template #head>
+              <EncounterBar :encounter="encounter" :node="node" :urgency-max="urgencyMax(state.options)" readonly />
+              <CountersBar :counters="state.campaign.counters" />
+              <Message v-if="commandError" severity="error" closable @close="command.reset()">{{
+                commandError
+              }}</Message>
+            </template>
+          </TableView>
           <aside class="side">
             <AbraxisPanel
               v-if="state.abraxis"
@@ -698,26 +654,14 @@ function moveFigure(figure: string, to: Cell) {
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
-  height: calc(100vh - 4.5rem);
+  box-sizing: border-box;
+  /* The banner of a game (App.vue) and its margin */
+  height: calc(100vh - 3.75rem - 2px);
   padding: 0 1rem 1rem;
 }
 .center {
   display: grid;
   place-items: center;
-  flex: 1;
-}
-.top {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.4rem 1rem;
-}
-.benched {
-  color: var(--p-text-muted-color);
-}
-.top h1 {
-  margin: 0;
-  font-size: 1.3rem;
   flex: 1;
 }
 .encounter {

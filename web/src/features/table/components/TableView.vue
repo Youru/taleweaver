@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 import Button from 'primevue/button'
+import Menu from 'primevue/menu'
 import Message from 'primevue/message'
 import Skeleton from 'primevue/skeleton'
 import Tag from 'primevue/tag'
@@ -37,22 +38,55 @@ const props = defineProps<{
   arrived?: Set<string>
   /** The party: an adventurer's Health and SP in the selection. */
   party?: AdventurerState[]
+  /** Address of the table alone: offered beside the full screen, for a second screen. */
+  windowUrl?: string
 }>()
 const emit = defineEmits<{ command: [command: EncounterCommand]; duel: [figure: string] }>()
 
-/** Full screen: the whole table (board, selection, figures to place), e.g. on a tablet. */
-const root = useTemplateRef<HTMLElement>('root')
-const fullScreen = ref(false)
-const canFullScreen = typeof document !== 'undefined' && !!document.fullscreenEnabled
+/**
+ * Full screen is the table alone, on this screen: what the players may see, with `head` above the board.
+ * The whole document goes full screen (dialogs and menus live in the body) and the table covers it,
+ * which also works where the browser refuses full screen.
+ */
+const expanded = ref(false)
+const playersWatch = computed(() => props.forPlayers || expanded.value)
 function syncFullScreen() {
-  fullScreen.value = !!root.value && document.fullscreenElement === root.value
+  if (!document.fullscreenElement) expanded.value = false
 }
 onMounted(() => document.addEventListener('fullscreenchange', syncFullScreen))
-onBeforeUnmount(() => document.removeEventListener('fullscreenchange', syncFullScreen))
-async function toggleFullScreen() {
-  if (document.fullscreenElement) await document.exitFullscreen()
-  else await root.value?.requestFullscreen()
+onBeforeUnmount(() => {
+  document.removeEventListener('fullscreenchange', syncFullScreen)
+  if (expanded.value && document.fullscreenElement) void document.exitFullscreen()
+})
+async function expand() {
+  // What the GM had picked may not be for the players' eyes
+  selected.value = null
+  showHidden.value = false
+  expanded.value = true
+  try {
+    await document.documentElement.requestFullscreen()
+  } catch {
+    // refused or unsupported: the table still covers the page
+  }
 }
+async function collapse() {
+  expanded.value = false
+  if (document.fullscreenElement) await document.exitFullscreen()
+}
+const displayMenu = useTemplateRef<{ toggle: (event: Event) => void }>('displayMenu')
+const displays = computed(() => [
+  { label: t('table.fullScreenHere'), icon: 'pi pi-window-maximize', command: () => void expand() },
+  { label: t('table.openTable'), icon: 'pi pi-external-link', url: props.windowUrl, target: '_blank' },
+])
+function toggleTableOnly(event: Event) {
+  if (expanded.value) void collapse()
+  else if (props.windowUrl) displayMenu.value?.toggle(event)
+  else void expand()
+}
+const tableOnlyLabel = computed(() => {
+  if (expanded.value) return t('table.exitFullScreen')
+  return props.windowUrl ? t('table.showTable') : t('table.fullScreen')
+})
 
 const { t } = useI18n()
 const { language } = storeToRefs(usePreferences())
@@ -87,7 +121,7 @@ const hiddenUnplaced = computed(() =>
 )
 const toPlace = computed(() =>
   layout.value.unplacedFigures.filter(
-    (f) => !hiddenUnplaced.value.includes(f) || (showHidden.value && !props.forPlayers),
+    (f) => !hiddenUnplaced.value.includes(f) || (showHidden.value && !playersWatch.value),
   ),
 )
 
@@ -136,7 +170,8 @@ function tap(cell: Cell) {
 </script>
 
 <template>
-  <div ref="root" class="table">
+  <div class="table" :class="{ expanded }">
+    <div v-if="expanded && $slots.head" class="head"><slot name="head" /></div>
     <div class="stage">
       <Skeleton v-if="pieces.isPending.value" height="100%" />
       <Message v-else-if="pieces.isError.value" severity="warn">{{ t('table.unavailable') }}</Message>
@@ -154,20 +189,22 @@ function tap(cell: Cell) {
       >
         <template #tools>
           <Button
-            v-if="canFullScreen"
-            :icon="fullScreen ? 'pi pi-window-minimize' : 'pi pi-window-maximize'"
+            :icon="expanded ? 'pi pi-window-minimize' : 'pi pi-window-maximize'"
+            :label="windowUrl || expanded ? tableOnlyLabel : undefined"
             severity="secondary"
             text
             rounded
             size="small"
-            :aria-label="fullScreen ? t('table.exitFullScreen') : t('table.fullScreen')"
-            :title="fullScreen ? t('table.exitFullScreen') : t('table.fullScreen')"
-            @click="toggleFullScreen"
+            :aria-label="tableOnlyLabel"
+            :title="tableOnlyLabel"
+            :aria-haspopup="windowUrl && !expanded ? 'true' : undefined"
+            @click="toggleTableOnly"
           />
+          <Menu v-if="windowUrl" ref="displayMenu" :model="displays" popup />
         </template>
       </BoardCanvas>
       <TableSelection
-        v-if="selected && !selectionOutside"
+        v-if="selected && (expanded || !selectionOutside)"
         class="overlay"
         :selection="selected"
         :layout="layout"
@@ -184,7 +221,7 @@ function tap(cell: Cell) {
 
     <div class="below">
       <p v-if="selectedUnplaced" class="hint">{{ t('table.tapToPlace', { name: selectedUnplaced.name }) }}</p>
-      <div v-if="toPlace.length || (hiddenUnplaced.length && !forPlayers)" class="unplaced">
+      <div v-if="toPlace.length || (hiddenUnplaced.length && !playersWatch)" class="unplaced">
         <span v-if="toPlace.length">{{ t('table.unplacedFigures') }}</span>
         <Button
           v-for="figure in toPlace"
@@ -198,7 +235,7 @@ function tap(cell: Cell) {
           @keydown.enter="selected = { kind: 'figure', id: figure.id }"
         />
         <Button
-          v-if="hiddenUnplaced.length && !forPlayers"
+          v-if="hiddenUnplaced.length && !playersWatch"
           :label="showHidden ? t('table.hideHidden') : t('table.showHidden')"
           :icon="showHidden ? 'pi pi-eye-slash' : 'pi pi-eye'"
           size="small"
@@ -224,15 +261,23 @@ function tap(cell: Cell) {
 </template>
 
 <style scoped>
-.table:fullscreen {
-  padding: 0.75rem;
-  background: var(--p-content-background);
-}
 .table {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
   min-height: 0;
+}
+/* Under PrimeVue's dialogs and menus (1000 and up) */
+.table.expanded {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  box-sizing: border-box;
+  padding: 0.75rem;
+  background: #e6d6b4 var(--mid-parchment) center / cover;
+}
+.head {
+  flex: none;
 }
 .stage {
   position: relative;

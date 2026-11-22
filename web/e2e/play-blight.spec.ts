@@ -264,7 +264,10 @@ test('the table alone follows the game', async ({ page, context }) => {
   await page.getByRole('button', { name: 'Continuer' }).click()
   const [table] = await Promise.all([
     context.waitForEvent('page'),
-    page.getByRole('link', { name: 'Table seule' }).click(),
+    page
+      .getByRole('button', { name: 'Table seule' })
+      .click()
+      .then(() => page.getByRole('menuitem', { name: 'Dans une autre fenêtre' }).click()),
   ])
 
   await expect(table.getByRole('img', { name: 'Plateau : Search for the Lair' })).toBeVisible()
@@ -277,8 +280,10 @@ test('a GM puts the table in full screen, then leaves it', async ({ page }) => {
   await page.getByRole('button', { name: 'Continuer' }).click()
   await expect(page.getByRole('img', { name: 'Plateau : Search for the Lair' })).toBeVisible()
 
-  await page.getByRole('button', { name: 'Plein écran' }).click()
-  await expect.poll(() => page.evaluate(() => document.fullscreenElement?.className ?? '')).toContain('table')
+  await page.getByRole('button', { name: 'Table seule' }).click()
+  await page.getByRole('menuitem', { name: 'En plein écran ici' }).click()
+  await expect.poll(() => page.evaluate(() => !!document.fullscreenElement)).toBe(true)
+  await expect(page.getByRole('button', { name: 'Combattants à placer' })).toHaveCount(0)
   await expect(page.getByRole('img', { name: 'Plateau : Search for the Lair' })).toBeVisible()
 
   await page.getByRole('button', { name: 'Quitter le plein écran' }).click()

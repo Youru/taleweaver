@@ -6,7 +6,6 @@ export const messages = {
   fr: {
     comfort: {
       tools: {
-        open: 'Outils',
         session: 'La séance',
         reading: 'Mode lecture',
         correct: 'Corriger',
@@ -1503,7 +1502,9 @@ export const messages = {
       fit: 'Recadrer sur tout le plateau',
       fullScreen: 'Plein écran',
       exitFullScreen: 'Quitter le plein écran',
-      openTable: 'Table seule',
+      showTable: 'Table seule',
+      fullScreenHere: 'En plein écran ici',
+      openTable: 'Dans une autre fenêtre',
       gmView: 'Vue MJ',
       acting: 'Joue : {name}',
       noEncounter: 'Pas de rencontre en cours : la table s’affichera à la prochaine.',
@@ -1515,7 +1516,9 @@ export const messages = {
       undo: 'Annuler la dernière action',
       undoBlocked: 'L’appli a été mise à jour depuis : ce qui précède ne peut plus être annulé.',
       round: 'Round {round}',
-      notStarted: 'Rencontre pas encore commencée',
+      notStarted: 'Mise en place',
+      party: 'Groupe',
+      menu: 'Menu et outils',
       urgency: 'Urgence {urgency}/{max}',
       nextTurn: 'Tour suivant',
       startRound: 'Commencer le round 1',
@@ -1998,7 +2001,6 @@ export const messages = {
   en: {
     comfort: {
       tools: {
-        open: 'Tools',
         session: 'The session',
         reading: 'Reading mode',
         correct: 'Correct',
@@ -3491,7 +3493,9 @@ export const messages = {
       fit: 'Show the whole board',
       fullScreen: 'Full screen',
       exitFullScreen: 'Exit full screen',
-      openTable: 'Table only',
+      showTable: 'Table only',
+      fullScreenHere: 'Full screen here',
+      openTable: 'In another window',
       gmView: 'GM view',
       acting: 'Acting: {name}',
       noEncounter: 'No encounter in progress: the table will show the next one.',
@@ -3503,7 +3507,9 @@ export const messages = {
       undo: 'Undo last action',
       undoBlocked: 'The app was updated since: what came before cannot be undone.',
       round: 'Round {round}',
-      notStarted: 'Encounter not started yet',
+      notStarted: 'Setup',
+      party: 'Party',
+      menu: 'Menu and tools',
       urgency: 'Urgency {urgency}/{max}',
       nextTurn: 'Next turn',
       startRound: 'Start round 1',

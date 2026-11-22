@@ -32,9 +32,11 @@ const languages = [
 </script>
 
 <template>
-  <header v-if="!route.meta.bare" class="top">
+  <header v-if="!route.meta.bare" class="top" :class="{ game: route.meta.game }">
     <RouterLink to="/" class="brand">{{ t('app.title') }}</RouterLink>
-    <nav class="nav">
+    <!-- A game fills the banner itself (GameBar) -->
+    <div v-show="route.meta.game" id="app-bar" class="slot" />
+    <nav v-if="!route.meta.game" class="nav">
       <RouterLink :to="{ name: 'workshop' }">{{ t('app.workshop') }}</RouterLink>
       <a v-if="route.path.startsWith('/games/')" href="/rules" :title="t('reference.shortcut')" @click="toRules">
         {{ t('reference.open') }}
@@ -42,6 +44,7 @@ const languages = [
       <RouterLink v-else :to="{ name: 'rules' }" :title="t('reference.shortcut')">{{ t('reference.open') }}</RouterLink>
     </nav>
     <SelectButton
+      v-if="!route.meta.game"
       v-model="language"
       :options="languages"
       option-label="label"
@@ -66,6 +69,20 @@ const languages = [
   background: var(--mid-crimson) var(--mid-banner) left center / cover;
   border-bottom: 2px solid #3a0d0d;
   box-shadow: 0 2px 8px rgb(0 0 0 / 0.35);
+}
+.top.game {
+  box-sizing: border-box;
+  min-height: 3.25rem;
+  padding: 0.2rem 0.75rem;
+  margin-bottom: 0.5rem;
+}
+.game .brand {
+  font-size: 1.3rem;
+}
+.slot {
+  flex: 1;
+  min-width: 0;
+  margin-left: 0.75rem;
 }
 .nav {
   flex: 1;
@@ -95,6 +112,15 @@ const languages = [
   color: var(--mid-cream);
   text-decoration: none;
   text-shadow: 0 1px 2px rgb(0 0 0 / 0.5);
+}
+@media (max-width: 40rem) {
+  .top.game {
+    flex-wrap: wrap;
+  }
+  .game .slot {
+    flex-basis: 100%;
+    margin-left: 0;
+  }
 }
 @media (max-width: 30rem) {
   .top {

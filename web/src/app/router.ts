@@ -34,7 +34,13 @@ export const router = createRouter({
       meta: { bare: true },
     },
     { path: '/', name: 'home', component: () => import('@/features/home/pages/HomePage.vue') },
-    { path: '/games/:id', name: 'play', component: () => import('@/features/games/pages/PlayPage.vue'), props: true },
+    {
+      path: '/games/:id',
+      name: 'play',
+      component: () => import('@/features/games/pages/PlayPage.vue'),
+      props: true,
+      meta: { game: true },
+    },
     { path: '/rules', name: 'rules', component: () => import('@/features/reference/pages/RulesPage.vue') },
     {
       path: '/workshop',
@@ -65,5 +71,7 @@ declare module 'vue-router' {
   interface RouteMeta {
     /** A page of the players' phones: no top bar. */
     bare?: boolean
+    /** The GM's screen of a game: it fills the top bar itself. */
+    game?: boolean
   }
 }

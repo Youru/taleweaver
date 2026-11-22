@@ -39,23 +39,29 @@ const { language } = storeToRefs(usePreferences())
 
 <template>
   <section class="bar" :aria-label="pick(node?.name, language)">
-    <h2>{{ pick(node?.name, language) }}</h2>
-    <span class="round">{{
-      encounter.round > 0 ? t('play.round', { round: encounter.round }) : t('play.notStarted')
-    }}</span>
-    <span
-      class="urgency"
-      role="img"
-      :aria-label="t('play.urgency', { urgency: encounter.urgency, max: urgencyMax })"
-      :title="t('play.urgency', { urgency: encounter.urgency, max: urgencyMax })"
-    >
-      <span
-        v-for="n in urgencyMax"
-        :key="n"
-        class="pip"
-        :class="{ on: n <= encounter.urgency, last: n === urgencyMax }"
-      />
-    </span>
+    <div class="heading">
+      <h2>{{ pick(node?.name, language) }}</h2>
+      <div class="status">
+        <span class="round">{{
+          encounter.round > 0 ? t('play.round', { round: encounter.round }) : t('play.notStarted')
+        }}</span>
+        <span
+          class="urgency"
+          role="img"
+          :aria-label="t('play.urgency', { urgency: encounter.urgency, max: urgencyMax })"
+          :title="t('play.urgency', { urgency: encounter.urgency, max: urgencyMax })"
+        >
+          <span
+            v-for="n in urgencyMax"
+            :key="n"
+            class="pip"
+            :class="{ on: n <= encounter.urgency, last: n === urgencyMax }"
+          />
+        </span>
+      </div>
+    </div>
+    <!-- The GM's screen puts the party here -->
+    <slot />
     <Button
       v-if="!readonly"
       class="next"
@@ -82,7 +88,16 @@ const { language } = storeToRefs(usePreferences())
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem 0.9rem;
+  gap: 0.35rem 1.5rem;
+}
+.heading {
+  min-width: 0;
+}
+.status {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.85rem;
 }
 h2 {
   margin: 0;

@@ -115,7 +115,12 @@ function run(value: EncounterCommand) {
         for-players
         @command="run"
         @duel="openDuel"
-      />
+      >
+        <template #head>
+          <EncounterBar :urgency-max="urgencyMax(state?.options)" :encounter="encounter" :node="node" readonly />
+          <CountersBar :counters="state?.campaign.counters" />
+        </template>
+      </TableView>
       <Message v-else severity="info">{{ t('table.noEncounter') }}</Message>
       <DuelDialog
         v-if="encounter"
