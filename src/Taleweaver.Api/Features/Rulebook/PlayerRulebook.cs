@@ -30,7 +30,18 @@ public sealed partial class PlayerRulebook
     }
 
     public GetRulebook.Response For(GetRulebook.Response book) =>
-        new([.. book.Chapters.Where(c => RuleChapters.Contains(c.Id)).Select(c => c with { Markdown = Hide(WithoutExamples(c.Markdown)) })], Hide(book.Glossary));
+        new([.. book.Chapters.Where(c => RuleChapters.Contains(c.Id)).Select(For)], Hide(book.Glossary));
+
+    // A translation is the English chapter line for line: the lines the English leaves out go in every language
+    private GetRulebook.Chapter For(GetRulebook.Chapter chapter)
+    {
+        var kept = KeptLines(chapter.Markdown);
+        return chapter with
+        {
+            Markdown = Hide(Keep(chapter.Markdown, kept)),
+            Translations = chapter.Translations?.ToDictionary(t => t.Key, t => Hide(Keep(t.Value, kept))),
+        };
+    }
 
     public RuleEntry For(RuleEntry entry) =>
         entry with { Name = Hide(entry.Name), Text = entry.Text is { } text ? Hide(text) : null };
@@ -92,12 +103,20 @@ public sealed partial class PlayerRulebook
         return secret;
     }
 
-    private static string WithoutExamples(string markdown)
+    private static string[] Lines(string markdown) => [.. markdown.Split('\n').Select(l => l.TrimEnd('\r'))];
+
+    private static string Keep(string markdown, HashSet<int> kept) =>
+        string.Join('\n', Lines(markdown).Where((_, i) => kept.Contains(i)));
+
+    /// <summary>The lines left once the examples and the descriptions of the pictures are out.</summary>
+    private static HashSet<int> KeptLines(string markdown)
     {
-        var kept = new List<string>();
+        var kept = new HashSet<int>();
         var leftOut = 0; // the level of the heading being left out
-        foreach (var line in markdown.Split('\n').Select(l => l.TrimEnd('\r')))
+        var lines = Lines(markdown);
+        for (var i = 0; i < lines.Length; i++)
         {
+            var line = lines[i];
             if (Heading().Match(line) is { Success: true } heading)
             {
                 var level = heading.Groups[1].Length;
@@ -116,11 +135,11 @@ public sealed partial class PlayerRulebook
             if (line.StartsWith("<!-- p.", StringComparison.Ordinal)
                 || (leftOut == 0 && !line.StartsWith('>') && !ExampleLine().IsMatch(line)))
             {
-                kept.Add(line);
+                kept.Add(i);
             }
         }
 
-        return string.Join('\n', kept);
+        return kept;
     }
 
     [GeneratedRegex("^(#{1,4}) ")]

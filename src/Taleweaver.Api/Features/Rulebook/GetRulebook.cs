@@ -12,7 +12,12 @@ namespace Taleweaver.Api.Features.Rulebook;
 /// </summary>
 public static class GetRulebook
 {
-    public sealed record Chapter(string Id, string Markdown);
+    /// <summary>
+    /// A chapter in English, and its translations by language ("fr"): each one is the English line for line (same
+    /// headings, page marks, tables), so the sections, the page references and the phones' filter come from the
+    /// English. A line not translated is the English one, marked <c>&lt;!-- EN --&gt;</c>.
+    /// </summary>
+    public sealed record Chapter(string Id, string Markdown, IReadOnlyDictionary<string, string>? Translations = null);
 
     /// <summary>The glossary gives the French words that find the English text.</summary>
     public sealed record Response(IReadOnlyList<Chapter> Chapters, string Glossary);
@@ -37,7 +42,8 @@ public static class GetRulebook
             {
                 // "07-an-adventurer-s-turn.md" is chapter 07: the id survives a change of title
                 var id = Path.GetFileName(file).Split('-')[0];
-                chapters.Add(new Chapter(id, await File.ReadAllTextAsync(file, cancellationToken)));
+                var markdown = await File.ReadAllTextAsync(file, cancellationToken);
+                chapters.Add(new Chapter(id, markdown, await TranslationsAsync(book, Path.GetFileName(file), markdown, cancellationToken)));
             }
         }
 
@@ -46,5 +52,35 @@ public static class GetRulebook
         return TypedResults.Ok(await phones.ForAsync(context, cancellationToken) is null
             ? whole
             : new PlayerRulebook(await catalogs.GetAsync(cancellationToken)).For(whole));
+    }
+
+    private static readonly string[] Languages = ["fr"];
+
+    /// <summary>
+    /// The translations of a chapter, in &lt;root&gt;/reference/&lt;lang&gt;/rules/rulebook/chapters (the book being
+    /// &lt;root&gt;/reference/rules/rulebook). One that does not have the English's lines is left out.
+    /// </summary>
+    private static async Task<IReadOnlyDictionary<string, string>?> TranslationsAsync(string book, string file, string english,
+        CancellationToken cancellationToken)
+    {
+        var reference = Path.GetDirectoryName(Path.GetDirectoryName(book))!;
+        var lines = english.ReplaceLineEndings("\n").Split('\n').Length;
+        var found = new Dictionary<string, string>();
+        foreach (var language in Languages)
+        {
+            var path = Path.Combine(reference, language, "rules", "rulebook", "chapters", file);
+            if (!File.Exists(path))
+            {
+                continue;
+            }
+
+            var text = await File.ReadAllTextAsync(path, cancellationToken);
+            if (text.ReplaceLineEndings("\n").Split('\n').Length == lines)
+            {
+                found[language] = text;
+            }
+        }
+
+        return found.Count == 0 ? null : found;
     }
 }

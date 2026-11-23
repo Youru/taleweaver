@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { findReference, parseBook } from './book'
+import { findReference, parseBook, parseLocalizedBook } from './book'
 import { readInline } from './inline'
 import { questions } from './questions'
 import { createSearch } from './search'
@@ -95,5 +95,32 @@ describe.skipIf(!present)('rulebook', () => {
       .flatMap((piece) => piece.link ?? [])
       .filter((link) => link.page >= 4 && link.page <= 100 && !findReference(book, link.page, link.name))
     expect(lost).toEqual([])
+  })
+})
+
+// The French book (reference/fr/…/chapters, line for line): every question still finds its rule
+const frFolder = `${root}reference/fr/rules/rulebook/chapters/`
+describe.skipIf(!present || !existsSync(frFolder))('rules search in French', () => {
+  const chapters = readdirSync(`${folder}chapters`).map((file) => ({
+    id: file.split('-')[0]!,
+    markdown: read(`${folder}chapters/${file}`),
+    translations: existsSync(`${frFolder}${file}`) ? { fr: read(`${frFolder}${file}`) } : undefined,
+  }))
+  const french = parseLocalizedBook(chapters, 'fr')
+  const search = createSearch(french, read(`${folder}glossary.md`), JSON.parse(read(`${root}packs/um1/rules.json`)))
+
+  it('reads every chapter in French, under the English section ids', () => {
+    expect(french.sections.map((s) => s.id)).toEqual(book.sections.map((s) => s.id))
+    expect(french.sections.filter((s) => s.english).length).toBe(book.sections.length)
+  })
+
+  it('answers every question of the table', () => {
+    expect(search.questions.length).toBe(questions.length)
+    const english = createSearch(book, '')
+    for (const [i, { hit }] of search.questions.entries()) {
+      const at = english.questions[i]!.hit
+      expect(hit.section.id).toBe(at.section.id)
+      expect(hit.passage?.block).toBe(at.passage?.block)
+    }
   })
 })

@@ -115,6 +115,8 @@ def content_files(scenarios):
         *text_files(ROOT / "packs", ".json"),
         *(f for folder in official for f in text_files(folder, ".json")),
         *(text_files(book / "chapters", ".md") + [book / "glossary.md"] if (book / "glossary.md").exists() else []),
+        # Its translations, line for line (reference/<lang>/rules/rulebook/chapters)
+        *(f for lang in ("fr",) for f in text_files(ROOT / "reference" / lang / "rules" / "rulebook" / "chapters", ".md")),
     ]
     for given in scenarios:
         path = (ROOT / given).resolve()

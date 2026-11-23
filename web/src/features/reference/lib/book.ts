@@ -18,6 +18,8 @@ export interface Section {
   page: number
   lastPage: number
   blocks: Block[]
+  /** In a translated book, the English section: what the questions and the references name. */
+  english?: { title: string; parent?: string; blocks: Block[] }
 }
 
 export interface Book {
@@ -29,6 +31,7 @@ export interface Book {
 const leftOut = new Set(['12'])
 
 const pageMark = /^<!-- p\.(\d+) -->$/
+const untranslated = '<!-- EN --> '
 const listItem = /^(\s*)([-*]|\d+\.) (.*)$/
 
 const cells = (line: string) =>
@@ -83,7 +86,8 @@ export function parseBook(chapters: { id: string; markdown: string }[]): Book {
     }
 
     for (let i = 0; i < lines.length; i++) {
-      const line = lines[i]!.trimEnd()
+      // A line a translation leaves in English is marked: the reader sees the English
+      const line = lines[i]!.trimEnd().replaceAll(untranslated, '')
       const mark = pageMark.exec(line)
       const heading = /^(#{1,4}) (.+)$/.exec(line)
       const item = listItem.exec(line)
@@ -156,7 +160,11 @@ export function findReference(book: Book, page: number, name?: string): Section 
   const wanted = normalize(name ?? '')
   const named = wanted
     ? book.sections
-        .filter((section) => normalize(section.title) === wanted || normalize(section.parent ?? '') === wanted)
+        .filter((section) =>
+          [section.title, section.parent, section.english?.title, section.english?.parent].some(
+            (title) => normalize(title ?? '') === wanted,
+          ),
+        )
         .find((section) => section.page - 2 <= page && page <= section.lastPage + 2)
     : undefined
   return (
@@ -166,4 +174,39 @@ export function findReference(book: Book, page: number, name?: string): Section 
     // A page of pictures has no text: the rule it illustrates is the one before
     [...book.sections].reverse().find((section) => section.lastPage < page)
   )
+}
+
+/** A chapter as the server sends it: the English, and its translations line for line. */
+export interface RulebookChapter {
+  id: string
+  markdown: string
+  translations?: Record<string, string> | null
+}
+
+/**
+ * The book in a language. A translation is the English line for line, so a chapter keeps the ids of its English
+ * sections (the addresses, the questions, the page references); a chapter whose sections do not match stays in
+ * English.
+ */
+export function parseLocalizedBook(chapters: RulebookChapter[], language: string): Book {
+  const english = parseBook(chapters)
+  if (language === 'en' || !chapters.some((c) => c.translations?.[language])) return english
+  const translated = parseBook(chapters.map((c) => ({ id: c.id, markdown: c.translations?.[language] ?? c.markdown })))
+  const book: Book = { sections: [], chapters: [] }
+  for (const en of english.chapters) {
+    const tr = translated.chapters.find((c) => c.id === en.id)
+    const same = tr && tr.sections.length === en.sections.length
+    const chapter = same
+      ? {
+          ...tr,
+          sections: tr.sections.map((section, i) => {
+            const { id, title, parent, blocks } = en.sections[i]!
+            return { ...section, id, english: { title, parent, blocks } }
+          }),
+        }
+      : en
+    book.chapters.push(chapter)
+    book.sections.push(...chapter.sections)
+  }
+  return book
 }

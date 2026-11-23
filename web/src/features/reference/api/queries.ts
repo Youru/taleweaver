@@ -19,7 +19,8 @@ export interface Reference {
 
 /** The cleaned rulebook and its glossary (GET /api/rulebook). */
 export interface Rulebook {
-  chapters: { id: string; markdown: string }[]
+  /** Each chapter in English, and its translations line for line ("fr"). */
+  chapters: { id: string; markdown: string; translations?: Record<string, string> | null }[]
   glossary: string
 }
 

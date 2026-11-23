@@ -85,11 +85,20 @@ export function createSearch(book: Book, glossary: string, reference?: Reference
   }))
   const asked = questions.flatMap((question) => {
     const at = indexed.find(
-      ({ section, title }) => section.chapter === question.chapter && title === normalize(question.section),
+      ({ section, title }) =>
+        section.chapter === question.chapter &&
+        normalize(question.section) === (section.english ? normalize(section.english.title) : title),
     )
     if (!at) return []
     const find = normalize(question.find ?? '')
-    const answer = at.passages.find(({ text }) => find && text.includes(find)) ?? at.passages[0]!
+    // `find` is English: in a translated book, the passage at the same place as the English one that has it
+    const english = at.section.english ? passagesOf({ ...at.section, blocks: at.section.english.blocks }) : undefined
+    const place =
+      english?.length === at.passages.length
+        ? english.findIndex(({ raw }) => find && normalize(raw).includes(find))
+        : -1
+    const answer =
+      (place >= 0 ? at.passages[place] : at.passages.find(({ text }) => find && text.includes(find))) ?? at.passages[0]!
     const hit: Hit = { section: at.section, passage: answer.passage, score: 0 }
     return [{ question, hit, text: allText(question.text) }]
   })

@@ -8,7 +8,7 @@ import Message from 'primevue/message'
 import { pick } from '@/shared/lib/localized'
 import { usePreferences } from '@/shared/lib/preferences'
 import { useReference, useRulebook } from '../api/queries'
-import { parseBook, type Passage, type Section } from '../lib/book'
+import { parseLocalizedBook, type Passage, type Section } from '../lib/book'
 import { themes } from '../lib/questions'
 import { tables } from '../lib/reference'
 import { createSearch, type Hit } from '../lib/search'
@@ -28,7 +28,9 @@ const { language } = storeToRefs(usePreferences())
 const rulebook = useRulebook()
 const reference = useReference()
 
-const book = computed(() => parseBook(rulebook.data.value?.chapters ?? []))
+const book = computed(() => parseLocalizedBook(rulebook.data.value?.chapters ?? [], language.value))
+/** The book has a translation in the chosen language (else it reads in English). */
+const translated = computed(() => !!rulebook.data.value?.chapters.some((c) => c.translations?.[language.value]))
 const engine = computed(() =>
   rulebook.data.value ? createSearch(book.value, rulebook.data.value.glossary, reference.data.value) : undefined,
 )
@@ -293,7 +295,10 @@ defineExpose({ focus })
           @open="follow"
           @back="back"
         />
-        <p v-else class="hint">{{ t('reference.hint') }}</p>
+        <p v-else class="hint">
+          {{ t('reference.hint') }}
+          <template v-if="language !== 'en' && !translated">{{ t('reference.hintEnglish') }}</template>
+        </p>
       </div>
     </div>
     <small v-if="player" class="filtered">{{ t('reference.filtered') }}</small>
