@@ -6,19 +6,19 @@ using Taleweaver.Api.Content;
 namespace Taleweaver.Api.Storage;
 
 /// <summary>
-/// Reads packs/&lt;pack&gt;/pack.json and its catalogue files, and scenarios/**/*.json.
+/// Reads packs/&lt;pack&gt;/pack.json and its catalogue files, and scenarios/**/*.json, in every content folder
+/// (<see cref="ContentRoots"/>). The workshop writes only in the main one.
 /// Packs are read once and kept in memory; scenarios are read on each call, since the editor changes them.
 /// </summary>
 public sealed class JsonContentStore(IOptions<ContentOptions> options, IHostEnvironment environment, ILogger<JsonContentStore>? logger = null)
     : IContentStore
 {
-    private readonly string _root = Path.GetFullPath(options.Value.RootPath, environment.ContentRootPath);
+    private readonly ContentRoots _roots = new(options, environment);
+    private readonly string _root = new ContentRoots(options, environment).Main;
     private readonly ContentOptions _options = options.Value;
     private readonly SemaphoreSlim _packsLock = new(1, 1);
     private readonly SemaphoreSlim _scenariosLock = new(1, 1);
     private IReadOnlyList<Pack>? _packs;
-
-    private string PacksPath => Path.Combine(_root, _options.PacksDirectory);
 
     private string ScenariosPath => Path.Combine(_root, _options.ScenariosDirectory);
 
@@ -40,9 +40,17 @@ public sealed class JsonContentStore(IOptions<ContentOptions> options, IHostEnvi
             if (_packs is null)
             {
                 var packs = new List<Pack>();
-                foreach (var manifestPath in Directory.EnumerateFiles(PacksPath, "pack.json", SearchOption.AllDirectories).Order())
+                foreach (var folder in _roots.All.Select(r => Path.Combine(r, _options.PacksDirectory)).Where(Directory.Exists))
                 {
-                    packs.Add(await LoadPackAsync(manifestPath, cancellationToken));
+                    foreach (var manifestPath in Directory.EnumerateFiles(folder, "pack.json", SearchOption.AllDirectories).Order())
+                    {
+                        var pack = await LoadPackAsync(manifestPath, cancellationToken);
+                        // The same pack in two folders (an installed copy of the repository's): the first one counts
+                        if (packs.All(p => p.Manifest.Id != pack.Manifest.Id))
+                        {
+                            packs.Add(pack);
+                        }
+                    }
                 }
 
                 _packs = packs;
@@ -55,6 +63,8 @@ public sealed class JsonContentStore(IOptions<ContentOptions> options, IHostEnvi
             _packsLock.Release();
         }
     }
+
+    public void Invalidate() => _packs = null;
 
     public async Task<IReadOnlyList<ScenarioSummary>> ListScenariosAsync(CancellationToken cancellationToken)
     {
@@ -198,22 +208,26 @@ public sealed class JsonContentStore(IOptions<ContentOptions> options, IHostEnvi
         var index = new Dictionary<string, (Scenario, string)>(StringComparer.Ordinal);
         // The workshop folder may live outside the scenarios folder (e.g. a temporary one for tests): then the
         // default one (scenarios/homebrew) is not read as official scenarios.
-        var defaultHomebrew = Path.GetFullPath(Path.Combine(ScenariosPath, Scenario.HomebrewPack)) + Path.DirectorySeparatorChar;
+        var scenarioFolders = _roots.All.Select(r => Path.Combine(r, _options.ScenariosDirectory)).Append(HomebrewPath).ToList();
+        var defaultHomebrews = _roots.All
+            .Select(r => Path.GetFullPath(Path.Combine(r, _options.ScenariosDirectory, Scenario.HomebrewPack)) + Path.DirectorySeparatorChar)
+            .ToList();
+        bool InADefaultHomebrew(string path) => defaultHomebrews.Any(h => path.StartsWith(h, StringComparison.OrdinalIgnoreCase));
 
         // A folder with a campaign.json is one scenario (CampaignFolder): its files are not scenarios of their own
-        var campaigns = new[] { ScenariosPath, HomebrewPath }
+        var campaigns = scenarioFolders
             .Where(Directory.Exists)
             .SelectMany(folder => Directory.EnumerateDirectories(folder, "*", SearchOption.AllDirectories))
             .Where(CampaignFolder.IsCampaign)
             .Select(folder => Path.GetFullPath(folder) + Path.DirectorySeparatorChar)
-            .Where(folder => IsHomebrew(folder) || !folder.StartsWith(defaultHomebrew, StringComparison.OrdinalIgnoreCase))
+            .Where(folder => IsHomebrew(folder) || !InADefaultHomebrew(folder))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
-        var files = new[] { ScenariosPath, HomebrewPath }
+        var files = scenarioFolders
             .Where(Directory.Exists)
             .SelectMany(folder => Directory.EnumerateFiles(folder, "*.json", SearchOption.AllDirectories))
             .Select(Path.GetFullPath)
-            .Where(path => IsHomebrew(path) || !path.StartsWith(defaultHomebrew, StringComparison.OrdinalIgnoreCase))
+            .Where(path => IsHomebrew(path) || !InADefaultHomebrew(path))
             .Where(path => !campaigns.Any(folder => path.StartsWith(folder, StringComparison.OrdinalIgnoreCase)))
             .Concat(campaigns)
             .Distinct(StringComparer.OrdinalIgnoreCase)

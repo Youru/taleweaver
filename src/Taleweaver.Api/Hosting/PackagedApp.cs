@@ -31,13 +31,15 @@ public sealed class PackagedApp
     private readonly FileStream _lock;
     private readonly string _root;
     private readonly string _data;
+    private readonly string _local;
     private readonly int _port;
 
-    private PackagedApp(FileStream instanceLock, string root, string data, int port)
+    private PackagedApp(FileStream instanceLock, string root, string data, string local, int port)
     {
         _lock = instanceLock;
         _root = root;
         _data = data;
+        _local = local;
         _port = port;
     }
 
@@ -78,7 +80,7 @@ public sealed class PackagedApp
         var root = Unpack(Path.Combine(local, "app"));
         var port = FreePort(int.TryParse(Environment.GetEnvironmentVariable(PortVariable), out var first) ? first : DefaultPort);
         File.WriteAllText(address, port.ToString(System.Globalization.CultureInfo.InvariantCulture));
-        return new PackagedApp(instanceLock, root, data, port);
+        return new PackagedApp(instanceLock, root, data, local, port);
     }
 
     /// <summary>The settings come from here, never from an appsettings.json lying where the executable was started.</summary>
@@ -90,6 +92,9 @@ public sealed class PackagedApp
             ["Content:RootPath"] = _root,
             ["Content:SavesPath"] = Path.Combine(_data, "saves"),
             ["Content:HomebrewDirectory"] = Path.Combine(_data, "scenarios"),
+            // Content packs: imported from the app, or a *.taleweaver.zip dropped beside the executable
+            ["Content:InstalledPacksPath"] = Path.Combine(_local, "content-packs"),
+            ["Content:DroppedPacksPath"] = AppContext.BaseDirectory,
             // HostGuard checks the names: the addresses of the Wi-Fi are not known in advance
             ["AllowedHosts"] = "*",
             ["Logging:LogLevel:Default"] = "Warning",

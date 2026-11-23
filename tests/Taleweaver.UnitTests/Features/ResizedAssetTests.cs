@@ -20,7 +20,7 @@ public sealed class ResizedAssetTests : IDisposable
         var original = Picture("cards/wide.jpg", 800, 400);
         var handler = Handler();
 
-        var resized = await handler.ResizedAsync(original, 320, TestContext.Current.CancellationToken);
+        var resized = await handler.ResizedAsync(original, Name(original), 320, TestContext.Current.CancellationToken);
 
         resized.Should().NotBe(original).And.StartWith(Path.Combine(_root, "saves", "cache", "images", "320"));
         using (var bitmap = SKBitmap.Decode(resized))
@@ -29,7 +29,7 @@ public sealed class ResizedAssetTests : IDisposable
         }
 
         var written = File.GetLastWriteTimeUtc(resized);
-        (await handler.ResizedAsync(original, 320, TestContext.Current.CancellationToken)).Should().Be(resized);
+        (await handler.ResizedAsync(original, Name(original), 320, TestContext.Current.CancellationToken)).Should().Be(resized);
         File.GetLastWriteTimeUtc(resized).Should().Be(written, "made once");
     }
 
@@ -38,7 +38,7 @@ public sealed class ResizedAssetTests : IDisposable
     {
         var original = Picture("tokens/small.png", 100, 100);
 
-        (await Handler().ResizedAsync(original, 320, TestContext.Current.CancellationToken)).Should().Be(original);
+        (await Handler().ResizedAsync(original, Name(original), 320, TestContext.Current.CancellationToken)).Should().Be(original);
     }
 
     private GetAsset.Handler Handler()
@@ -48,6 +48,9 @@ public sealed class ResizedAssetTests : IDisposable
         var options = Options.Create(new ContentOptions { RootPath = _root, SavesPath = Path.Combine(_root, "saves") });
         return new GetAsset.Handler(options, environment);
     }
+
+    /// <summary>The picture as the catalogue names it ("assets/cards/wide.jpg").</summary>
+    private string Name(string path) => "assets/" + Path.GetRelativePath(Path.Combine(_root, "assets"), path).Replace('\\', '/');
 
     private string Picture(string relative, int width, int height)
     {

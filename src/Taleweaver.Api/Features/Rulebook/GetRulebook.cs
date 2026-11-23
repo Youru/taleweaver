@@ -26,7 +26,9 @@ public static class GetRulebook
     private static async Task<Ok<Response>> HandleAsync(IOptions<ContentOptions> options, IWebHostEnvironment environment,
         PhoneCards phones, CatalogProvider catalogs, HttpContext context, CancellationToken cancellationToken)
     {
-        var book = Path.Combine(Path.GetFullPath(options.Value.RootPath, environment.ContentRootPath), "reference", "rules", "rulebook");
+        // The first content folder that has one (the main folder, or an installed content pack)
+        var books = new ContentRoots(options, environment).All.Select(r => Path.Combine(r, "reference", "rules", "rulebook")).ToList();
+        var book = books.FirstOrDefault(b => File.Exists(Path.Combine(b, "glossary.md"))) ?? books[0];
         var folder = Path.Combine(book, "chapters");
         var chapters = new List<Chapter>();
         if (Directory.Exists(folder))

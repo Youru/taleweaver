@@ -1,6 +1,7 @@
 """Builds what is given away: one executable per system, with the front and the content inside.
 
     python3 -I taleweaver/scripts/package.py [win-x64] [linux-x64] [--scenario scenarios/homebrew/x.json] [--content DIR]
+    python3 -I taleweaver/scripts/package.py --content-pack middara      # the content alone: dist/middara.taleweaver.zip
 
 --content: the folder holding packs/, scenarios/, assets/ (and reference/rules/rulebook/). By default
 TALEWEAVER_CONTENT_ROOT, or the repository around taleweaver/. The CI gives taleweaver/demo: nothing of the game.
@@ -211,6 +212,39 @@ def version():
     return f"{VERSION}+{datetime.date.today():%Y%m%d}.{git('rev-parse', '--short', 'HEAD')}{changed}"
 
 
+def content_with_pictures(scenarios):
+    """(files, [(name in the bundle, bytes)]): the content and the pictures it names, WebP when smaller."""
+    content = content_files(scenarios)
+    names = pictures(content)
+    stems = Counter(os.path.splitext(n)[0] for n in names)
+    with ThreadPoolExecutor() as pool:
+        images = list(pool.map(lambda n: compressed(n, stems[os.path.splitext(n)[0]] == 1), names))
+    return content, images
+
+
+def write_content(archive, content, images):
+    for path in content:
+        # The app does not read scenarios/homebrew as official: what is given goes in scenarios/shared
+        archive.write(path, path.relative_to(ROOT).as_posix().replace("scenarios/homebrew/", "scenarios/shared/", 1))
+    for name, data in images:
+        archive.writestr(name, data, compress_type=zipfile.ZIP_STORED)
+
+
+def build_pack(pack_id, scenarios):
+    """The content alone, for an app published without it (Features/ContentPacks): <id>.taleweaver.zip."""
+    OUT.mkdir(exist_ok=True)
+    content, images = content_with_pictures(scenarios)
+    # Named after the packs it brings, in each language they give
+    packs = [json.loads(p.read_text(encoding="utf-8"))["name"] for p in content if p.name == "pack.json"]
+    name = {lang: " + ".join(n.get(lang) or n["en"] for n in packs) for lang in sorted({"en", *(k for n in packs for k in n)})}
+    manifest = {"id": pack_id, "name": name if packs else {"en": pack_id}, "version": version()}
+    target = OUT / f"{pack_id}.taleweaver.zip"
+    with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("content-pack.json", json.dumps(manifest, ensure_ascii=False, indent=2))
+        write_content(archive, content, images)
+    print(f"{target}: {len(content)} files, {len(images)} pictures, {target.stat().st_size / 1e6:.0f} MB ({manifest['version']})")
+
+
 def build(systems, scenarios):
     OUT.mkdir(exist_ok=True)
     stamp = version()
@@ -225,24 +259,15 @@ def build(systems, scenarios):
                 "-p:SelfContained=true", "-p:PublishSingleFile=true")
         restored = next((work / systems[-1]).rglob("project.assets.json"))
 
-        content = content_files(scenarios)
-        names = pictures(content)
-        stems = Counter(os.path.splitext(n)[0] for n in names)
-        with ThreadPoolExecutor() as pool:
-            images = list(pool.map(lambda n: compressed(n, stems[os.path.splitext(n)[0]] == 1), names))
+        content, images = content_with_pictures(scenarios)
 
         bundle = work / "content.zip"
         with zipfile.ZipFile(bundle, "w", zipfile.ZIP_DEFLATED) as archive:
-            for path in content:
-                # The app does not read scenarios/homebrew as official: what is given goes in scenarios/shared
-                inside = path.relative_to(ROOT).as_posix().replace("scenarios/homebrew/", "scenarios/shared/", 1)
-                archive.write(path, inside)
+            write_content(archive, content, images)
             for path in sorted((work / "web").rglob("*")):
                 if path.is_file():
                     archive.write(path, "wwwroot/" + path.relative_to(work / "web").as_posix())
             archive.writestr("wwwroot/licenses.txt", licences(systems, restored))
-            for name, data in images:
-                archive.writestr(name, data, compress_type=zipfile.ZIP_STORED)
         print(f"Content: {len(content)} files, {len(images)} pictures, {bundle.stat().st_size / 1e6:.0f} MB")
 
         for system in systems:
@@ -279,10 +304,14 @@ if __name__ == "__main__":
     parser.add_argument("systems", nargs="*", help=f"{', '.join(SYSTEMS)} (both by default)")
     parser.add_argument("--scenario", action="append", default=[], help="a homebrew scenario to give with the app")
     parser.add_argument("--content", help="the folder holding packs/, scenarios/, assets/ (taleweaver/demo for the CI)")
+    parser.add_argument("--content-pack", metavar="ID", help="make only the content pack <ID>.taleweaver.zip, for the app published without content")
     args = parser.parse_args()
     ROOT = Path(args.content or os.environ.get("TALEWEAVER_CONTENT_ROOT") or APP.parent).resolve()
     if not (ROOT / "packs").is_dir():
         parser.error(f"no packs/ in {ROOT}: give --content (taleweaver/demo for the demonstration)")
     if unknown := set(args.systems) - set(SYSTEMS):
         parser.error(f"unknown system: {', '.join(sorted(unknown))}")
-    build(args.systems or list(SYSTEMS), args.scenario)
+    if args.content_pack:
+        build_pack(args.content_pack, args.scenario)
+    else:
+        build(args.systems or list(SYSTEMS), args.scenario)

@@ -31,6 +31,15 @@ Grab the latest build from the [Releases](https://github.com/Youru/taleweaver/re
 
 Your browser opens on the app. Keep the console window open while you play, and close it to quit. Release builds contain the demonstration content only.
 
+### Adding game content
+
+The game's content comes as a separate **content pack**, a `.taleweaver.zip` file that is never published here. To add one, either:
+
+- on the home page, under **Game content**, choose **Add a content pack** and pick the file; or
+- put the file beside `Taleweaver.exe` (or the Linux `Taleweaver`) before starting the app: it is installed at start, and again whenever the file changes.
+
+Updating the app does not touch installed packs. Remove a pack from the same section of the home page.
+
 ### Phones and tablets
 
 The phones must be on the same Wi-Fi as the computer running Taleweaver. Allow the firewall prompt for private networks. In a game, the **Room** button shows the QR code for players, and **Screens** shows one for a GM tablet or a shared table display. Use a trusted network: traffic is not encrypted.
@@ -80,7 +89,7 @@ scenarios/<pack>/   scenarios, one JSON file each
 assets/             pictures named by the catalogue
 ```
 
-[`demo/`](demo/) is a complete, tiny example: one pack, one scenario. Set `Content__RootPath` (or `TALEWEAVER_CONTENT_ROOT` for the tests and the packaging script) to use another folder. Scenarios made in the workshop go to `scenarios/homebrew/` of that folder; the packaged app keeps them, and the games, in your user folder.
+[`demo/`](demo/) is a complete, tiny example: one pack, one scenario. A content pack is the same three folders (plus `reference/rules/rulebook/` for the rules) zipped with a `content-pack.json` at the root (`{ "id": "my-pack", "name": { "en": "My pack" }, "version": "1" }`); `python3 -I scripts/package.py --content <folder> --content-pack <id>` makes one, pictures converted to WebP. Set `Content__RootPath` (or `TALEWEAVER_CONTENT_ROOT` for the tests and the packaging script) to use another folder. Scenarios made in the workshop go to `scenarios/homebrew/` of that folder; the packaged app keeps them, and the games, in your user folder.
 
 ## Project layout
 

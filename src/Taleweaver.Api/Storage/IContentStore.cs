@@ -20,6 +20,9 @@ public interface IContentStore
 
     /// <summary>Deletes a scenario of the workshop (homebrew); false when there is none with this id.</summary>
     Task<bool> DeleteScenarioAsync(string id, CancellationToken cancellationToken);
+
+    /// <summary>Forgets the packs read: a content pack was installed or removed.</summary>
+    void Invalidate();
 }
 
 /// <param name="Editable">Made in the workshop (homebrew): it may be changed or deleted; official scenarios are read only.</param>

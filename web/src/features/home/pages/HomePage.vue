@@ -9,6 +9,7 @@ import Message from 'primevue/message'
 import ProgressSpinner from 'primevue/progressspinner'
 import Tag from 'primevue/tag'
 import { useConfirm } from 'primevue/useconfirm'
+import { ContentPacksSection } from '@/features/contentPacks'
 import { StartGameDialog, useDeleteGame, useGames, type GameView } from '@/features/games'
 import { useScenarios } from '@/features/scenarios'
 import { pick } from '@/shared/lib/localized'
@@ -109,6 +110,8 @@ function remove(id: string) {
         </li>
       </ul>
     </section>
+
+    <ContentPacksSection />
 
     <StartGameDialog :scenario="starting" @close="starting = null" @started="started" />
   </main>

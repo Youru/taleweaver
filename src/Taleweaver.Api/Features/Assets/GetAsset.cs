@@ -21,8 +21,10 @@ public static class GetAsset
 
     public sealed class Handler(IOptions<ContentOptions> options, IWebHostEnvironment environment)
     {
-        private readonly string _root = Path.GetFullPath(
-            Path.Combine(Path.GetFullPath(options.Value.RootPath, environment.ContentRootPath), options.Value.AssetsDirectory));
+        private readonly ContentRoots _roots = new(options, environment);
+
+        /// <summary>The assets folders, in the order of the content folders: the first that has the picture serves it.</summary>
+        private IEnumerable<string> Folders => _roots.All.Select(r => Path.GetFullPath(Path.Combine(r, options.Value.AssetsDirectory)));
 
         /// <summary>Resized pictures, next to the saves (never in the repository): rebuilt when the original changes.</summary>
         private readonly string _cache = Path.Combine(
@@ -38,9 +40,9 @@ public static class GetAsset
         /// The picture at most <paramref name="width"/> wide (each format stays itself: PNG and WebP keep their transparency);
         /// the original when it is already that small or cannot be read.
         /// </summary>
-        public async Task<string> ResizedAsync(string original, int width, CancellationToken cancellationToken)
+        public async Task<string> ResizedAsync(string original, string name, int width, CancellationToken cancellationToken)
         {
-            var relative = Path.GetRelativePath(_root, original);
+            var relative = Path.ChangeExtension(name["assets/".Length..], Path.GetExtension(original));
             var target = Path.Combine(_cache, width.ToString(System.Globalization.CultureInfo.InvariantCulture), relative);
             if (File.Exists(target) && File.GetLastWriteTimeUtc(target) >= File.GetLastWriteTimeUtc(original))
             {
@@ -84,7 +86,7 @@ public static class GetAsset
         }
 
         /// <summary>"assets/act1/tiles/um01.jpg": a file found, named as the catalogue names it.</summary>
-        private string NameOf(string file) => "assets/" + Path.GetRelativePath(_root, file).Replace('\\', '/');
+        private static string NameOf(string root, string file) => "assets/" + Path.GetRelativePath(root, file).Replace('\\', '/');
 
         /// <summary>
         /// The file for a path relative to the assets folder; null when it is outside the folder, not an image or missing.
@@ -98,21 +100,29 @@ public static class GetAsset
                 return null;
             }
 
-            var full = Path.GetFullPath(Path.Combine(_root, path));
-            if (!full.StartsWith(_root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
-                || !ContentTypes.TryGetContentType(full, out var contentType)
-                || !contentType.StartsWith("image/", StringComparison.Ordinal))
+            foreach (var root in Folders)
             {
-                return null;
+                var full = Path.GetFullPath(Path.Combine(root, path));
+                if (!full.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
+                    || !ContentTypes.TryGetContentType(full, out var contentType)
+                    || !contentType.StartsWith("image/", StringComparison.Ordinal))
+                {
+                    return null;
+                }
+
+                if (File.Exists(full))
+                {
+                    return (full, contentType, NameOf(root, full));
+                }
+
+                var compressed = Path.ChangeExtension(full, ".webp");
+                if (contentType is "image/jpeg" or "image/png" && File.Exists(compressed))
+                {
+                    return (compressed, "image/webp", NameOf(root, full));
+                }
             }
 
-            if (File.Exists(full))
-            {
-                return (full, contentType, NameOf(full));
-            }
-
-            var compressed = Path.ChangeExtension(full, ".webp");
-            return contentType is "image/jpeg" or "image/png" && File.Exists(compressed) ? (compressed, "image/webp", NameOf(full)) : null;
+            return null;
         }
     }
 
@@ -132,7 +142,7 @@ public static class GetAsset
 
                 // ?w=320: a smaller copy for the phones and the grids (room-spec §10.3); any other width, the original
                 var served = w is { } width && Widths.Contains(width) && file.ContentType is "image/jpeg" or "image/png" or "image/webp"
-                    ? await handler.ResizedAsync(file.Path, width, ct)
+                    ? await handler.ResizedAsync(file.Path, file.Name, width, ct)
                     : file.Path;
 
                 // The images never change while the app runs.

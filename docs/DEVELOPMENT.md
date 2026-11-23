@@ -29,6 +29,19 @@ python3 -I taleweaver/scripts/package.py --scenario scenarios/homebrew/<nom>.jso
 - Les scénarios maison ne partent que nommés par `--scenario` ; ils arrivent en lecture seule.
 - Audit et limites : [distribution-audit.md](../../docs/design/distribution-audit.md).
 
+## Packs de contenu (le contenu du jeu à part de l'appli)
+
+L'appli publiée (release GitHub) n'a que la démo. Le contenu du jeu se remet à part, en **pack de contenu** :
+
+```bash
+python3 -I taleweaver/scripts/package.py --content-pack middara    # dist/middara.taleweaver.zip (~150 Mo, images en WebP)
+```
+
+- Format : un zip avec `content-pack.json` (`id`, `name`, `version`) et les dossiers `packs/`, `scenarios/`, `assets/`, `reference/` ; seulement `.json`, `.md` et des images (`Features/ContentPacks/ContentPackFiles.cs`, qui refuse tout le reste et les chemins qui sortent du dossier).
+- Installation : bouton « Ajouter un pack de contenu » de l'accueil (`POST /api/content-packs`, le fichier en corps, sans limite de taille ; MJ seulement), ou fichier `*.taleweaver.zip` posé à côté de l'exe (installé au démarrage, de nouveau si son SHA-256 change).
+- Rangement : `%LOCALAPPDATA%\Middara\content-packs\<id>\`, un dossier de contenu de plus (`Common/ContentRoots.cs`) : packs, scénarios, images et règles y sont lus après le dossier principal. Un pack présent dans deux dossiers : le premier compte.
+- En développement : `Content__InstalledPacksPath` (vide = pas d'installation), `Content__DroppedPacksPath`, `Content__ExtraRoots__0` pour lire un autre dossier de contenu sans zip.
+
 ## Sans le contenu du jeu (dépôt public, CI)
 
 `taleweaver/` doit pouvoir vivre seul : le contenu de Succubus Publishing (`packs/um1`, `scenarios/`, `assets/`, `reference/`) n'y entre jamais.

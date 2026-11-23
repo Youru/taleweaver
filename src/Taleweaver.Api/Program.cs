@@ -3,6 +3,7 @@ using Taleweaver.Api.Common;
 using Taleweaver.Api.Content;
 using Taleweaver.Api.Features.Allies;
 using Taleweaver.Api.Features.Assets;
+using Taleweaver.Api.Features.ContentPacks;
 using Taleweaver.Api.Features.Encounters;
 using Taleweaver.Api.Features.Games;
 using Taleweaver.Api.Features.Items;
@@ -42,7 +43,7 @@ builder.Services.AddSingleton<IContentStore, JsonContentStore>();
 builder.Services.AddSingleton<IGameStore, JsonGameStore>();
 builder.Services.AddSingleton<CatalogProvider>();
 
-builder.Services.AddPacksFeature().AddScenariosFeature().AddGamesFeature().AddAssetsFeature().AddPrintFeature().AddRoomsFeature();
+builder.Services.AddPacksFeature().AddScenariosFeature().AddGamesFeature().AddAssetsFeature().AddPrintFeature().AddRoomsFeature().AddContentPacksFeature();
 
 var app = builder.Build();
 
@@ -61,7 +62,10 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
-app.MapPacksEndpoints().MapScenariosEndpoints().MapGamesEndpoints().MapEncountersEndpoints().MapPlayEndpoints().MapItemsEndpoints().MapPartyEndpoints().MapPreparationEndpoints().MapAlliesEndpoints().MapPrintEndpoints().MapRoomEndpoints().MapRulebookEndpoints();
+app.MapPacksEndpoints().MapScenariosEndpoints().MapGamesEndpoints().MapEncountersEndpoints().MapPlayEndpoints().MapItemsEndpoints().MapPartyEndpoints().MapPreparationEndpoints().MapAlliesEndpoints().MapPrintEndpoints().MapRoomEndpoints().MapRulebookEndpoints().MapContentPacksEndpoints();
+
+// The content packs dropped beside the app, before the first request reads the catalogue
+await app.Services.GetRequiredService<ContentPackFiles.Installer>().InstallDroppedAsync(CancellationToken.None);
 
 // Built now so that it listens to the rooms from the start.
 app.Services.GetRequiredService<RoomNotifier>();

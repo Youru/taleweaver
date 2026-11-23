@@ -53,6 +53,18 @@ export async function httpFile(path: string, signal?: AbortSignal): Promise<{ bl
   return { blob: await response.blob(), fileName: encoded ? decodeURIComponent(encoded) : plain }
 }
 
+/** Sends a file as the body (a content pack of hundreds of MB: no form); JSON back, ApiError on any non-2xx answer. */
+export async function httpUpload<T>(path: string, file: Blob, signal?: AbortSignal): Promise<T> {
+  const response = await fetch(path, {
+    method: 'POST',
+    headers: { 'Content-Type': file.type || 'application/zip', Accept: 'application/json' },
+    body: file,
+    signal,
+  })
+  if (!response.ok) throw await failure(response)
+  return (await response.json()) as T
+}
+
 /** Hands a file to the browser as a download (it shows once complete). */
 export function saveFile(blob: Blob, fileName: string) {
   const url = URL.createObjectURL(blob)
