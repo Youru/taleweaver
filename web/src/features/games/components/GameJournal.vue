@@ -204,17 +204,15 @@ li.mine {
 .narrative p {
   font-family: Georgia, serif;
 }
-/* The page of the story is one sheet of the book laid over the site's parchment: its own paper,
-   framed, which scrolls with its text (the blocks on it are not papers of their own) */
+/* The page of the story is read on the site's own parchment: a light veil of paper, no frame of its own,
+   no picture repeated (its seams showed); the text fades in and out at the edges of the scroll, never cut */
 .reading ol {
-  padding: 1.25rem clamp(0.75rem, 3vw, 2.25rem) 1.5rem;
-  background: #efe3c8 var(--parchment) center top / 100% auto repeat-y local;
+  padding: 1.5rem clamp(0.75rem, 3vw, 2.25rem) 2.5rem;
+  background: radial-gradient(ellipse at center, rgb(246 238 220 / 0.55) 55%, rgb(246 238 220 / 0) 100%);
   color: #1d1712;
-  border: 1px solid rgb(80 50 25 / 0.35);
-  border-radius: 4px;
-  box-shadow:
-    0 3px 18px rgb(0 0 0 / 0.35),
-    inset 0 0 40px rgb(90 55 20 / 0.18);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 1.5rem, #000 calc(100% - 2.5rem), transparent 100%);
+  scrollbar-width: thin;
+  scrollbar-color: rgb(109 26 26 / 0.45) transparent;
 }
 .reading li {
   border-left-color: rgb(80 50 25 / 0.3);

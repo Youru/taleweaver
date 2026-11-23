@@ -789,6 +789,24 @@ function moveFigure(figure: string, to: Cell) {
   flex: 1;
   min-height: 0;
 }
+/* The story sits on the site's parchment: the tabs and their panel carry no card of their own */
+.story .tabs,
+.story .tabs :deep(.p-tablist),
+.story .tabs :deep(.p-tablist-content),
+.story .tabs :deep(.p-tablist-tab-list),
+.story .tabs :deep(.p-tab),
+.story .tabs :deep(.p-tabpanels) {
+  background: transparent;
+  border-color: rgb(80 50 25 / 0.25);
+}
+.story .tabs :deep(.p-tabpanels) {
+  padding: 0;
+}
+.story > :deep(.prompt) {
+  background: rgb(246 238 220 / 0.6);
+  border-width: 1px;
+  border-color: rgb(109 26 26 / 0.4);
+}
 @media (max-width: 1000px) {
   .play {
     height: auto;
