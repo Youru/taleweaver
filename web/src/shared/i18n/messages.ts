@@ -837,6 +837,13 @@ export const messages = {
       reminders: 'À garder en tête',
     },
     workshop: {
+      sharing: {
+        import: 'Importer',
+        export: 'Exporter {title}',
+        exportHelp: 'Télécharger ce scénario pour le partager : l’autre MJ l’importe dans son atelier.',
+        notJson: '{file} n’est pas un fichier de scénario (JSON illisible).',
+        notAScenario: '{file} n’est pas un scénario : il lui manque un titre, un début ou des étapes.',
+      },
       moreRules: 'Autres règles de la rencontre',
       participants: 'Aventuriers imposés (noms séparés par des virgules)',
       keepBoardFrom: 'Garde le plateau de',
@@ -1554,6 +1561,11 @@ export const messages = {
       counts: '{scenarios} scénarios · {pictures} images · version {version}',
       remove: 'Retirer {name}',
       removeConfirm: 'Retirer {name} ? Le fichier d’origine n’est pas touché, et les parties sauvegardées restent.',
+    },
+    help: {
+      open: 'Aide',
+      thisPage: 'Aide sur cette page',
+      manual: 'Manuel de l’appli',
     },
     home: {
       preparing: 'En préparation',
@@ -2968,6 +2980,13 @@ export const messages = {
       reminders: 'Keep in mind',
     },
     workshop: {
+      sharing: {
+        import: 'Import',
+        export: 'Export {title}',
+        exportHelp: 'Download this scenario to share it: the other GM imports it in their workshop.',
+        notJson: '{file} is not a scenario file (unreadable JSON).',
+        notAScenario: '{file} is not a scenario: it has no title, start or steps.',
+      },
       moreRules: 'Other rules of the encounter',
       participants: 'Imposed adventurers (names separated by commas)',
       keepBoardFrom: 'Keeps the board of',
@@ -3681,6 +3700,11 @@ export const messages = {
       counts: '{scenarios} scenarios · {pictures} pictures · version {version}',
       remove: 'Remove {name}',
       removeConfirm: 'Remove {name}? The original file is not touched, and saved games stay.',
+    },
+    help: {
+      open: 'Help',
+      thisPage: 'Help on this page',
+      manual: 'App manual',
     },
     home: {
       preparing: 'Preparing',

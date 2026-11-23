@@ -78,6 +78,43 @@ test('an official scenario is read only: the workshop duplicates it', async ({ p
   await expect(mine.getByText(/^Blight of Rhamsted/)).toHaveCount(0)
 })
 
+test('a GM exports a scenario of the workshop and imports it back as a new one', async ({ page }) => {
+  await page.goto('/workshop')
+  await page
+    .getByRole('region', { name: 'Scénarios officiels' })
+    .getByRole('button', { name: 'Dupliquer Blight of Rhamsted' })
+    .click()
+  await expect(page).toHaveURL(/\/workshop\/blight-of-rhamsted-copie$/)
+  await page.getByRole('link', { name: 'Atelier' }).first().click()
+  const mine = page.getByRole('region', { name: 'Mes scénarios' })
+
+  const download = page.waitForEvent('download')
+  await mine.getByRole('button', { name: 'Exporter Blight of Rhamsted (copie)' }).click()
+  const file = await download
+  expect(file.suggestedFilename()).toBe('blight-of-rhamsted-copie.taleweaver-scenario.json')
+  const path = await file.path()
+
+  // Imported again: a new scenario beside the first, never over it
+  await page.locator('input[type=file]').setInputFiles(path)
+  await expect(page).toHaveURL(/\/workshop\/blight-of-rhamsted-copie-2$/)
+  await expect(page.getByRole('application', { name: 'Graphe du scénario' }).locator('.vue-flow__node')).toHaveCount(
+    4 + 3,
+  )
+
+  // Not a scenario: refused, with the reason
+  await page.getByRole('link', { name: 'Atelier' }).first().click()
+  await page
+    .locator('input[type=file]')
+    .setInputFiles({ name: 'notes.json', mimeType: 'application/json', buffer: Buffer.from('[]') })
+  await expect(page.getByText('notes.json n’est pas un scénario')).toBeVisible()
+
+  for (const name of [/^Supprimer Blight of Rhamsted \(copie\)$/, /^Supprimer Blight of Rhamsted \(copie\)/]) {
+    await mine.getByRole('button', { name }).first().click()
+    await page.getByRole('button', { name: 'Supprimer', exact: true }).click()
+  }
+  await expect(mine.getByText(/^Blight of Rhamsted/)).toHaveCount(0)
+})
+
 /** The middle of a square of the map editor's board, on screen. */
 async function square(page: Page, x: number, y: number) {
   return page.getByRole('application', { name: 'Carte de la rencontre' }).evaluate(

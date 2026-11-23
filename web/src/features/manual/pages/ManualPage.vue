@@ -54,6 +54,24 @@ watch(() => route.fullPath, showSection)
         <p class="lead"><ManualText :text="section.lead" :titles="titles" /></p>
         <template v-for="(part, i) in section.parts" :key="i">
           <h3 v-if="part.title">{{ part.title }}</h3>
+          <figure v-if="part.figure" class="shot">
+            <img
+              :src="`/help/${language}/${part.figure.image}.png`"
+              :alt="part.figure.caption"
+              width="1280"
+              height="800"
+              loading="lazy"
+            />
+            <figcaption>
+              <span class="caption">{{ part.figure.caption }}</span>
+              <ol v-if="part.figure.legend" class="legend">
+                <li v-for="(item, j) in part.figure.legend" :key="j">
+                  <span class="mark" aria-hidden="true">{{ j + 1 }}</span>
+                  <ManualText :text="item" :titles="titles" />
+                </li>
+              </ol>
+            </figcaption>
+          </figure>
           <p v-if="part.text"><ManualText :text="part.text" :titles="titles" /></p>
           <ol v-if="part.steps">
             <li v-for="(step, j) in part.steps" :key="j"><ManualText :text="step" :titles="titles" /></li>
@@ -84,6 +102,48 @@ watch(() => route.fullPath, showSection)
   background: rgb(251 245 232 / 0.88);
   border: 1px solid var(--p-content-border-color);
   border-radius: 6px;
+}
+/* The screenshots: the marks of the legend look like those drawn on the picture */
+.shot {
+  margin: 0.75rem 0 1.25rem;
+}
+.shot img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--p-content-border-color);
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.18);
+}
+.caption {
+  display: block;
+  margin: 0.4rem 0 0.3rem;
+  color: var(--p-text-muted-color);
+  font-style: italic;
+}
+.legend {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.3rem;
+}
+.legend li {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+.mark {
+  flex: none;
+  width: 1.4rem;
+  height: 1.4rem;
+  border-radius: 50%;
+  background: #e8a317;
+  color: #1a1a1a;
+  font:
+    700 0.8rem/1.4rem system-ui,
+    sans-serif;
+  text-align: center;
 }
 .contents {
   position: sticky;

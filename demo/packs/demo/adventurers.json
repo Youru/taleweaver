@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "pack": "demo",
+  "adventurers": [
+    {
+      "id": "demo:adventurer/mira",
+      "name": {
+        "en": "Mira"
+      },
+      "health": 12,
+      "defense": 4,
+      "movement": 5,
+      "stamina": {
+        "recovery": 3,
+        "max": 5
+      },
+      "skills": {
+        "presence": 3,
+        "lore": 2,
+        "agility": 4,
+        "perception": 3,
+        "strength": 2
+      },
+      "conviction": [
+        "plain"
+      ],
+      "casting": [
+        "plain"
+      ],
+      "ability": {
+        "name": {
+          "en": "Steady",
+          "fr": "Inébranlable"
+        }
+      },
+      "image": "assets/demo/mira.png"
+    },
+    {
+      "id": "demo:adventurer/tobin",
+      "name": {
+        "en": "Tobin"
+      },
+      "health": 14,
+      "defense": 5,
+      "movement": 4,
+      "stamina": {
+        "recovery": 3,
+        "max": 5
+      },
+      "skills": {
+        "presence": 2,
+        "lore": 1,
+        "agility": 2,
+        "perception": 2,
+        "strength": 4
+      },
+      "conviction": [
+        "plain"
+      ],
+      "casting": [
+        "plain"
+      ],
+      "ability": {
+        "name": {
+          "en": "Steady",
+          "fr": "Inébranlable"
+        }
+      },
+      "image": "assets/demo/tobin.png"
+    }
+  ]
+}

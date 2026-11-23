@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { messages } from '@/shared/i18n/messages'
 import { en } from '../content/en'
@@ -11,11 +12,32 @@ function sectionsOf(manual: Manual) {
 }
 function piecesIn(manual: Manual) {
   return sectionsOf(manual)
-    .flatMap((s) => [s.lead, ...s.parts.flatMap((p) => [p.text, ...(p.steps ?? []), ...(p.list ?? []), p.note])])
+    .flatMap((s) => [
+      s.lead,
+      ...s.parts.flatMap((p) => [
+        p.text,
+        ...(p.steps ?? []),
+        ...(p.list ?? []),
+        p.note,
+        p.figure?.caption,
+        ...(p.figure?.legend ?? []),
+      ]),
+    ])
     .flatMap((text) => piecesOf(text ?? ''))
 }
 
 describe('the manual', () => {
+  it.each(['fr', 'en'] as const)('shows only pictures that exist, the same in both languages (%s)', (language) => {
+    const images = sectionsOf(manuals[language]).flatMap((s) => s.parts.flatMap((p) => (p.figure ? [p.figure] : [])))
+    expect(images.filter((f) => !existsSync(`public/help/${language}/${f.image}.png`))).toEqual([])
+    const other = language === 'fr' ? en : fr
+    const legends = (m: Manual) =>
+      sectionsOf(m).flatMap((s) =>
+        s.parts.flatMap((p) => (p.figure ? [`${p.figure.image}:${p.figure.legend?.length}`] : [])),
+      )
+    expect(legends(manuals[language])).toEqual(legends(other))
+  })
+
   it('cuts a text at its references', () => {
     expect(piecesOf('[[home.play]], puis [[#room]].')).toEqual([
       { label: 'home.play' },

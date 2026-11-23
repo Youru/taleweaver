@@ -29,6 +29,10 @@ python3 -I taleweaver/scripts/package.py --scenario scenarios/homebrew/<nom>.jso
 - Les scénarios maison ne partent que nommés par `--scenario` ; ils arrivent en lecture seule.
 - Audit et limites : [distribution-audit.md](../../docs/design/distribution-audit.md).
 
+## Captures du manuel
+
+Les images du manuel (`web/public/help/<langue>/*.png`) sont prises sur la **démo** par `web/manual-shots/shots.spec.ts`, avec des repères numérotés : `npm run manual:shots` (dans `web/`, ports 5146 et 5174). Les légendes sont dans `features/manual/content/{fr,en}.ts` (`figure`) : repère 1 = première ligne de la légende. Changer un écran ou un repère : relancer le script, puis relire les légendes. L'adresse du QR code de la room est fixée (`TALEWEAVER_ROOM_HOST` dans `playwright.manual.config.ts`) : jamais celle du réseau de l'auteur.
+
 ## Packs de contenu (le contenu du jeu à part de l'appli)
 
 L'appli publiée (release GitHub) n'a que la démo. Le contenu du jeu se remet à part, en **pack de contenu** :

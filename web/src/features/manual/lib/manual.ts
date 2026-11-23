@@ -2,8 +2,19 @@
  * The GM's manual. Its texts name the interface by key, so a renamed button renames itself here:
  * `[[home.play]]` is that label, `[[#room]]` a link to that section.
  */
+/**
+ * A screenshot of the app with numbered marks (public/help/<language>/<image>.png, taken by manual-shots/ on the
+ * demonstration content): legend[0] explains mark 1, and so on.
+ */
+export interface ManualFigure {
+  image: string
+  caption: string
+  legend?: string[]
+}
+
 export interface ManualPart {
   title?: string
+  figure?: ManualFigure
   text?: string
   steps?: string[]
   list?: string[]

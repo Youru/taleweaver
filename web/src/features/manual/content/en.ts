@@ -31,6 +31,17 @@ export const en: Manual = {
             },
             {
               title: 'Where to start?',
+              figure: {
+                image: 'home',
+                caption: 'The home page.',
+                legend: [
+                  'Start a scenario: [[home.play]].',
+                  'Resume a game where it stopped: [[home.resume]].',
+                  'Write your own adventures: [[#workshop]].',
+                  'Look a rule up: [[#rules]].',
+                  'This help, opened at the section of the page you are on.',
+                ],
+              },
               list: [
                 'You are hosting an evening: [[#evening]].',
                 'You are starting or resuming Act 1: [[#act1]].',
@@ -158,6 +169,19 @@ export const en: Manual = {
           lead: 'Each scenario sets its own starting rules: adventurers allowed or required, party size, Gold, XP and kits.',
           parts: [
             {
+              figure: {
+                image: 'party',
+                caption: 'Preparing the party, before setting out.',
+                legend: [
+                  'A chosen adventurer: the cross removes them.',
+                  'An adventurer without a card, under the name of your choice, when the scenario allows it.',
+                  '[[preparation.openRoom]]: everyone chooses on their phone.',
+                  '[[preparation.setOut]]: the story begins.',
+                  'The party bar: everyone’s HP and XP, always in sight during the game.',
+                ],
+              },
+            },
+            {
               list: [
                 'Choose yourself, or use [[preparation.openRoom]] so that each player does it on their phone.',
                 'Depending on the scenario, each takes a kit, buys cards and learns Disciplines. The app keeps the budget.',
@@ -175,6 +199,14 @@ export const en: Manual = {
           parts: [
             {
               title: 'The story',
+              figure: {
+                image: 'story',
+                caption: 'A scene of the story.',
+                legend: [
+                  'The text to read at the table.',
+                  'The button that moves the story on; at a choice, one answer per way out.',
+                ],
+              },
               list: [
                 '[[play.story]] shows the page to read and the current question. Your answer moves the story on.',
                 '[[comfort.tools.reading]], in the ☰ menu, shows the text large for reading aloud.',
@@ -203,6 +235,17 @@ export const en: Manual = {
           parts: [
             {
               title: 'Setting up',
+              figure: {
+                image: 'setup',
+                caption: 'Setting up an encounter.',
+                legend: [
+                  'The board to lay out: tiles, tokens, enemies and the starting zone.',
+                  'What is left to do before starting; [[comfort.ready.confirm]] confirms it.',
+                  '[[table.showTable]]: the map alone, full screen or on a second monitor.',
+                  'The tabs: combatants, log, and [[play.tabEncounter]] for objectives and special rules.',
+                  '[[play.startRound]].',
+                ],
+              },
               steps: [
                 'Build the board as shown. To tick off the material, open [[comfort.session.tab.material]] in [[comfort.tools.session]].',
                 'Place the adventurers and read the special rules, in the [[play.tabEncounter]] tab.',
@@ -211,6 +254,16 @@ export const en: Manual = {
             },
             {
               title: 'On an adventurer’s turn',
+              figure: {
+                image: 'adventurer-turn',
+                caption: 'An adventurer’s turn.',
+                legend: [
+                  'The initiative track: who plays, and who comes next.',
+                  'What the app expects from you now.',
+                  'The adventurer’s actions and their SP cost, ticked as the turn goes.',
+                  '[[play.nextTurn]], once the turn is played at the table.',
+                ],
+              },
               steps: [
                 'The player plays at the table.',
                 'Touch a figure to note damage, healing, effects and SP, or to open [[duel.open]].',
@@ -220,6 +273,15 @@ export const en: Manual = {
             },
             {
               title: 'On the enemies’ turn',
+              figure: {
+                image: 'enemy-turn',
+                caption: 'An enemy’s turn: the app reads its AI card.',
+                legend: [
+                  'The condition of the current step, to check on the table.',
+                  'The app’s suggestion, from the positions on the board.',
+                  'Your answer: the app then gives the instruction to carry out.',
+                ],
+              },
               steps: [
                 'The app reads their card and asks you each condition. Answer from the table.',
                 'If positions are followed, it suggests the answer, target and move. Check before accepting.',
@@ -237,6 +299,19 @@ export const en: Manual = {
             },
             {
               title: 'Finishing',
+              figure: {
+                image: 'game-bar',
+                caption: 'The bar of a game, from left to right.',
+                legend: [
+                  '[[play.undo]]: undoes the last action.',
+                  '[[inventory.open]]: items, equipment and loot to hand out.',
+                  '[[room.gm.button]]: the players’ phones.',
+                  '[[screens.title]]: a tablet to run the game, or a screen for the table.',
+                  '[[sheet.open]]: campaign flags and revealed cards.',
+                  '[[reference.open]]: the rules search.',
+                  'The ☰ menu: session, reading, corrections and the GM’s other tools.',
+                ],
+              },
               text: 'The [[play.tabEncounter]] tab holds the goals, end conditions, Achievements and counters. The app proposes some victories without applying them: declare the others yourself. Rewards and story follow.',
               note: 'If a button is greyed out, a question is often waiting for your answer in the turn panel.',
             },
@@ -267,6 +342,16 @@ export const en: Manual = {
           parts: [
             {
               title: 'Setting it up',
+              figure: {
+                image: 'room',
+                caption: 'The room, open.',
+                legend: [
+                  'The QR code to scan, with the address and the code to type otherwise.',
+                  '[[room.gm.share]]: an adventurer for each player who has none.',
+                  'The players’ requests, to accept or refuse.',
+                  '[[room.gm.openAsPlayer]]: what the player of this adventurer sees.',
+                ],
+              },
               steps: [
                 'In the game, open [[room.gm.button]], then [[room.gm.open]].',
                 'The players, on the same Wi-Fi, scan the QR code or type the address and code. The room takes eight players.',
@@ -323,6 +408,26 @@ export const en: Manual = {
           lead: 'The workshop makes homebrew scenarios and never touches the official ones.',
           parts: [
             {
+              figure: {
+                image: 'workshop',
+                caption: 'The workshop.',
+                legend: [
+                  '[[workshop.sharing.import]]: a scenario shared by another GM.',
+                  '[[workshop.new]]: a blank scenario.',
+                  '[[workshop.duplicate]]: start from an existing scenario, the original stays as it is.',
+                ],
+              },
+            },
+            {
+              figure: {
+                image: 'editor',
+                caption: 'The editor of a scenario.',
+                legend: [
+                  'The graph: each step (scene, encounter, Story Round) and its ways out. Choose one to fill its sheet on the right.',
+                ],
+              },
+            },
+            {
               steps: [
                 'In [[app.workshop]], choose [[workshop.new]], or [[workshop.duplicate]] to start from an official scenario.',
                 'Link scenes, encounters and Story Rounds on the graph, then fill in their sheets.',
@@ -331,6 +436,7 @@ export const en: Manual = {
                 'Fix the problems flagged, then [[workshop.test]]. This creates a game, to delete afterwards from the home page.',
                 'To see an encounter as printed without leaving its sheet, open [[workshop.preview.open]].',
                 'If needed, print the booklet or download it as a PDF.',
+                'To share a scenario, export it from its card (download icon): the other GM chooses [[workshop.sharing.import]] in their workshop. The imported scenario comes beside theirs, under a free name; it needs the same content packs.',
               ],
               note: 'Duplicating or printing an official scenario reveals its content. Such copies are for personal use only.',
             },

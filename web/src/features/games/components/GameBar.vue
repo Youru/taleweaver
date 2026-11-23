@@ -37,9 +37,13 @@ const menu = useTemplateRef<{ toggle: (event: Event) => void }>('menu')
 const items = computed<MenuItem[]>(() => [
   ...props.tools,
   { separator: true },
-  ...(host
-    ? [{ label: t('app.workshop'), icon: 'pi pi-map', command: () => void router.push({ name: 'workshop' }) }]
-    : [{ label: t('app.manual'), icon: 'pi pi-book', command: () => void router.push({ name: 'manual' }) }]),
+  ...(host ? [{ label: t('app.workshop'), icon: 'pi pi-map', command: () => void router.push({ name: 'workshop' }) }] : []),
+  // Help, in another tab: the game stays where it is
+  {
+    label: t('help.thisPage'),
+    icon: 'pi pi-question-circle',
+    command: () => void window.open(router.resolve({ name: 'manual', hash: '#encounter' }).href, '_blank', 'noopener'),
+  },
   {
     label: language.value === 'fr' ? 'English' : 'Français',
     icon: 'pi pi-language',

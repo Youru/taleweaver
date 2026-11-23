@@ -10,13 +10,14 @@ import InputText from 'primevue/inputtext'
 import Message from 'primevue/message'
 import ProgressSpinner from 'primevue/progressspinner'
 import { useConfirm } from 'primevue/useconfirm'
-import { ApiError } from '@/shared/api/http'
+import { ApiError, saveFile } from '@/shared/api/http'
 import { pick } from '@/shared/lib/localized'
 import { usePreferences } from '@/shared/lib/preferences'
 import { useDeleteDraft, useSaveDraft, useWorkshopList } from '../api/queries'
 import type { DraftScenario, WorkshopSummary } from '../api/types'
 import { nameOf, workshopApi } from '../api/workshopApi'
 import { newScene, slug, text } from '../lib/graph'
+import { exportedFileName, readImported } from '../lib/sharing'
 
 /**
  * The workshop: the scenarios made here (open, delete), the official ones (read only: duplicate one
@@ -86,6 +87,30 @@ async function duplicate(summary: WorkshopSummary) {
   void create({ ...original, id: `homebrew:scenario/${freeName(copyTitle)}`, title: text(language.value, copyTitle) })
 }
 
+// Sharing: a scenario of the workshop as a file, and a file as a new scenario of the workshop
+async function exportScenario(summary: WorkshopSummary) {
+  const scenario = await workshopApi.get(summary.id)
+  saveFile(new Blob([JSON.stringify(scenario, null, 2)], { type: 'application/json' }), exportedFileName(summary.id))
+}
+
+const importInput = ref<HTMLInputElement>()
+const importError = ref<string | null>(null)
+async function importChosen(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+  importError.value = null
+  const read = readImported(await file.text())
+  if ('error' in read) {
+    importError.value = t(`workshop.sharing.${read.error}`, { file: file.name })
+    return
+  }
+  // Never over another one: a free name, from its title
+  const title = pick(read.scenario.title, language.value) || file.name
+  void create({ ...read.scenario, id: `homebrew:scenario/${freeName(title)}` })
+}
+
 function askRemove(summary: WorkshopSummary) {
   confirm.require({
     message: t('workshop.deleteConfirm', { title: pick(summary.title, language.value) }),
@@ -105,10 +130,21 @@ const error = computed(() => {
   <main class="workshop">
     <header class="head">
       <h1>{{ t('workshop.title') }}</h1>
-      <Button :label="t('workshop.new')" icon="pi pi-plus" @click="naming = true" />
+      <div class="head-actions">
+        <input ref="importInput" type="file" accept=".json,application/json" hidden @change="importChosen" />
+        <Button
+          :label="t('workshop.sharing.import')"
+          icon="pi pi-upload"
+          severity="secondary"
+          :loading="save.isPending.value"
+          @click="importInput?.click()"
+        />
+        <Button :label="t('workshop.new')" icon="pi pi-plus" @click="naming = true" />
+      </div>
     </header>
     <p class="intro">{{ t('workshop.intro') }}</p>
     <Message v-if="error" severity="error" closable>{{ error }}</Message>
+    <Message v-if="importError" severity="error" closable @close="importError = null">{{ importError }}</Message>
     <ProgressSpinner v-if="list.isPending.value" :aria-label="t('common.loading')" />
     <template v-else>
       <section :aria-labelledby="'mine-title'">
@@ -122,6 +158,14 @@ const error = computed(() => {
               <div class="actions">
                 <Button :label="t('workshop.open')" icon="pi pi-pencil" @click="open(nameOf(scenario.id))" />
                 <span class="spacer" />
+                <Button
+                  icon="pi pi-download"
+                  severity="secondary"
+                  text
+                  :aria-label="t('workshop.sharing.export', { title: pick(scenario.title, language) })"
+                  :title="t('workshop.sharing.exportHelp')"
+                  @click="exportScenario(scenario)"
+                />
                 <Button
                   icon="pi pi-print"
                   severity="secondary"
@@ -191,8 +235,14 @@ const error = computed(() => {
 }
 .head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
+  gap: 0.5rem;
+}
+.head-actions {
+  display: flex;
+  gap: 0.5rem;
 }
 h1 {
   margin: 0;

@@ -1,8 +1,17 @@
 import { expect, test } from '@playwright/test'
 
-test('the manual opens from the home page, follows its links and the language', async ({ page }) => {
+test('the help menu opens the manual at the section of the page', async ({ page }) => {
+  await page.goto('/workshop')
+  await page.getByRole('button', { name: 'Aide', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'Aide sur cette page' }).click()
+  await expect(page).toHaveURL(/\/manual#workshop$/)
+  await expect(page.getByRole('heading', { level: 2, name: 'Créer ses aventures' })).toBeInViewport()
+})
+
+test('the manual opens from the help menu, follows its links and the language', async ({ page }) => {
   await page.goto('/')
-  await page.getByRole('link', { name: 'Manuel', exact: true }).click()
+  await page.getByRole('button', { name: 'Aide', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'Manuel de l’appli' }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Manuel du MJ' })).toBeVisible()
 
   const act1 = page.getByRole('heading', { level: 2, name: 'Lancer ou reprendre l’Acte 1' })

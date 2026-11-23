@@ -11,6 +11,7 @@
     "lint": "eslint .",
     "format": "prettier --write src e2e",
     "test": "vitest run",
+    "manual:shots": "playwright test -c playwright.manual.config.ts",
     "e2e": "playwright test",
     "pdf": "node scripts/print-pdf.mjs",
     "map-preview": "node scripts/map-preview.mjs",

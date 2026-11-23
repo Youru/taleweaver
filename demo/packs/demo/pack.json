@@ -12,7 +12,8 @@
     "tokens": "tokens.json",
     "dice": "dice.json",
     "initiative": "initiative.json",
-    "items": "items.json"
+    "items": "items.json",
+    "adventurers": "adventurers.json"
   },
   "counts": {
     "combatant": 2,

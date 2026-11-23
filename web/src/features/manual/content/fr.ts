@@ -31,6 +31,17 @@ export const fr: Manual = {
             },
             {
               title: 'Par où commencer ?',
+              figure: {
+                image: 'home',
+                caption: 'L’accueil.',
+                legend: [
+                  'Lancer un scénario : [[home.play]].',
+                  'Reprendre une partie, là où elle s’est arrêtée : [[home.resume]].',
+                  'Écrire ses propres aventures : [[#workshop]].',
+                  'Chercher une règle : [[#rules]].',
+                  'Cette aide, ouverte à la section de la page où vous êtes.',
+                ],
+              },
               list: [
                 'Vous organisez une soirée : [[#evening]].',
                 'Vous lancez ou reprenez l’Acte 1 : [[#act1]].',
@@ -158,6 +169,19 @@ export const fr: Manual = {
           lead: 'Chaque scénario fixe ses règles de départ : aventuriers permis ou imposés, taille du groupe, or, XP et paquetages.',
           parts: [
             {
+              figure: {
+                image: 'party',
+                caption: 'La préparation du groupe, avant le départ.',
+                legend: [
+                  'Un aventurier choisi : la croix le retire.',
+                  'Un aventurier sans carte, sous le nom de votre choix, si le scénario le permet.',
+                  '[[preparation.openRoom]] : chacun choisit sur son téléphone.',
+                  '[[preparation.setOut]] : le récit commence.',
+                  'Le bandeau du groupe : PV et XP de chacun, toujours visibles pendant la partie.',
+                ],
+              },
+            },
+            {
               list: [
                 'Choisissez vous-même, ou utilisez [[preparation.openRoom]] pour que chacun le fasse sur son téléphone.',
                 'Selon le scénario, chacun prend un paquetage, achète des cartes et apprend des disciplines. L’appli compte le budget.',
@@ -175,6 +199,14 @@ export const fr: Manual = {
           parts: [
             {
               title: 'Le récit',
+              figure: {
+                image: 'story',
+                caption: 'Une scène du récit.',
+                legend: [
+                  'Le texte à lire à la table.',
+                  'Le bouton qui fait avancer l’histoire ; à un choix, une réponse par sortie.',
+                ],
+              },
               list: [
                 '[[play.story]] montre la page à lire et la question en cours. Votre réponse fait avancer l’histoire.',
                 '[[comfort.tools.reading]], dans le menu ☰, affiche le texte en grand pour la lecture à voix haute.',
@@ -203,6 +235,17 @@ export const fr: Manual = {
           parts: [
             {
               title: 'Installer',
+              figure: {
+                image: 'setup',
+                caption: 'La mise en place d’une rencontre.',
+                legend: [
+                  'Le plateau à reproduire : tuiles, jetons, ennemis et zone de départ.',
+                  'Ce qui reste à faire avant de commencer ; [[comfort.ready.confirm]] le confirme.',
+                  '[[table.showTable]] : la carte seule, en plein écran ou sur un second moniteur.',
+                  'Les onglets : combattants, journal, et [[play.tabEncounter]] pour les objectifs et règles spéciales.',
+                  '[[play.startRound]].',
+                ],
+              },
               steps: [
                 'Reproduisez le plateau affiché. Pour cocher le matériel, ouvrez [[comfort.session.tab.material]] dans [[comfort.tools.session]].',
                 'Placez les aventuriers et lisez les règles spéciales, dans l’onglet [[play.tabEncounter]].',
@@ -211,6 +254,16 @@ export const fr: Manual = {
             },
             {
               title: 'Au tour d’un aventurier',
+              figure: {
+                image: 'adventurer-turn',
+                caption: 'Le tour d’un aventurier.',
+                legend: [
+                  'La piste d’initiative : qui joue, et qui suit.',
+                  'Ce que l’appli attend de vous maintenant.',
+                  'Les actions de l’aventurier et leur coût en SP, à cocher au fil du tour.',
+                  '[[play.nextTurn]], une fois le tour joué à la table.',
+                ],
+              },
               steps: [
                 'Le joueur joue à table.',
                 'Touchez une figurine pour noter dégâts, soins, effets et SP, ou pour ouvrir [[duel.open]].',
@@ -220,6 +273,15 @@ export const fr: Manual = {
             },
             {
               title: 'Au tour des ennemis',
+              figure: {
+                image: 'enemy-turn',
+                caption: 'Le tour d’un ennemi : l’appli lit sa carte d’IA.',
+                legend: [
+                  'La condition de l’étape en cours, à vérifier sur la table.',
+                  'La suggestion de l’appli, d’après les positions sur le plateau.',
+                  'Votre réponse : l’appli donne alors l’instruction à exécuter.',
+                ],
+              },
               steps: [
                 'L’appli lit leur carte et vous pose chaque condition. Répondez d’après la table.',
                 'Si les positions sont suivies, elle suggère la réponse, la cible et le déplacement. Vérifiez avant d’accepter.',
@@ -237,6 +299,19 @@ export const fr: Manual = {
             },
             {
               title: 'Terminer',
+              figure: {
+                image: 'game-bar',
+                caption: 'Le bandeau d’une partie, de gauche à droite.',
+                legend: [
+                  '[[play.undo]] : défait la dernière action.',
+                  '[[inventory.open]] : objets, équipement et butin à distribuer.',
+                  '[[room.gm.button]] : les téléphones des joueurs.',
+                  '[[screens.title]] : une tablette pour mener, ou un écran pour la table.',
+                  '[[sheet.open]] : drapeaux de la campagne et cartes révélées.',
+                  '[[reference.open]] : la recherche de règles.',
+                  'Le menu ☰ : session, lecture, corrections et autres outils du MJ.',
+                ],
+              },
               text: 'L’onglet [[play.tabEncounter]] contient les objectifs, les conditions de fin, les succès et les compteurs. L’appli propose certaines victoires, sans les appliquer : les autres sont à déclarer vous-même. Les récompenses et le récit suivent.',
               note: 'Si un bouton est grisé, une question attend souvent votre réponse dans le panneau du tour.',
             },
@@ -267,6 +342,16 @@ export const fr: Manual = {
           parts: [
             {
               title: 'La mettre en place',
+              figure: {
+                image: 'room',
+                caption: 'La room ouverte.',
+                legend: [
+                  'Le QR code à scanner, avec l’adresse et le code à taper à défaut.',
+                  '[[room.gm.share]] : un aventurier à chaque joueur qui n’en a pas.',
+                  'Les demandes des joueurs, à accepter ou refuser.',
+                  '[[room.gm.openAsPlayer]] : ce que voit le joueur de cet aventurier.',
+                ],
+              },
               steps: [
                 'Dans la partie, ouvrez [[room.gm.button]] puis [[room.gm.open]].',
                 'Les joueurs, sur le même Wi-Fi, scannent le QR code ou tapent l’adresse et le code. La room accepte huit joueurs.',
@@ -323,6 +408,26 @@ export const fr: Manual = {
           lead: 'L’atelier crée des scénarios maison, sans toucher aux scénarios officiels.',
           parts: [
             {
+              figure: {
+                image: 'workshop',
+                caption: 'L’atelier.',
+                legend: [
+                  '[[workshop.sharing.import]] : un scénario partagé par un autre MJ.',
+                  '[[workshop.new]] : un scénario vierge.',
+                  '[[workshop.duplicate]] : partir d’un scénario existant, sans toucher à l’original.',
+                ],
+              },
+            },
+            {
+              figure: {
+                image: 'editor',
+                caption: 'L’éditeur d’un scénario.',
+                legend: [
+                  'Le graphe : chaque étape (scène, rencontre, phase d’histoire) et ses sorties. Choisissez-en une pour remplir sa fiche à droite.',
+                ],
+              },
+            },
+            {
               steps: [
                 'Dans [[app.workshop]], choisissez [[workshop.new]], ou [[workshop.duplicate]] pour partir d’un scénario officiel.',
                 'Reliez scènes, rencontres et phases d’histoire sur le graphe, puis remplissez leur fiche.',
@@ -331,6 +436,7 @@ export const fr: Manual = {
                 'Corrigez les problèmes signalés, puis [[workshop.test]]. Cet essai crée une partie, à supprimer ensuite depuis l’accueil.',
                 'Pour voir une rencontre telle qu’imprimée sans quitter sa fiche, ouvrez [[workshop.preview.open]].',
                 'Au besoin, imprimez le livret ou téléchargez-le en PDF.',
+                'Pour partager un scénario, exportez-le depuis sa carte (icône de téléchargement) : l’autre MJ choisit [[workshop.sharing.import]] dans son atelier. Le scénario importé arrive à côté des siens, sous un nom libre ; il lui faut les mêmes packs de contenu.',
               ],
               note: 'Dupliquer ou imprimer un scénario officiel en révèle le contenu. Ces copies restent à usage personnel.',
             },
