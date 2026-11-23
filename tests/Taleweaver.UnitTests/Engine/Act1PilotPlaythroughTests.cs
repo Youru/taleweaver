@@ -12,7 +12,7 @@ public class Act1PilotPlaythroughTests
         return new EngineDriver(scenario, await RepositoryContent.CatalogAsync(), "Nightingale", "Remi", "Zeke", "Rook");
     }
 
-    [Fact]
+    [ContentFact]
     public async Task Play_TheMastToTheGraduation_GradesThePartyAndPaysTheRightReward()
     {
         var game = await StartAsync();

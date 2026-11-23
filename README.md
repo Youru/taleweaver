@@ -27,6 +27,15 @@ python3 -I taleweaver/scripts/package.py --scenario scenarios/homebrew/<nom>.jso
 - Les scénarios maison ne partent que nommés par `--scenario` ; ils arrivent en lecture seule.
 - Audit et limites : [distribution-audit.md](../docs/design/distribution-audit.md).
 
+## Sans le contenu du jeu (dépôt public, CI)
+
+`taleweaver/` doit pouvoir vivre seul : le contenu de Succubus Publishing (`packs/um1`, `scenarios/`, `assets/`, `reference/`) n'y entre jamais.
+
+- **Contenu de démonstration** : `demo/` (pack `demo`, scénario `bandit-clearing`, images dessinées par script). Lancer l'API dessus : `Content__RootPath=../../demo`.
+- **Où est le contenu du jeu** : variable `TALEWEAVER_CONTENT_ROOT`, sinon le dossier au-dessus de `taleweaver/` (le dépôt privé). Valable pour les tests, la e2e et `scripts/package.py` (option `--content`).
+- **Tests** : ceux qui lisent le contenu du jeu portent `[ContentFact]` / `[ContentTheory]` (.NET) ou `describe.skipIf(!present)` (vitest) : ignorés sans lui. La e2e est écrite pour le contenu du jeu : elle ne tourne qu'ici.
+- **CI** (`.github/workflows/`) : `ci.yml` à chaque push (build en `-warnaserror`, tests .NET, typecheck, lint, vitest) ; `release.yml` sur un tag `v*` publie l'exe Windows et l'archive Linux **avec la démo**. L'exe avec le contenu du jeu se construit ici et se remet à la main.
+
 ## Front (`web/`)
 
 Vue 3 + TypeScript strict, Vite, PrimeVue 4, TanStack Query, Pinia, vue-i18n (FR/EN). Standards : skill `vue-frontend`.

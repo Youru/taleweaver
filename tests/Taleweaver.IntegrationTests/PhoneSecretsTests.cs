@@ -14,7 +14,7 @@ public class PhoneSecretsTests(RepositoryFactory factory) : IClassFixture<Reposi
 {
     private static CancellationToken Token => TestContext.Current.CancellationToken;
 
-    [Fact]
+    [ContentFact]
     public async Task APhone_ReadsTheSecretCardsOnlyOnceRevealed()
     {
         var gm = factory.CreateClient();

@@ -1,0 +1,24 @@
+{
+  "items": [
+    {
+      "id": "demo:item/club",
+      "name": {
+        "en": "Club",
+        "fr": "Gourdin"
+      },
+      "tier": "mundane",
+      "type": "weapon",
+      "cost": 20,
+      "tags": [],
+      "stats": {
+        "dice": [
+          "plain",
+          "plain"
+        ],
+        "hands": 1,
+        "attack": "melee"
+      },
+      "image": "assets/demo/club.png"
+    }
+  ]
+}

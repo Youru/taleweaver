@@ -1,0 +1,24 @@
+{
+  "tiles": [
+    {
+      "id": "demo:tile/clearing",
+      "name": "Clearing",
+      "size": {
+        "w": 6,
+        "h": 6
+      },
+      "image": "assets/demo/clearing.png",
+      "terrain": []
+    },
+    {
+      "id": "demo:tile/clearing-east",
+      "name": "Clearing (east)",
+      "size": {
+        "w": 6,
+        "h": 6
+      },
+      "image": "assets/demo/clearing.png",
+      "terrain": []
+    }
+  ]
+}

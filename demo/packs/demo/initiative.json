@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "pack": "demo",
+  "initiativeCards": [
+    {
+      "id": "demo:initiative/bandit",
+      "label": "Bandit",
+      "adventurer": false,
+      "group": [
+        1,
+        2,
+        3
+      ],
+      "family": "bandit",
+      "image": "assets/demo/bandit.png"
+    },
+    {
+      "id": "demo:initiative/bandit-chief",
+      "label": "Chief",
+      "adventurer": false,
+      "group": [
+        1
+      ],
+      "family": "bandit-chief",
+      "image": "assets/demo/chief.png"
+    }
+  ]
+}

@@ -1,0 +1,125 @@
+{
+  "schemaVersion": 1,
+  "id": "demo:scenario/bandit-clearing",
+  "title": {
+    "en": "The bandit clearing",
+    "fr": "La clairière des bandits"
+  },
+  "kind": "homebrew",
+  "packs": [
+    "demo"
+  ],
+  "start": "intro",
+  "nodes": [
+    {
+      "id": "intro",
+      "type": "scene",
+      "narrative": {
+        "en": "Smoke rises above the trees. Bandits have made camp in the clearing, around a chest they stole from the village.",
+        "fr": "Une fumée monte au-dessus des arbres. Des bandits campent dans la clairière, autour d'un coffre volé au village."
+      },
+      "next": "camp"
+    },
+    {
+      "id": "camp",
+      "type": "encounter",
+      "lootLevel": "common",
+      "map": {
+        "tiles": [
+          {
+            "ref": "demo:tile/clearing",
+            "x": 0,
+            "y": 0,
+            "rotation": 0
+          },
+          {
+            "ref": "demo:tile/clearing-east",
+            "x": 6,
+            "y": 0,
+            "rotation": 90
+          }
+        ],
+        "tokens": [
+          {
+            "id": "chest",
+            "type": "demo:token/chest",
+            "x": 10,
+            "y": 4
+          }
+        ]
+      },
+      "setup": {
+        "combatants": [
+          {
+            "family": "bandit",
+            "at": {
+              "x": 6,
+              "y": 2
+            }
+          },
+          {
+            "family": "bandit",
+            "at": {
+              "x": 7,
+              "y": 4
+            }
+          },
+          {
+            "family": "bandit-chief",
+            "at": {
+              "x": 9,
+              "y": 3
+            }
+          }
+        ]
+      },
+      "tokens": {
+        "chest": {
+          "mode": "adjacentEncounterAction",
+          "events": [
+            "take-chest"
+          ]
+        }
+      },
+      "events": [
+        {
+          "id": "take-chest",
+          "trigger": {
+            "on": "tokenActivated",
+            "token": "chest"
+          },
+          "actions": [
+            {
+              "do": "removeToken",
+              "token": "chest"
+            },
+            {
+              "do": "endEncounter",
+              "endCondition": "chest"
+            }
+          ]
+        }
+      ],
+      "endConditions": [
+        {
+          "id": "chest",
+          "kind": "win",
+          "text": {
+            "en": "Take the chest back.",
+            "fr": "Reprendre le coffre."
+          },
+          "next": "back"
+        }
+      ]
+    },
+    {
+      "id": "back",
+      "type": "scene",
+      "narrative": {
+        "en": "The bandits flee into the woods. The village will have its chest back by nightfall.",
+        "fr": "Les bandits s'enfuient dans les bois. Le village retrouvera son coffre avant la nuit."
+      },
+      "next": "@end"
+    }
+  ]
+}

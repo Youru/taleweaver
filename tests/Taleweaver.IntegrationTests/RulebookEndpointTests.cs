@@ -12,7 +12,7 @@ public class RulebookEndpointTests(RepositoryFactory factory) : IClassFixture<Re
 
     private static CancellationToken Token => TestContext.Current.CancellationToken;
 
-    [Fact]
+    [ContentFact]
     public async Task GetRulebook_FromThisMachine_GivesEveryChapterAndTheGlossary()
     {
         var book = await _client.GetFromJsonAsync<GetRulebook.Response>("/api/rulebook", JsonDefaults.Options, Token);

@@ -1,22 +1,28 @@
-import { readdirSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { findReference, parseBook } from './book'
 import { readInline } from './inline'
 import { questions } from './questions'
 import { createSearch } from './search'
 
-// On the real book: a search is only good on the text it searches
-const folder = '../../reference/rules/rulebook/'
+// On the real book: a search is only good on the text it searches. Skipped where the game's content is absent (CI).
+const root = process.env.TALEWEAVER_CONTENT_ROOT ? `${process.env.TALEWEAVER_CONTENT_ROOT}/` : '../../'
+const folder = `${root}reference/rules/rulebook/`
+const present = existsSync(`${folder}glossary.md`)
 const read = (path: string) => readFileSync(path, 'utf8')
-const book = parseBook(
-  readdirSync(`${folder}chapters`).map((file) => ({
-    id: file.split('-')[0]!,
-    markdown: read(`${folder}chapters/${file}`),
-  })),
-)
-const rules = createSearch(book, read(`${folder}glossary.md`), JSON.parse(read('../../packs/um1/rules.json')))
+const book = present
+  ? parseBook(
+      readdirSync(`${folder}chapters`).map((file) => ({
+        id: file.split('-')[0]!,
+        markdown: read(`${folder}chapters/${file}`),
+      })),
+    )
+  : parseBook([])
+const rules = present
+  ? createSearch(book, read(`${folder}glossary.md`), JSON.parse(read(`${root}packs/um1/rules.json`)))
+  : createSearch(book, '')
 
-describe('rules search', () => {
+describe.skipIf(!present)('rules search', () => {
   it.each([
     ['comment sauter', 'Jumping'],
     ['attaque d’opportunité', 'Break Attacks'],
@@ -71,7 +77,7 @@ describe('rules search', () => {
   })
 })
 
-describe('rulebook', () => {
+describe.skipIf(!present)('rulebook', () => {
   it('gives each rule an address of its own', () => {
     expect(new Set(book.sections.map(({ id }) => id)).size).toBe(book.sections.length)
   })

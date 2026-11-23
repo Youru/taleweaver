@@ -10,7 +10,8 @@ const webPort = 5174
 const saves = mkdtempSync(join(tmpdir(), 'taleweaver-e2e-'))
 // Scenarios made in the workshop during the tests: never in the repository.
 const homebrew = mkdtempSync(join(tmpdir(), 'taleweaver-e2e-homebrew-'))
-const repositoryRoot = fileURLToPath(new URL('../..', import.meta.url))
+// The game's content: TALEWEAVER_CONTENT_ROOT, or the repository around taleweaver/. The specs are written for it.
+const repositoryRoot = process.env.TALEWEAVER_CONTENT_ROOT ?? fileURLToPath(new URL('../..', import.meta.url))
 
 export default defineConfig({
   testDir: 'e2e',

@@ -31,12 +31,19 @@ public sealed class HomebrewFactory : WebApplicationFactory<Program>
     }
 }
 
-/// <summary>The API on the real content of the repository, with a temporary saves folder.</summary>
+/// <summary>The API on the game's content (<see cref="ContentRoot"/>), with a temporary saves folder.</summary>
 public sealed class RepositoryFactory : WebApplicationFactory<Program>
 {
     private readonly string _saves = Directory.CreateTempSubdirectory("taleweaver-saves-").FullName;
 
-    protected override void ConfigureWebHost(IWebHostBuilder builder) => builder.UseSetting("Content:SavesPath", _saves);
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        builder.UseSetting("Content:SavesPath", _saves);
+        if (ContentRoot.Path is { } root)
+        {
+            builder.UseSetting("Content:RootPath", root);
+        }
+    }
 
     protected override void Dispose(bool disposing)
     {

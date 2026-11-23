@@ -1,6 +1,9 @@
 """Builds what is given away: one executable per system, with the front and the content inside.
 
-    python3 -I taleweaver/scripts/package.py [win-x64] [linux-x64] [--scenario scenarios/homebrew/x.json]
+    python3 -I taleweaver/scripts/package.py [win-x64] [linux-x64] [--scenario scenarios/homebrew/x.json] [--content DIR]
+
+--content: the folder holding packs/, scenarios/, assets/ (and reference/rules/rulebook/). By default
+TALEWEAVER_CONTENT_ROOT, or the repository around taleweaver/. The CI gives taleweaver/demo: nothing of the game.
 
 Out: taleweaver/dist/ (git ignores it). Needs the .NET SDK, Node and Pillow.
 The content is a whitelist: nothing of sources/, tools/, the saves or the workshop's scenarios leaves unless named.
@@ -24,12 +27,12 @@ from pathlib import Path
 
 from PIL import Image
 
-ROOT = Path(__file__).resolve().parents[2]
-APP = ROOT / "taleweaver"
+APP = Path(__file__).resolve().parents[1]
+ROOT = APP.parent  # the content: replaced by --content
 WEB = APP / "web"
 API = APP / "src" / "Taleweaver.Api"
 OUT = APP / "dist"
-VERSION = "0.1.0"
+VERSION = os.environ.get("TALEWEAVER_VERSION", "0.1.0").removeprefix("v")  # the CI gives the tag
 QUALITY = 82
 SYSTEMS = ("win-x64", "linux-x64")
 
@@ -37,6 +40,14 @@ PICTURE = re.compile(r"assets/[^\"'`\s)<>]+")
 ENCOUNTER = "assets/templates/encounter/"
 # Named by the code piece by piece, so taken whole
 WHOLE = ("assets/templates/discipline-card/icons/", "assets/rulebook/icons/")
+
+DEMO_NOTICE = """TALEWEAVER {version}
+
+Compagnon pour jeux de plateau d'aventure, avec un pack et un scénario de démonstration.
+Lancer : double-cliquez sur Taleweaver.exe (Windows) ; tar -xzf puis ./Taleweaver (Linux). Le navigateur s'ouvre.
+Windows peut afficher « Windows a protégé votre ordinateur » (fichier non signé) : Informations complémentaires,
+puis Exécuter quand même. Gardez la fenêtre noire ouverte pendant la partie ; fermez-la pour quitter.
+"""
 
 NOTICE = """TALEWEAVER {version}
 
@@ -82,7 +93,7 @@ PDF: needs Edge, Chrome or Chromium.
 """
 
 
-def run(*command, cwd=ROOT):
+def run(*command, cwd=APP):
     executable = shutil.which(command[0]) or command[0]
     subprocess.run([executable, *map(str, command[1:])], cwd=cwd, check=True)
 
@@ -96,12 +107,13 @@ def text_files(folder, *suffixes):
 
 
 def content_files(scenarios):
+    # Every scenario folder but the workshop's (homebrew): those leave only when named
+    official = [p for p in sorted((ROOT / "scenarios").iterdir()) if p.is_dir() and p.name != "homebrew"]
+    book = ROOT / "reference" / "rules" / "rulebook"
     files = [
         *text_files(ROOT / "packs", ".json"),
-        *text_files(ROOT / "scenarios" / "um1", ".json"),
-        *text_files(ROOT / "scenarios" / "be1", ".json"),
-        *text_files(ROOT / "reference" / "rules" / "rulebook" / "chapters", ".md"),
-        ROOT / "reference" / "rules" / "rulebook" / "glossary.md",
+        *(f for folder in official for f in text_files(folder, ".json")),
+        *(text_files(book / "chapters", ".md") + [book / "glossary.md"] if (book / "glossary.md").exists() else []),
     ]
     for given in scenarios:
         path = (ROOT / given).resolve()
@@ -123,7 +135,10 @@ def pictures(content):
         line for p in code for line in p.read_text(encoding="utf-8").splitlines() if line.lstrip().startswith(("//", "/*", "*"))
     )))
     if missing := sorted(concrete - everything - examples):
-        raise SystemExit("Named but missing:\n  " + "\n  ".join(missing))
+        # The code names pictures of the game (icons, templates): another content does without them
+        if is_game():
+            raise SystemExit("Named but missing:\n  " + "\n  ".join(missing))
+        print(f"{len(missing)} pictures named by the code, not in this content: left out")
 
     kept = named & everything
     for name in everything:
@@ -134,6 +149,10 @@ def pictures(content):
             if local in text or local.startswith("print-background-"):
                 kept.add(name)
     return sorted(kept)
+
+
+def is_game():
+    return (ROOT / "packs" / "um1" / "pack.json").exists()
 
 
 def compressed(name, alone):
@@ -182,10 +201,13 @@ def licences(systems, restored):
 
 
 def version():
-    def git(*args):
-        return subprocess.run(["git", *args], cwd=ROOT, capture_output=True, text=True, check=True).stdout.strip()
+    def git(*args, cwd=APP):
+        return subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, check=True).stdout.strip()
 
-    changed = "-modified" if git("status", "--porcelain", "--", "taleweaver", "packs", "scenarios", "assets") else ""
+    changed = git("status", "--porcelain", "--", ".")
+    if is_game() and not changed:
+        changed = git("status", "--porcelain", "--", "packs", "scenarios", "assets", cwd=ROOT)
+    changed = "-modified" if changed else ""
     return f"{VERSION}+{datetime.date.today():%Y%m%d}.{git('rev-parse', '--short', 'HEAD')}{changed}"
 
 
@@ -233,7 +255,7 @@ def build(systems, scenarios):
                 "-p:EnableCompressionInSingleFile=true", "-p:DebugType=none",
                 f"-p:ContentBundle={bundle}", f"-p:InformationalVersion={stamp}",
                 "-p:IncludeSourceRevisionInInformationalVersion=false", *options)
-            notice = NOTICE.format(version=stamp)
+            notice = (NOTICE if is_game() else DEMO_NOTICE).format(version=stamp)
             if windows:
                 target = OUT / "Taleweaver.exe"
                 shutil.copyfile(published / "Taleweaver.Api.exe", target)
@@ -256,7 +278,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("systems", nargs="*", help=f"{', '.join(SYSTEMS)} (both by default)")
     parser.add_argument("--scenario", action="append", default=[], help="a homebrew scenario to give with the app")
+    parser.add_argument("--content", help="the folder holding packs/, scenarios/, assets/ (taleweaver/demo for the CI)")
     args = parser.parse_args()
+    ROOT = Path(args.content or os.environ.get("TALEWEAVER_CONTENT_ROOT") or APP.parent).resolve()
+    if not (ROOT / "packs").is_dir():
+        parser.error(f"no packs/ in {ROOT}: give --content (taleweaver/demo for the demonstration)")
     if unknown := set(args.systems) - set(SYSTEMS):
         parser.error(f"unknown system: {', '.join(sorted(unknown))}")
     build(args.systems or list(SYSTEMS), args.scenario)

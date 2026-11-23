@@ -6,7 +6,7 @@ namespace Taleweaver.UnitTests.Engine;
 /// <summary>Blight of Rhamsted played from start to end on the real content, by the GM's commands.</summary>
 public class BlightPlaythroughTests
 {
-    [Fact]
+    [ContentFact]
     public async Task Play_BlightOfRhamsted_ReachesTheEndWithTheRewards()
     {
         var game = new EngineDriver(await RepositoryContent.BlightAsync(), await RepositoryContent.CatalogAsync(), "Nightingale", "Rook", "Remi", "Zeke");
@@ -98,7 +98,7 @@ public class BlightPlaythroughTests
         game.Codes.Should().NotContain(["manualAction", "unknownNode", "unknownHiddenRule", "unknownEndCondition", "spawnImpossible"]);
     }
 
-    [Fact]
+    [ContentFact]
     public async Task Play_TerrorFallsAndSkullIsRolled_WinsWithTheFallen()
     {
         var game = new EngineDriver(await RepositoryContent.BlightAsync(), await RepositoryContent.CatalogAsync());
@@ -114,7 +114,7 @@ public class BlightPlaythroughTests
         game.State.Log.Should().Contain(l => l.Code == "encounterEnd" && l.Args!["endCondition"] == "win-fallen");
     }
 
-    [Fact]
+    [ContentFact]
     public async Task Play_TerrorClimbsBackAndAdventurerFailsAgility_AsksDamageThenAdventurer()
     {
         var game = new EngineDriver(await RepositoryContent.BlightAsync(), await RepositoryContent.CatalogAsync());
@@ -137,7 +137,7 @@ public class BlightPlaythroughTests
         game.State.Prompt.Should().BeNull();
     }
 
-    [Fact]
+    [ContentFact]
     public async Task Replay_HistoryOfAGame_RebuildsTheSameState()
     {
         var game = new EngineDriver(await RepositoryContent.BlightAsync(), await RepositoryContent.CatalogAsync());

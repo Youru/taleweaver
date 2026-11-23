@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "demo",
+  "name": {
+    "en": "Demo pack",
+    "fr": "Pack de démonstration"
+  },
+  "kind": "homebrew",
+  "files": {
+    "combatants": "combatants.json",
+    "tiles": "tiles.json",
+    "tokens": "tokens.json",
+    "dice": "dice.json",
+    "initiative": "initiative.json",
+    "items": "items.json"
+  },
+  "counts": {
+    "combatant": 2,
+    "tile": 2,
+    "token": 2
+  }
+}

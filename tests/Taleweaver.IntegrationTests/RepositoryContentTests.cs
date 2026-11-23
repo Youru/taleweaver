@@ -13,7 +13,7 @@ public class RepositoryContentTests(RepositoryFactory factory) : IClassFixture<R
 {
     private readonly HttpClient _client = factory.CreateClient();
 
-    [Fact]
+    [ContentFact]
     public async Task ValidateScenario_BlightOfRhamsted_NoErrorAndOneKnownWarning()
     {
         var scenario = await _client.GetFromJsonAsync<Scenario>("/api/scenarios/um1/blight-of-rhamsted", JsonDefaults.Options, TestContext.Current.CancellationToken);
@@ -27,7 +27,7 @@ public class RepositoryContentTests(RepositoryFactory factory) : IClassFixture<R
         report.Cards.Should().HaveCount(9);
     }
 
-    [Fact]
+    [ContentFact]
     public async Task ValidateScenario_Act1Pilot_NoError()
     {
         var scenario = await _client.GetFromJsonAsync<Scenario>("/api/scenarios/um1/act1", JsonDefaults.Options, TestContext.Current.CancellationToken);
@@ -41,7 +41,7 @@ public class RepositoryContentTests(RepositoryFactory factory) : IClassFixture<R
     }
 
     /// <summary>reference/act1/item-cards/symbols.json, through tools/build_items.py: the weapons' band reaches the duel.</summary>
-    [Fact]
+    [ContentFact]
     public async Task Weapons_CarryTheirSymbolAbilities()
     {
         var items = await _client.GetFromJsonAsync<List<Item>>("/api/catalog/items", JsonDefaults.Options, TestContext.Current.CancellationToken);
@@ -52,15 +52,11 @@ public class RepositoryContentTests(RepositoryFactory factory) : IClassFixture<R
     }
 
     /// <summary>tools/build_hidden_cards.py: every code points at a card of the catalogue, or at a picture that exists.</summary>
-    [Fact]
+    [ContentFact]
     public async Task EveryHiddenCardCode_PointsAtACardOrAPicture()
     {
         var catalog = await factory.Services.GetRequiredService<CatalogProvider>().GetAsync(TestContext.Current.CancellationToken);
-        var root = new DirectoryInfo(AppContext.BaseDirectory);
-        while (!Directory.Exists(Path.Combine(root.FullName, "packs", "um1")))
-        {
-            root = root.Parent!;
-        }
+        var root = new DirectoryInfo(ContentRoot.Path!);
 
         var known = catalog.Packs.SelectMany(p => p.Combatants.Select(c => c.Id).Concat(p.Items.Select(i => i.Id)).Concat(p.Disciplines.Select(d => d.Id))
             .Concat(p.InitiativeCards.Select(c => c.Id)).Concat(p.Adventurers.Select(a => a.Id))).ToHashSet();
@@ -71,7 +67,7 @@ public class RepositoryContentTests(RepositoryFactory factory) : IClassFixture<R
         values.Where(v => !known.Contains(v) && !(v.StartsWith("assets/", StringComparison.Ordinal) && File.Exists(Path.Combine(root.FullName, v)))).Should().BeEmpty();
     }
 
-    [Fact]
+    [ContentFact]
     public async Task GetAdventurers_FromAPhone_LeavesOutThoseStillToUnlock()
     {
         var token = TestContext.Current.CancellationToken;
@@ -88,7 +84,7 @@ public class RepositoryContentTests(RepositoryFactory factory) : IClassFixture<R
         (await phone.GetAsync("/api/catalog/allies", token)).StatusCode.Should().Be(System.Net.HttpStatusCode.Forbidden);
     }
 
-    [Fact]
+    [ContentFact]
     public async Task ListScenarios_RepositoryFiles_NoneSkipped()
     {
         // A scenario file the API cannot read is skipped with a mere log line: the Python checker does not see it
@@ -109,7 +105,7 @@ public class RepositoryContentTests(RepositoryFactory factory) : IClassFixture<R
         scenarios.Should().HaveCount(files, "each file of scenarios/ must deserialize (see the API log for the one skipped)");
     }
 
-    [Fact]
+    [ContentFact]
     public async Task GetBoardPieces_WithBe1_GivesTokensTheirPicturesVariantsAndFiguresTheirPortrait()
     {
         var pieces = await _client.GetFromJsonAsync<Taleweaver.Api.Features.Packs.GetBoardPieces.Response>("/api/catalog/board", JsonDefaults.Options, TestContext.Current.CancellationToken);
@@ -121,7 +117,7 @@ public class RepositoryContentTests(RepositoryFactory factory) : IClassFixture<R
         pieces.Figures["fragor"].Portrait.Should().Be("assets/templates/encounter/map/basic-monsters/fragor.png");
     }
 
-    [Fact]
+    [ContentFact]
     public async Task ValidateScenario_CaveSickleQueen_NoError()
     {
         var token = TestContext.Current.CancellationToken;
@@ -133,7 +129,7 @@ public class RepositoryContentTests(RepositoryFactory factory) : IClassFixture<R
         report!.Errors.Should().BeEmpty();
     }
 
-    [Fact]
+    [ContentFact]
     public async Task StartGame_BlightOfRhamsted_EntersTheFirstEncounterAfterTheIntro()
     {
         var token = TestContext.Current.CancellationToken;
@@ -147,7 +143,7 @@ public class RepositoryContentTests(RepositoryFactory factory) : IClassFixture<R
         state.Encounter.Combatants.Should().HaveCount(6);
     }
 
-    [Fact]
+    [ContentFact]
     public async Task GetDice_CorePack_NineDiceOfSixFaces()
     {
         var dice = await _client.GetFromJsonAsync<Dictionary<string, Die>>("/api/catalog/dice", JsonDefaults.Options, TestContext.Current.CancellationToken);
@@ -157,7 +153,7 @@ public class RepositoryContentTests(RepositoryFactory factory) : IClassFixture<R
         dice["blue"].Faces.Average(f => f.Value).Should().Be(7.5);
     }
 
-    [Fact]
+    [ContentFact]
     public async Task Catalog_RealPacks_HaveTheHealthIconsOfDisciplinesAndUpgrades()
     {
         var provider = factory.Services.GetRequiredService<CatalogProvider>();
@@ -169,7 +165,7 @@ public class RepositoryContentTests(RepositoryFactory factory) : IClassFixture<R
         catalog.FindUpgrade("um1:item-upgrade/sentient")!.Health.Should().Be(2);
     }
 
-    [Fact]
+    [ContentFact]
     public async Task GetEffects_RealPacks_ListsTheElevenEffectsOfTheRules()
     {
         var effects = await _client.GetFromJsonAsync<List<RuleEntry>>("/api/catalog/effects", JsonDefaults.Options, TestContext.Current.CancellationToken);

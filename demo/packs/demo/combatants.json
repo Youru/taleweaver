@@ -1,0 +1,141 @@
+{
+  "combatants": [
+    {
+      "id": "demo:combatant/bandit-common",
+      "family": "bandit",
+      "name": {
+        "en": "Bandit",
+        "fr": "Bandit"
+      },
+      "miniature": "assets/demo/bandit.png",
+      "baseSize": "1x1",
+      "kind": "intelligent",
+      "lootLevel": "common",
+      "activation": "1-3",
+      "initiativeCards": [
+        "demo:initiative/bandit"
+      ],
+      "stats": {
+        "health": 6,
+        "defense": 2,
+        "movement": 4,
+        "armor": 0,
+        "combatDice": [
+          "plain",
+          "plain"
+        ],
+        "convictionDice": [
+          "plain"
+        ],
+        "castingDie": null
+      },
+      "aiSteps": [
+        {
+          "condition": {
+            "kind": "ask",
+            "text": {
+              "en": "Is an opponent adjacent?",
+              "fr": "Un adversaire est-il adjacent ?"
+            }
+          },
+          "instructions": [
+            {
+              "text": {
+                "en": "Make a [Melee] ATK.",
+                "fr": "Faire une ATQ [Melee]."
+              }
+            }
+          ],
+          "continueDown": false
+        },
+        {
+          "condition": {
+            "kind": "always",
+            "text": {
+              "en": "Otherwise",
+              "fr": "Sinon"
+            }
+          },
+          "instructions": [
+            {
+              "text": {
+                "en": "MOVE toward the nearest opponent.",
+                "fr": "Se DÉPLACER vers l'adversaire le plus proche."
+              }
+            }
+          ],
+          "continueDown": false
+        }
+      ]
+    },
+    {
+      "id": "demo:combatant/bandit-chief-common",
+      "family": "bandit-chief",
+      "name": {
+        "en": "Bandit chief",
+        "fr": "Chef bandit"
+      },
+      "miniature": "assets/demo/chief.png",
+      "baseSize": "1x1",
+      "kind": "intelligent",
+      "lootLevel": "common",
+      "activation": "1",
+      "initiativeCards": [
+        "demo:initiative/bandit-chief"
+      ],
+      "stats": {
+        "health": 12,
+        "defense": 3,
+        "movement": 4,
+        "armor": 1,
+        "combatDice": [
+          "plain",
+          "plain",
+          "plain"
+        ],
+        "convictionDice": [
+          "plain"
+        ],
+        "castingDie": null
+      },
+      "aiSteps": [
+        {
+          "condition": {
+            "kind": "ask",
+            "text": {
+              "en": "Is an opponent adjacent?",
+              "fr": "Un adversaire est-il adjacent ?"
+            }
+          },
+          "instructions": [
+            {
+              "text": {
+                "en": "Make a [Melee] ATK.",
+                "fr": "Faire une ATQ [Melee]."
+              }
+            }
+          ],
+          "continueDown": false
+        },
+        {
+          "condition": {
+            "kind": "always",
+            "text": {
+              "en": "Otherwise",
+              "fr": "Sinon"
+            }
+          },
+          "instructions": [
+            {
+              "text": {
+                "en": "MOVE toward the nearest opponent.",
+                "fr": "Se DÉPLACER vers l'adversaire le plus proche."
+              }
+            }
+          ],
+          "continueDown": false
+        }
+      ]
+    }
+  ]
+}

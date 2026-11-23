@@ -15,7 +15,7 @@ public class RulebookForPhonesTests(RepositoryFactory factory) : IClassFixture<R
 {
     private static CancellationToken Token => TestContext.Current.CancellationToken;
 
-    [Fact]
+    [ContentFact]
     public async Task APhone_ReadsTheRules_OnlyWhileARoomIsOpen_AndWithoutASecretName()
     {
         var gm = factory.CreateClient();

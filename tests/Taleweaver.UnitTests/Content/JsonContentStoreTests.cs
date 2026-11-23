@@ -8,7 +8,7 @@ namespace Taleweaver.UnitTests.Content;
 
 public class JsonContentStoreTests
 {
-    [Fact]
+    [ContentFact]
     public async Task GetPacksAsync_RepositoryContent_LoadsEveryCatalogueFileOfUm1()
     {
         var store = RepositoryContent.CreateStore();
@@ -26,7 +26,7 @@ public class JsonContentStoreTests
         um1.Rules!.LootDecks.Should().HaveCount(counts["lootDecks"]);
     }
 
-    [Fact]
+    [ContentFact]
     public async Task GetPacksAsync_CombatantWithVariableStats_ReadsStarAsVariable()
     {
         var catalog = await RepositoryContent.CatalogAsync();
@@ -37,7 +37,7 @@ public class JsonContentStoreTests
         agares.Stats.Movement.Should().Be(new StatValue(4));
     }
 
-    [Fact]
+    [ContentFact]
     public async Task ListScenariosAsync_RepositoryContent_ListsBlightOfRhamsted()
     {
         var store = RepositoryContent.CreateStore();
@@ -47,7 +47,7 @@ public class JsonContentStoreTests
         scenarios.Should().Contain(s => s.Id == "um1:scenario/blight-of-rhamsted" && s.Kind == "bounty");
     }
 
-    [Theory]
+    [ContentTheory]
     [InlineData("um1:scenario/blight-of-rhamsted", 2)]
     [InlineData("be1:scenario/the-cave-sickle-queen", 1)]
     public async Task GetScenarioAsync_OfficialBounty_HasTheSkullsOfItsCover(string id, int skulls)
@@ -57,7 +57,7 @@ public class JsonContentStoreTests
         scenario!.Difficulty.Should().Be(skulls);
     }
 
-    [Fact]
+    [ContentFact]
     public async Task GetPacksAsync_Companion_IsASecretStoryCardNeverSold()
     {
         var catalog = await RepositoryContent.CatalogAsync();
@@ -72,7 +72,7 @@ public class JsonContentStoreTests
         sight.SeesPicture(card.ImageBack!).Should().BeFalse();
     }
 
-    [Fact]
+    [ContentFact]
     public async Task GetScenarioAsync_Blight_KeepsEveryFieldOfTheFile()
     {
         var path = Path.Combine(RepositoryContent.Root, "scenarios", "um1", "blight-of-rhamsted.json");

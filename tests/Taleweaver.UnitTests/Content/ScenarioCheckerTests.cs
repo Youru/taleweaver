@@ -41,7 +41,7 @@ public class ScenarioCheckerTests
         },
     ]);
 
-    [Fact]
+    [ContentFact]
     public async Task Check_BlightOfRhamsted_SameResultAsCheckScenarioPy()
     {
         var scenario = await RepositoryContent.BlightAsync();
