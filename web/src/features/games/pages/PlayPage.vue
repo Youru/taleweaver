@@ -760,7 +760,7 @@ function moveFigure(figure: string, to: Cell) {
   gap: 0.75rem;
   flex: 1;
   min-height: 0;
-  width: min(52rem, 100%);
+  width: min(64rem, 100%);
   margin: 0 auto;
 }
 /* The Story Round's panel scrolls on its own: the page of the story keeps room to be read */

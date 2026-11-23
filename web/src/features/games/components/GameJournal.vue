@@ -124,10 +124,10 @@ onBeforeUnmount(() => observer?.disconnect())
           <ul>
             <li v-for="(gain, i) in block.lines" :key="i" :class="{ mine: gain.mine }">
               <i class="pi pi-check-circle" aria-hidden="true" />
-              <span>
+              <div>
                 <strong>{{ gain.title }}</strong>
-                <span v-if="gain.text"> {{ gain.text }}</span>
-              </span>
+                <p v-if="gain.text">{{ gain.text }}</p>
+              </div>
             </li>
           </ul>
         </li>
@@ -204,9 +204,24 @@ li.mine {
 .narrative p {
   font-family: Georgia, serif;
 }
+/* The page of the story is one sheet of the book laid over the site's parchment: its own paper,
+   framed, which scrolls with its text (the blocks on it are not papers of their own) */
+.reading ol {
+  padding: 1.25rem clamp(0.75rem, 3vw, 2.25rem) 1.5rem;
+  background: #efe3c8 var(--parchment) center top / 100% auto repeat-y local;
+  color: #1d1712;
+  border: 1px solid rgb(80 50 25 / 0.35);
+  border-radius: 4px;
+  box-shadow:
+    0 3px 18px rgb(0 0 0 / 0.35),
+    inset 0 0 40px rgb(90 55 20 / 0.18);
+}
+.reading li {
+  border-left-color: rgb(80 50 25 / 0.3);
+}
 .reading .narrative {
   border-left-color: #6d1a1a;
-  background: #efe3c8 var(--parchment) center / cover;
+  background: transparent;
   color: #1d1712;
 }
 .reading .narrative p {
@@ -222,9 +237,10 @@ li.mine {
   padding: 0;
   margin: 0.6rem 0;
   border: none;
-  border-radius: 4px;
   overflow: hidden;
-  box-shadow: 0 1px 6px rgb(0 0 0 / 0.3);
+}
+li + .story {
+  margin-top: 1.4rem;
 }
 .story header {
   display: flex;
@@ -250,8 +266,7 @@ li.mine {
   margin-top: 0.2rem;
 }
 .page {
-  padding: 1rem 1.4rem 1.2rem;
-  background: #e6d6b4 var(--parchment) center / cover;
+  padding: 1rem 0.4rem 1.2rem;
   color: #1d1712;
   font-family: 'Palatino Linotype', 'Book Antiqua', Georgia, serif;
   font-style: italic;
@@ -298,8 +313,12 @@ li.mine {
 .gains {
   padding: 0.5rem 0.9rem;
   border-left-color: #2f6b3a;
-  background: #efe3c8 var(--parchment) center / cover;
+  background: rgb(47 107 58 / 0.08);
   color: #1d1712;
+}
+.gains p {
+  margin: 0.1rem 0 0;
+  white-space: pre-line;
 }
 .gains ul {
   display: flex;
