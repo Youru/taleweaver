@@ -38,6 +38,6 @@ jobs:
         run: |
           flags=()
           [[ "$GITHUB_REF_NAME" == v0.* || "$GITHUB_REF_NAME" == *-* ]] && flags+=(--prerelease)
-          gh release create "$GITHUB_REF_NAME" dist/Taleweaver.exe dist/Taleweaver-linux-x64.tar.gz dist/LISEZMOI.txt             --title "Taleweaver $GITHUB_REF_NAME" --generate-notes "${flags[@]}"
+          gh release create "$GITHUB_REF_NAME" dist/Taleweaver.exe dist/Taleweaver-linux-x64.tar.gz dist/LISEZMOI.txt --title "Taleweaver $GITHUB_REF_NAME" --generate-notes "${flags[@]}"
         env:
           GH_TOKEN: ${{ github.token }}
