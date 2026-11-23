@@ -9,6 +9,7 @@ import Message from 'primevue/message'
 import MultiSelect from 'primevue/multiselect'
 import Select from 'primevue/select'
 import Tag from 'primevue/tag'
+import { useConfirm } from 'primevue/useconfirm'
 import { useDisciplines, useItems } from '@/features/catalog'
 import { gameKeys, type AdventurerState, type HeldBy, type OwnedItem } from '@/features/games'
 import { pick } from '@/shared/lib/localized'
@@ -94,18 +95,26 @@ async function share() {
   }
 }
 
+const confirm = useConfirm()
+
 function assign(seatId: string, adventurers: string[]) {
   const seat = room.value?.seats.find((s) => s.id === seatId)
   const taken = adventurers.filter((a) => {
     const other = holder(a)
     return other && other.id !== seatId && other.connected
   })
-  if (taken.length && !window.confirm(t('room.gm.confirmMove', { names: taken.join(', ') }))) return
-  if (seat) void run(() => roomGmApi.assign(props.gameId, seatId, adventurers))
+  if (!seat) return
+  const save = () => void run(() => roomGmApi.assign(props.gameId, seatId, adventurers))
+  if (!taken.length) return save()
+  confirm.require({ message: t('room.gm.confirmMove', { names: taken.join(', ') }), accept: save })
 }
 
 function removeSeat(seatId: string, name: string) {
-  if (window.confirm(t('room.gm.confirmRemove', { name }))) void run(() => roomGmApi.removeSeat(props.gameId, seatId))
+  confirm.require({
+    message: t('room.gm.confirmRemove', { name }),
+    acceptProps: { label: t('common.delete'), severity: 'danger' },
+    accept: () => void run(() => roomGmApi.removeSeat(props.gameId, seatId)),
+  })
 }
 
 function since(date: string) {

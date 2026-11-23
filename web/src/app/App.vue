@@ -3,10 +3,10 @@ import { watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
-import ConfirmDialog from 'primevue/confirmdialog'
 import SelectButton from 'primevue/selectbutton'
 import { HelpMenu } from '@/features/manual'
 import { openRules, ReferenceDialog } from '@/features/reference'
+import ActionConfirm from '@/shared/components/ActionConfirm.vue'
 import { isHostDevice } from '@/shared/lib/screen'
 import { usePreferences } from '@/shared/lib/preferences'
 
@@ -60,7 +60,7 @@ const languages = [
   </header>
   <RouterView />
   <ReferenceDialog />
-  <ConfirmDialog />
+  <ActionConfirm />
 </template>
 
 <style scoped>

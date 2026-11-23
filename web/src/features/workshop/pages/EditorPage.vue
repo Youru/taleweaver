@@ -157,7 +157,19 @@ function onKeydown(event: KeyboardEvent) {
 }
 onMounted(() => window.addEventListener('keydown', onKeydown))
 onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
-onBeforeRouteLeave(() => !dirty.value || window.confirm(t('workshop.leaveUnsaved')))
+onBeforeRouteLeave(
+  () =>
+    !dirty.value ||
+    new Promise<boolean>((resolve) =>
+      confirm.require({
+        message: t('workshop.leaveUnsaved'),
+        acceptProps: { label: t('workshop.leave') },
+        accept: () => resolve(true),
+        reject: () => resolve(false),
+        onHide: () => resolve(false),
+      }),
+    ),
+)
 
 function removeSelected() {
   const target = node.value
@@ -375,7 +387,7 @@ function started(game: GameView) {
       </div>
       <StartGameDialog :scenario="testing" @close="testing = null" @started="started" />
     </template>
-      <Drawer
+    <Drawer
       :visible="!!preview"
       position="right"
       :modal="false"
@@ -395,7 +407,7 @@ function started(game: GameView) {
       <p class="hint">{{ t('workshop.preview.hint') }}</p>
       <iframe v-if="previewUrl" :key="previewUrl" :src="previewUrl" :title="t('workshop.preview.title')" />
     </Drawer>
-</main>
+  </main>
 </template>
 
 <style scoped>
