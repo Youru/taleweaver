@@ -1,0 +1,17 @@
+# Build .NET
+bin/
+obj/
+TestResults/
+*.user
+.vs/
+
+# Front
+node_modules/
+
+# Livrables (scripts/package.py) : jamais versionnés, ils peuvent contenir le contenu du jeu
+dist/
+
+# Divers
+*.tmp
+Thumbs.db
+.DS_Store
