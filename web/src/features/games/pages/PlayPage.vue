@@ -414,7 +414,12 @@ function moveFigure(figure: string, to: Cell) {
         :busy="command.isPending.value"
         @confirm="(actions, outOf) => tableCommand({ type: 'revert', actions, outOf })"
       />
-      <AdventureSheetDialog :id="id" v-model:open="sheetOpen" :state="state" />
+      <AdventureSheetDialog
+        :id="id"
+        v-model:open="sheetOpen"
+        :state="state"
+        :variables="campaignScenario.data.value?.variables ?? []"
+      />
       <RoomPanel
         v-model:open="roomOpen"
         v-model:screens="screensOpen"

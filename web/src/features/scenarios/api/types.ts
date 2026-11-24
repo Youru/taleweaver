@@ -14,6 +14,18 @@ export interface Scenario {
   title: LocalizedText
   start: string
   nodes: ScenarioNode[]
+  variables?: ScenarioVariable[]
+}
+
+/** A variable declared by the scenario (data-model §3.5). */
+export interface ScenarioVariable {
+  id: string
+  type: string
+  scope?: string
+  /** Its readable name on the Adventure Sheet. */
+  name?: LocalizedText
+  /** A Story Flag of the book, shown at the top of the Adventure Sheet. */
+  storyFlag?: boolean
 }
 
 export interface ScenarioNode {
@@ -26,6 +38,8 @@ export interface ScenarioNode {
   setup?: { adventurersStart?: string }
   diagrams?: Diagram[]
   specialRules?: SpecialRule[]
+  /** What the GM does by hand in this step. */
+  gmNote?: LocalizedText
   tokens: Record<string, TokenRule>
   endConditions: EndCondition[]
   page?: number

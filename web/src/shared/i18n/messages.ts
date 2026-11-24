@@ -377,6 +377,12 @@ export const messages = {
       export: 'Exporter la fin d’acte',
     },
     sheet: {
+      storyFlags: 'Drapeaux d’histoire',
+      noStoryFlag: 'Aucun drapeau d’histoire dans ce scénario.',
+      tracking: 'Suivi de la partie',
+      upgrades: 'Améliorations d’objet débloquées',
+      noUpgrade: 'Aucune amélioration débloquée.',
+      upgradeCost: '{cost} Or',
       flags: 'Drapeaux et valeurs',
       noFlag: 'Aucun.',
       marked: 'coché',
@@ -1698,6 +1704,7 @@ export const messages = {
       noCombatant: 'Aucun combattant en jeu.',
       notPlaced: 'à placer',
       specialRules: 'Règles spéciales',
+      gmNote: 'Pour le MJ',
     },
     ai: {
       resolved: 'Résolu contre {names}',
@@ -2523,6 +2530,12 @@ export const messages = {
       export: 'Export the end of the Act',
     },
     sheet: {
+      storyFlags: 'Story Flags',
+      noStoryFlag: 'No Story Flag in this scenario.',
+      tracking: 'Game tracking',
+      upgrades: 'Item Upgrades unlocked',
+      noUpgrade: 'No Upgrade unlocked.',
+      upgradeCost: '{cost} Gold',
       flags: 'Flags and values',
       noFlag: 'None.',
       marked: 'marked',
@@ -3840,6 +3853,7 @@ export const messages = {
       noCombatant: 'No combatant in play.',
       notPlaced: 'to place',
       specialRules: 'Special rules',
+      gmNote: 'For the GM',
     },
     ai: {
       resolved: 'Resolved against {names}',

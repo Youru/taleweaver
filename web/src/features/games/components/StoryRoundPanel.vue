@@ -144,6 +144,9 @@ function toggleActive(name: string, on: boolean) {
         </li>
       </ol>
     </header>
+    <aside v-if="node?.gmNote" class="gm-note">
+      <strong>{{ t('play.gmNote') }}</strong> {{ pick(node.gmNote, language) }}
+    </aside>
 
     <div v-if="round.phase === 'shop'" class="block">
       <h3>{{ t('storyRound.store') }}</h3>
@@ -304,6 +307,12 @@ function toggleActive(name: string, on: boolean) {
 </template>
 
 <style scoped>
+.gm-note {
+  margin: 0.6rem 0;
+  padding: 0.4rem 0.6rem;
+  border-left: 3px solid var(--p-primary-color);
+  white-space: pre-line;
+}
 .story-round {
   display: flex;
   flex-direction: column;

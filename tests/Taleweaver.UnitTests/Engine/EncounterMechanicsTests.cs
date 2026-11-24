@@ -60,6 +60,19 @@ public class EncounterMechanicsTests
         SameWhenReplayed(game);
     }
 
+    [Theory]
+    [InlineData("front", 0)]
+    [InlineData("back", 2)]
+    public void A9_AFamily_MovesAllItsCards(string to, int place)
+    {
+        // "Move the Cave Sickle Initiative cards to the back of the Initiative Track" (Act 1, p. 59)
+        var game = Game(Fight(Imps, start: $$"""{"do":"moveInitiative","family":"imp","to":"{{to}}"}"""));
+
+        var imp = game.Encounter.Combatants.Single(c => c.Family == "imp").InitiativeCards.Single();
+        game.Encounter.InitiativeTrack.IndexOf(imp).Should().Be(place);
+        game.Codes.Should().NotContain("manualAction");
+    }
+
     [Fact]
     public void A9_TheGmDealsTheTrack_ThenMoves()
     {

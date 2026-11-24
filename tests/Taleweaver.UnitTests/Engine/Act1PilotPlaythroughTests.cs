@@ -85,13 +85,191 @@ public class Act1PilotPlaythroughTests
         game.Answer("venture:0");
         game.State.Campaign.CurrentNode.Should().Be("path-to-citizenship");
 
-        // To the end of the pilot
+        // The graduation, Yun's party, then the White Vaults (p. 33): a loot of 10 Gold, 1 XP each
+        while (game.State.Encounter is null)
+        {
+            game.Continue();
+        }
+
+        game.Encounter.Node.Should().Be("a-dangerous-path");
+        game.Do(GameCommand.ActivateToken("loot:blue")).Do(GameCommand.ReachEndCondition("win")).Continue();
+        game.State.Campaign.Gold.Should().Be(300);
+        game.State.Campaign.Party.Should().OnlyContain(a => a.Xp == 5);
+
+        // Rumble in the Dark (p. 34): the Animate is not impressed, the party charges it (D)
+        game.Encounter.Node.Should().Be("rumble-in-the-dark");
+        game.Do(GameCommand.ActivateToken("objective:blue"));
+        while (game.State.Prompt?.Options.Any(o => o.Id == "fail") != true)
+        {
+            game.Continue();
+        }
+
+        game.Answer("fail");
+        SkipTexts(game);
+        game.State.Prompt!.Options.Should().HaveCount(2, "play it safe (C) or charge (D)");
+        game.Answer("1");
+        SkipTexts(game);
+        game.Do(GameCommand.ReachEndCondition("lose")).Continue();
+
+        // Into the Gloom (p. 36), then Hogrifar, Suri, the Jeong house and the castle
+        game.Encounter.Node.Should().Be("into-the-gloom");
+        game.Do(GameCommand.ActivateToken("loot:blue")).Do(GameCommand.ReachEndCondition("win")).Continue();
+        game.State.Campaign.Party.Should().OnlyContain(a => a.Xp == 6);
+        while (game.State.Campaign.CurrentNode != "the-arsen-castle")
+        {
+            game.Continue();
+        }
+
+        // 6 XP earned: 40 Gold, then the Story Round of p. 47
+        SkipTexts(game);
+        game.Answer("2");
+        while (game.State.Campaign.StoryRound is null)
+        {
+            game.Continue();
+        }
+
+        game.State.Campaign.Gold.Should().Be(310 + 40);
+        game.State.Campaign.StoryRound!.Node.Should().Be("the-city-of-elenia");
+
+        // Loa Problems (p. 48): the altar is reached, one Loa is defeated, then the party falls: 40 Gold anyway
+        game.Answer("explore");
+        game.Answer("quest:loa-problems");
+        while (game.State.Encounter is null)
+        {
+            game.Continue();
+        }
+
+        game.Encounter.Node.Should().Be("loa-altar");
+        while (game.State.Prompt is not null)
+        {
+            game.Answer(game.State.Prompt.Options[0].Id);
+        }
+
+        game.Do(GameCommand.ActivateToken("objective:blue"));
+        SkipTexts(game);
+        game.State.Campaign.Variables["loas-defeated"].GetInt32().Should().Be(0);
+        game.Do(GameCommand.ReachEndCondition("lose"));
+        while (game.State.Campaign.CurrentNode != "the-city-of-elenia")
+        {
+            game.Continue();
+        }
+
+        game.State.Campaign.Gold.Should().Be(350 + 50);
+        game.Answer("explore");
+        game.State.Prompt!.Options.Select(o => o.Id).Should().NotContain("quest:loa-problems");
+
+        // Cave Sickle Extermination (p. 49): down the chasm to the Dank Grotto, then the bomb is set and time runs out
+        game.Answer("quest:cave-sickle-extermination");
+        while (game.State.Encounter is null)
+        {
+            game.Continue();
+        }
+
+        game.Encounter.Node.Should().Be("bombing-the-sickles");
+        while (game.State.Prompt is not null)
+        {
+            game.Answer(game.State.Prompt.Options[0].Id);
+        }
+
+        game.Do(GameCommand.ReachEndCondition("alt-win")).Continue();
+        game.Encounter.Node.Should().Be("dank-grotto");
+        game.Do(GameCommand.ReachEndCondition("win")).Continue();
+        game.Encounter.Node.Should().Be("sickles-upon-sickles");
+        SkipTexts(game);
+        game.Do(GameCommand.ActivateToken("objective:blue"));
+        SkipTexts(game);
+        game.Do(GameCommand.ReachEndCondition("time-out"));
+        while (game.State.Campaign.CurrentNode != "the-city-of-elenia")
+        {
+            game.Continue();
+        }
+
+        game.State.Campaign.Gold.Should().Be(400 + 60);
+        game.State.Campaign.Party.Should().OnlyContain(a => a.Xp == 7);
+        game.Answer("explore");
+        game.Answer("venture:0");
+
+        // Back to the Vaults (p. 66): the party falls once, then wins the last two encounters
+        while (game.State.Encounter is null)
+        {
+            game.Continue();
+        }
+
+        game.Encounter.Node.Should().Be("retracing-their-steps");
+        game.Do(GameCommand.ReachEndCondition("lose")).Continue();
+        game.Encounter.Node.Should().Be("an-alternate-path");
+        game.Do(GameCommand.ActivateToken("objective:blue"));
+        SkipTexts(game);
+        game.Do(GameCommand.ReachEndCondition("win-red")).Continue();
+        game.Encounter.Node.Should().Be("finding-their-way");
+        game.Do(GameCommand.ReachEndCondition("win"));
+        while (game.State.Campaign.StoryRound?.Node != "rhamsted-exploration")
+        {
+            if (game.State.Prompt is { Kind: not PromptKinds.Continue } prompt)
+            {
+                game.Answer(prompt.Options[0].Id);
+            }
+            else
+            {
+                game.Continue();
+            }
+        }
+
+        // Chapter 2 (p. 74-81): the scenes up to the next Story Round
+        game.State.Campaign.Party.Should().OnlyContain(a => a.Xp == 8);
+
+        // The Side Quest of p. 82: its encounter won, back to the Story Round
+        game.Answer("explore");
+        game.Answer("quest:maliks-mission");
+        while (game.State.Encounter is null)
+        {
+            game.Continue();
+        }
+
+        game.Encounter.Node.Should().Be("bungled-caper");
+        game.Do(GameCommand.ActivateToken("totem:red"));
+        game.Encounter.Combatants.Should().Contain(c => c.Family == "earth-loa", "Fragors are on the board: A");
+        game.Do(GameCommand.ReachEndCondition("win"));
+        while (game.State.Campaign.CurrentNode != "rhamsted-exploration")
+        {
+            game.Continue();
+        }
+
+        game.State.Campaign.Party.Should().OnlyContain(a => a.Xp == 9);
+        game.Answer("explore");
+        game.Answer("venture:0");
+
+        // The Main Quest (p. 87): the party loses its encounter, then answers the decision with its second option
+        while (game.State.Encounter is null)
+        {
+            game.Continue();
+        }
+
+        game.State.Campaign.RevealedHiddenCards.Should().Contain(c => c.Contains("UM5"));
+        game.Do(GameCommand.ReachEndCondition("lose"));
+        while (game.State.Prompt?.Options.Count != 2)
+        {
+            game.Continue();
+        }
+
+        game.Answer(game.State.Prompt.Options[1].Id);
         while (game.State.Status == GameStatus.InProgress)
         {
             game.Continue();
         }
 
-        game.State.Ending.Should().Be("@a-dangerous-path");
-        game.Codes.Should().NotContain(["manualAction", "unknownNode", "unknownEndCondition", "spawnImpossible"]);
+        game.State.Ending.Should().Be("@chapter-2-rhamsted-recreation");
+        // Sickles Upon Sickles calls 6 more Cave Sickles than their cards allow (p. 59): only those cannot spawn
+        game.Codes.Should().NotContain(["manualAction", "unknownNode", "unknownEndCondition"]);
+        game.Codes.Count(c => c == "spawnImpossible").Should().Be(1);
+    }
+
+    /// <summary>Reads on through the texts shown to the GM, up to the next question.</summary>
+    private static void SkipTexts(EngineDriver game)
+    {
+        while (game.State.Prompt?.Kind == PromptKinds.Continue)
+        {
+            game.Continue();
+        }
     }
 }

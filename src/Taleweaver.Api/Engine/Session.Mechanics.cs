@@ -158,6 +158,24 @@ internal sealed partial class Session
             DealTrack();
         }
 
+        if (action.Family is { } family && action.Instance is null)
+        {
+            // Every card of the family, keeping their order: the last one moves first toward the front or back by "amount"
+            var track = encounter.InitiativeTrack;
+            var cards = encounter.Combatants
+                .Where(c => !c.Defeated && (c.Family == family || BaseFamilyOf(c) == family))
+                .SelectMany(c => c.InitiativeCards).Distinct().Where(track.Contains).OrderBy(track.IndexOf).ToList();
+            foreach (var each in action.To == Front || (action.To is null && (action.Amount ?? 0) > 0) ? Enumerable.Reverse(cards) : cards)
+            {
+                MoveTo(each, action.To, action.Amount ?? 0);
+            }
+
+            if (cards.Count > 0)
+            {
+                return;
+            }
+        }
+
         if (CardOf(action) is { } card && encounter.InitiativeTrack.Contains(card))
         {
             MoveTo(card, action.To, action.Amount ?? 0);

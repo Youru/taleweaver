@@ -156,6 +156,9 @@ public sealed record Node
 
     public LocalizedText? Intro { get; init; }
 
+    /// <summary>What the GM does by hand in this step (shown in the encounter, never to the players).</summary>
+    public LocalizedText? GmNote { get; init; }
+
     public string? LocationType { get; init; }
 
     public string? LootLevel { get; init; }

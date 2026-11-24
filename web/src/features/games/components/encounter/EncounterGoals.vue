@@ -42,6 +42,10 @@ const tokens = computed(() => {
 
 <template>
   <div class="goals">
+    <template v-if="node?.gmNote">
+      <h3>{{ t('play.gmNote') }}</h3>
+      <p class="gm-note">{{ pick(node.gmNote, language) }}</p>
+    </template>
     <h3>{{ t('play.endConditions') }}</h3>
     <ul>
       <li v-for="end in endConditions" :key="end.id" class="end">
@@ -107,6 +111,12 @@ const tokens = computed(() => {
 </template>
 
 <style scoped>
+.gm-note {
+  margin: 0;
+  padding: 0.4rem 0.6rem;
+  border-left: 3px solid var(--p-primary-color);
+  white-space: pre-line;
+}
 h3 {
   margin: 0.8rem 0 0.4rem;
   font-size: 0.85rem;

@@ -36,8 +36,24 @@ public class RepositoryContentTests(RepositoryFactory factory) : IClassFixture<R
 
         var report = await response.Content.ReadFromJsonAsync<ScenarioReport>(JsonDefaults.Options, TestContext.Current.CancellationToken);
         report!.Errors.Should().BeEmpty();
-        // The MAST: Day 1 is meant to be blocked: the party pushes the rock into the pits to get through
-        report.Warnings.Select(w => (w.Code, w.Where)).Should().Equal(("Scenarios.JumpNeeded", "the-mast-day-1/map"));
+        // As in the book: The MAST: Day 1 is blocked (the party pushes the rock into the pits), the Red Exit of Bombing the
+        // Sickles and two vault encounters lie past pits, some families outnumber their cards, bosses are hidden cards,
+        // the mod's tiles clash, a cave is set up apart from the board (diagram 11). Where a boss hides is left unnamed.
+        report.Warnings.Select(w => (w.Code, w.Code == "Scenarios.HiddenCard" ? "(boss)" : w.Where)).Should().Equal(
+            ("Scenarios.JumpNeeded", "the-mast-day-1/map"),
+            ("Scenarios.BeyondCards", "bombing-the-sickles"),
+            ("Scenarios.ThemesApart", "bombing-the-sickles"),
+            ("Scenarios.JumpNeeded", "bombing-the-sickles/map"),
+            ("Scenarios.BeyondCards", "sickles-upon-sickles"),
+            ("Scenarios.HiddenCard", "(boss)"),
+            ("Scenarios.JumpNeeded", "retracing-their-steps/map"),
+            ("Scenarios.BeyondCards", "an-alternate-path"),
+            ("Scenarios.JumpNeeded", "an-alternate-path/map"),
+            ("Scenarios.HiddenCard", "(boss)"),
+            ("Scenarios.BeyondCards", "bungled-caper"),
+            ("Scenarios.ThemesApart", "bungled-caper"),
+            ("Scenarios.TilesApart", "bungled-caper"),
+            ("Scenarios.HiddenCard", "(boss)"));
     }
 
     /// <summary>reference/act1/item-cards/symbols.json, through tools/build_items.py: the weapons' band reaches the duel.</summary>
