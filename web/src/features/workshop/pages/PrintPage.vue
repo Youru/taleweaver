@@ -332,10 +332,13 @@ const backTo = computed(() =>
       <template v-else>
         <!-- Cover -->
         <section v-if="what === 'booklet'" class="cover" :class="{ outside: outside(1) }">
-          <p class="kind">{{ scenario.kind ? t(`workshop.print.kind.${scenario.kind}`, scenario.kind) : '' }}</p>
-          <h1>{{ pick(scenario.title, language) }}</h1>
-          <h2 v-if="chapter" class="chapter">{{ chapterTitle(chapter) }}</h2>
-          <p class="made">{{ t('workshop.print.made') }}</p>
+          <!-- The red band grows with the title: a long one wraps without spilling onto the page -->
+          <header class="band">
+            <p class="kind">{{ scenario.kind ? t(`workshop.print.kind.${scenario.kind}`, scenario.kind) : '' }}</p>
+            <h1>{{ pick(scenario.title, language) }}</h1>
+            <h2 v-if="chapter" class="chapter">{{ chapterTitle(chapter) }}</h2>
+            <p class="made">{{ scenarioId.startsWith('homebrew:') ? t('workshop.print.made') : 'Taleweaver' }}</p>
+          </header>
           <ol class="contents">
             <li v-for="node in steps" :key="node.id">
               {{ captionOf(node, language) }}
@@ -460,8 +463,16 @@ const backTo = computed(() =>
 }
 .cover {
   min-height: 11in;
-  background: linear-gradient(#6d1a1a 0 2.6in, #f3ead8 2.6in);
   break-after: page;
+}
+.cover .band {
+  margin: -0.8in -0.9in 0.4in;
+  padding: 0.8in 0.9in 0.45in;
+  min-height: 1.4in;
+  background: #6d1a1a;
+}
+.cover h1 {
+  text-wrap: balance;
 }
 .cover h1 {
   margin: 0;
@@ -493,7 +504,7 @@ const backTo = computed(() =>
 }
 .contents {
   list-style: none;
-  margin: 1.2in 0 0;
+  margin: 0.3in 0 0;
   padding: 0;
   display: grid;
   gap: 0.08in;

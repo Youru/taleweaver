@@ -143,8 +143,17 @@ function drawn(layer: { key: string; faded: boolean; terrainOnly?: boolean; map:
     const label = nameOf(props.pieces?.families[c.family]?.name) || c.family
     return [{ key: i, x: c.at.x, y: c.at.y, n, href: assetUrl(art.image), portrait: art.portrait, label }]
   })
-  return { key: layer.key, faded: layer.faded, ground, tiles, zones: layer.map.zones, tokens, figures }
+  // The currents: an arrow in the middle of their area, pointing the way they flow
+  type Current = { rect?: { x: number; y: number; w: number; h: number }; tile?: string; direction?: string }
+  const currents = ((layer.map.currents ?? []) as Current[]).flatMap((c, i) => {
+    const angle = FLOW[c.direction ?? '']
+    const tile = layer.map.tiles.find((t) => t.ref === c.tile)
+    const area = c.rect ?? (tile && { x: tile.x, y: tile.y, w: TILE, h: TILE })
+    return angle === undefined || !area ? [] : [{ key: i, x: area.x + area.w / 2, y: area.y + area.h / 2, angle }]
+  })
+  return { key: layer.key, faded: layer.faded, ground, tiles, zones: layer.map.zones, tokens, figures, currents }
 }
+const FLOW: Record<string, number> = { east: 0, south: 90, west: 180, north: 270 }
 const drawing = computed(() => layers.value.map(drawn))
 </script>
 
@@ -270,6 +279,15 @@ const drawing = computed(() => layers.value.map(drawn))
             :r="token.r.w * S * 0.44"
             :style="{ stroke: token.ring }"
           />
+        </g>
+        <g
+          v-for="c in layer.currents"
+          :key="`current-${c.key}`"
+          class="current"
+          :transform="`translate(${c.x * S} ${c.y * S}) rotate(${c.angle})`"
+        >
+          <path class="under" d="M -120 0 L 80 0 M 40 -40 L 100 0 L 40 40" />
+          <path d="M -120 0 L 80 0 M 40 -40 L 100 0 L 40 40" />
         </g>
         <g v-for="f in layer.figures" :key="f.key">
           <circle class="base" :cx="(f.x + f.n / 2) * S" :cy="(f.y + f.n / 2) * S" :r="f.n * S * 0.44" />
@@ -404,5 +422,17 @@ const drawing = computed(() => layers.value.map(drawn))
   fill: none;
   stroke: #b91c1c;
   stroke-width: 8;
+}
+/* White on a dark edge: seen on the water as on paper */
+.current path {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 10;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.current path.under {
+  stroke: #0c2d48;
+  stroke-width: 22;
 }
 </style>
