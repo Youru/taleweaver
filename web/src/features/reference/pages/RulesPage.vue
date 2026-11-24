@@ -1,28 +1,22 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import RulesBrowser from '../components/RulesBrowser.vue'
 
-/** The rules out of any game (/rules): the question and the rule open are in the address. */
+/**
+ * The rules out of any game (/rules): the question and the rule open are copied into the address. The page holds
+ * them itself: the address follows, it never leads while one types (a field fed back by the router lags behind).
+ */
 const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
-
-// The two can change in the same tick: both leave together
-let waiting: Record<string, string> | undefined
-function inAddress(name: string) {
-  return computed({
-    get: () => String(waiting?.[name] ?? route.query[name] ?? ''),
-    set(value: string) {
-      waiting = { ...(waiting ?? (route.query as Record<string, string>)), [name]: value }
-      const query = Object.fromEntries(Object.entries(waiting).filter(([, kept]) => kept))
-      void router.replace({ query }).then(() => (waiting = undefined))
-    },
-  })
-}
-const typed = inAddress('q')
-const section = inAddress('s')
+const typed = ref(String(route.query.q ?? ''))
+const section = ref(String(route.query.s ?? ''))
+watch([typed, section], ([q, s]) => {
+  const query = Object.fromEntries(Object.entries({ q, s }).filter(([, kept]) => kept))
+  void router.replace({ query })
+})
 </script>
 
 <template>

@@ -123,4 +123,11 @@ describe.skipIf(!present || !existsSync(frFolder))('rules search in French', () 
       expect(hit.passage?.block).toBe(at.passage?.block)
     }
   })
+
+  it('finds a rule by its English words too, and still shows it in French', () => {
+    const [first] = search.search('line of sight').hits
+    expect(first?.section.english?.title).toMatch(/line of sight/i)
+    expect(first?.section.title).not.toBe(first?.section.english?.title)
+    expect(search.search('ligne de vue').hits[0]?.section.id).toBe(first?.section.id)
+  })
 })

@@ -72,22 +72,40 @@ export function buildAliases(glossary: string): Map<string, string[]> {
 
 export function createSearch(book: Book, glossary: string, reference?: Reference) {
   const aliases = buildAliases(glossary)
-  const indexed = book.sections.map((section) => ({
-    section,
-    title: normalize(section.title),
-    parent: normalize(section.parent ?? ''),
-    weight: (chapterWeight[section.chapter] ?? 1) * (/example|breakdown/i.test(section.title) ? 0.6 : 1),
-    passages: passagesOf(section).map((passage) => ({
-      passage,
-      text: normalize(passage.raw),
-      label: normalize(passage.label),
-    })),
-  }))
+  // A translated section is also searched in English: one word or the other finds it, the reader shows the language
+  const indexed = book.sections.map((section) => {
+    const passages = passagesOf(section)
+    const english = section.english ? passagesOf({ ...section, blocks: section.english.blocks }) : []
+    // A translation is line for line; where it is not, each English line goes to the line at the same height
+    const at = (i: number) =>
+      english.length === passages.length ? i : Math.floor((i * passages.length) / english.length)
+    const extra = passages.map(() => ({ text: '', label: '' }))
+    english.forEach(({ raw, label }, i) => {
+      const into = extra[at(i)]!
+      into.text += ` ${raw}`
+      into.label += ` ${label}`
+    })
+    return {
+      section,
+      title: normalize(`${section.title} ${section.english?.title ?? ''}`),
+      heads: [normalize(section.title), normalize(section.english?.title ?? '')].filter(Boolean),
+      parent: normalize(`${section.parent ?? ''} ${section.english?.parent ?? ''}`),
+      parents: [normalize(section.parent ?? ''), normalize(section.english?.parent ?? '')].filter(Boolean),
+      weight:
+        (chapterWeight[section.chapter] ?? 1) *
+        (/example|breakdown/i.test(section.english?.title ?? section.title) ? 0.6 : 1),
+      passages: passages.map((passage, i) => ({
+        passage,
+        text: normalize(`${passage.raw} ${extra[i]!.text}`),
+        label: normalize(`${passage.label} ${extra[i]!.label}`),
+      })),
+    }
+  })
   const asked = questions.flatMap((question) => {
     const at = indexed.find(
-      ({ section, title }) =>
+      ({ section }) =>
         section.chapter === question.chapter &&
-        normalize(question.section) === (section.english ? normalize(section.english.title) : title),
+        normalize(question.section) === normalize(section.english?.title ?? section.title),
     )
     if (!at) return []
     const find = normalize(question.find ?? '')
@@ -136,7 +154,8 @@ export function createSearch(book: Book, glossary: string, reference?: Reference
         if (size === 1 && emptyWords.has(phrase[0]!)) continue
         const written = aliases.get(key(phrase.join(' ')))
         if (!written) continue
-        add(phrase.join(' '), size === 1 ? [...written, singular(phrase[0]!)] : written)
+        // The words as typed are searched too: the book is also read in their language
+        add(phrase.join(' '), size === 1 ? [...written, singular(phrase[0]!)] : [...written, phrase.join(' ')])
         taken = size
       }
       if (!taken) {
@@ -211,8 +230,8 @@ export function createSearch(book: Book, glossary: string, reference?: Reference
           score += best * spread[c]!
         })
         if (!covered) return []
-        if (entry.title === phrase) score += 60
-        else if (entry.parent === phrase) score += 15
+        if (entry.heads.includes(phrase)) score += 60
+        else if (entry.parents.includes(phrase)) score += 15
         // Where the heading is all that was asked, the rule starts at its first words
         const named = concepts.every(({ patterns }) => count(entry.title, patterns[0]!))
         const top = named ? 0 : perPassage.indexOf(Math.max(...perPassage))
