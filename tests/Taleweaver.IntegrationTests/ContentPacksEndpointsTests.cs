@@ -51,6 +51,20 @@ public sealed class ContentPacksEndpointsTests : IClassFixture<HomebrewFactory>,
         (await _client.GetAsync("/api/assets/demo/clearing.png", Token)).StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
+    [Fact]
+    public async Task Install_TheSameScenarioTwice_ListsItOnce()
+    {
+        // A pack installed over content that already holds it (the full app, given with its pack)
+        (await PostAsync(DemoPack())).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await PostAsync(DemoPack("demo-again"))).StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var response = await _client.GetAsync("/api/scenarios", Token);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await response.Content.ReadFromJsonAsync<List<ScenarioSummary>>(JsonDefaults.Options, Token))!
+            .Should().ContainSingle(s => s.Id == "demo:scenario/bandit-clearing");
+    }
+
     [Theory]
     [InlineData("../outside.json", "points out of the pack")]
     [InlineData("tools/run.exe", "is not in")]
@@ -85,14 +99,14 @@ public sealed class ContentPacksEndpointsTests : IClassFixture<HomebrewFactory>,
     }
 
     /// <summary>taleweaver/demo, as scripts/package.py --content-pack would make it.</summary>
-    private static byte[] DemoPack()
+    private static byte[] DemoPack(string id = "demo-content")
     {
         var demo = DemoRoot();
         var files = Directory.EnumerateFiles(demo, "*", SearchOption.AllDirectories)
             .Select(f => Path.GetRelativePath(demo, f).Replace('\\', '/'))
             .Where(f => f.Contains('/'))
             .Select(f => (f, (object)File.ReadAllBytes(Path.Combine(demo, f))));
-        return Zip([("content-pack.json", """{ "id": "demo-content", "name": { "en": "Demo" }, "version": "1" }"""), .. files]);
+        return Zip([("content-pack.json", $$"""{ "id": "{{id}}", "name": { "en": "Demo" }, "version": "1" }"""), .. files]);
     }
 
     private static byte[] Zip(params (string Name, object Data)[] entries)

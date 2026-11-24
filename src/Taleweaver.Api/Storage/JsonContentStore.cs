@@ -250,11 +250,39 @@ public sealed class JsonContentStore(IOptions<ContentOptions> options, IHostEnvi
 
             if (!index.TryAdd(scenario.Id, (scenario, path)))
             {
-                throw new InvalidOperationException($"Scenario id '{scenario.Id}' is used by two files: {index[scenario.Id].Item2} and {path}.");
+                var kept = index[scenario.Id].Item2;
+                // The same scenario in two roots (an installed pack over the content built into the app): as for the
+                // packs, the first root counts. Twice in one root is a mistake of its author.
+                if (RootRank(kept) == RootRank(path))
+                {
+                    throw new InvalidOperationException($"Scenario id '{scenario.Id}' is used by two files: {kept} and {path}.");
+                }
+
+                if (RootRank(path) < RootRank(kept))
+                {
+                    index[scenario.Id] = (scenario, path);
+                }
             }
         }
 
         return index;
+    }
+
+    /// <summary>The position of the content root holding <paramref name="path"/> (the longest root that holds it).</summary>
+    private int RootRank(string path)
+    {
+        var roots = _roots.All;
+        var best = -1;
+        for (var i = 0; i < roots.Count; i++)
+        {
+            var root = roots[i].TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+            if (path.StartsWith(root, StringComparison.OrdinalIgnoreCase) && (best < 0 || roots[i].Length > roots[best].Length))
+            {
+                best = i;
+            }
+        }
+
+        return best;
     }
 
     private static async Task<T> ReadAsync<T>(string path, CancellationToken cancellationToken)
