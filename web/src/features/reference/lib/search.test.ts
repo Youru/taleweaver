@@ -100,7 +100,10 @@ describe.skipIf(!present)('rulebook', () => {
 
 // The French book (reference/fr/…/chapters, line for line): every question still finds its rule
 const frFolder = `${root}reference/fr/rules/rulebook/chapters/`
-describe.skipIf(!present || !existsSync(frFolder))('rules search in French', () => {
+const frenchPresent = present && existsSync(frFolder)
+// A skipped suite still runs its body to collect its tests: without the book (the public CI), read nothing
+describe.skipIf(!frenchPresent)('rules search in French', () => {
+  if (!frenchPresent) return
   const chapters = readdirSync(`${folder}chapters`).map((file) => ({
     id: file.split('-')[0]!,
     markdown: read(`${folder}chapters/${file}`),
