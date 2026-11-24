@@ -176,7 +176,7 @@ internal sealed partial class Session
         }
 
         member.Conduits.Add(card);
-        Log("conduitEarned", args: Args(("adventurer", member.Name), ("card", card), ("name", Catalog.FindCombatant(card)?.Name.GetValueOrDefault("en"))));
+        Log("conduitEarned", args: Args(("adventurer", member.Name), ("card", card), ("name", Catalog.FindCombatant(card)?.Name)));
         return Result.Success();
     }
 

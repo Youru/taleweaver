@@ -344,7 +344,7 @@ internal sealed partial class Session
         }
 
         Encounter.ReadHiddenRules.Add(rule.Id);
-        Log("hiddenRule", rule.Text, Args(("rule", rule.Id), ("name", rule.Name?.GetValueOrDefault("en"))));
+        Log("hiddenRule", rule.Text, Args(("rule", rule.Id), ("name", rule.Name)));
         Push(WithAuthor(rule.Actions));
         Fire(e => e.Trigger.On == "hiddenRuleRead" && (e.Trigger.Rule is null || e.Trigger.Rule == rule.Id));
     }
@@ -440,7 +440,7 @@ internal sealed partial class Session
         AppearFromTheFog();
         foreach (var rule in diagram.SpecialRules)
         {
-            Log("specialRule", rule.Text, Args(("rule", rule.Id), ("name", rule.Name.GetValueOrDefault("en"))));
+            Log("specialRule", rule.Text, Args(("rule", rule.Id), ("name", rule.Name)));
         }
     }
 

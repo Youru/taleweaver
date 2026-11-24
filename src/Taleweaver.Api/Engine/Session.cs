@@ -270,7 +270,7 @@ internal sealed partial class Session(GameState state, GameContext context)
             return;
         }
 
-        Log("scene", node.Narrative, Args(("node", node.Id), ("title", node.Title?.GetValueOrDefault("en"))));
+        Log("scene", node.Narrative, Args(("node", node.Id), ("title", node.Title)));
         Push([.. node.Mechanics, Continue(), GoTo(node.Next)]);
     }
 
@@ -369,8 +369,33 @@ internal sealed partial class Session(GameState state, GameContext context)
     private void Log(string code, LocalizedText? text = null, IReadOnlyDictionary<string, string>? args = null) =>
         State.Log.Add(new LogEntry(code, text, args));
 
-    private static Dictionary<string, string> Args(params (string Key, string? Value)[] values) =>
-        values.Where(v => v.Value is not null).ToDictionary(v => v.Key, v => v.Value!);
+    /// <summary>
+    /// The arguments of a line of the journal. A name of the scenario (a <see cref="LocalizedText"/>) is written in
+    /// English under its key, and in its other languages under "key.fr": the journal reads in the reader's language.
+    /// </summary>
+    private static Dictionary<string, string> Args(params (string Key, object? Value)[] values)
+    {
+        var args = new Dictionary<string, string>();
+        foreach (var (key, value) in values)
+        {
+            switch (value)
+            {
+                case string text:
+                    args[key] = text;
+                    break;
+                case LocalizedText { Count: > 0 } names:
+                    args[key] = names.GetValueOrDefault("en") ?? names.Values.First();
+                    foreach (var (language, name) in names.Where(n => n.Key != "en"))
+                    {
+                        args[$"{key}.{language}"] = name;
+                    }
+
+                    break;
+            }
+        }
+
+        return args;
+    }
 
     private static ScenarioAction Continue() => new() { Do = InternalActions.AwaitContinue };
 

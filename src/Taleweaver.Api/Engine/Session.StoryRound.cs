@@ -63,11 +63,11 @@ internal sealed partial class Session
         State.Campaign.StoryRound = new StoryRoundState { Node = node.Id };
         if (returning)
         {
-            Log("storyRoundReturn", args: Args(("node", node.Id), ("name", node.Name?.GetValueOrDefault("en"))));
+            Log("storyRoundReturn", args: Args(("node", node.Id), ("name", node.Name)));
         }
         else
         {
-            Log("storyRound", node.Narrative, Args(("node", node.Id), ("name", (node.Name ?? node.Title)?.GetValueOrDefault("en")), ("page", Number(node.Page))));
+            Log("storyRound", node.Narrative, Args(("node", node.Id), ("name", (node.Name ?? node.Title)), ("page", Number(node.Page))));
         }
 
         DrawStoreUniques(node);

@@ -39,6 +39,18 @@ describe('formatLog', () => {
     expect(line.text).toBe('Nightingale crept…')
   })
 
+  it('names the scene in the reader’s language when the scenario gives it', () => {
+    const entry = {
+      code: 'scene',
+      text: { en: 'Nightingale crept…', fr: 'Nightingale s’était glissée…' },
+      args: { title: 'Before the MAST', 'title.fr': 'Avant le CAMP' },
+    }
+
+    expect(formatLog(entry, 'fr', translate, has).story?.heading).toBe('Avant le CAMP')
+    expect(formatLog(entry, 'en', translate, has).story?.heading).toBe('Before the MAST')
+    expect(formatLog(entry, 'fr', translate, has).text).toBe('Nightingale s’était glissée…')
+  })
+
   it("heads an encounter's introduction with its name and loot level", () => {
     const line = formatLog(
       { code: 'encounter', args: { name: 'The MAST: Day 1', lootLevel: 'mundane' } },

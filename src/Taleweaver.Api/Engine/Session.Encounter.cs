@@ -48,7 +48,7 @@ internal sealed partial class Session
         State.Campaign.FreeReequip.Clear();
         ReadyCardsForEncounter();
         PrepareAdventurers();
-        Log("encounter", node.Intro, Args(("node", node.Id), ("name", node.Name?.GetValueOrDefault("en")), ("lootLevel", node.LootLevel), ("locationType", node.LocationType)));
+        Log("encounter", node.Intro, Args(("node", node.Id), ("name", node.Name), ("lootLevel", node.LootLevel), ("locationType", node.LocationType)));
         foreach (var card in node.Setup?.RevealHiddenCards ?? [])
         {
             RevealHiddenCard(card.Size, card.Code);
@@ -56,7 +56,7 @@ internal sealed partial class Session
 
         foreach (var rule in node.SpecialRules)
         {
-            Log("specialRule", rule.Text, Args(("rule", rule.Id), ("name", rule.Name.GetValueOrDefault("en"))));
+            Log("specialRule", rule.Text, Args(("rule", rule.Id), ("name", rule.Name)));
         }
 
         AddTokens(node.Map);

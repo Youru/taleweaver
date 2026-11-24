@@ -164,8 +164,16 @@ const tones: Record<string, LogTone> = {
 export const toneOf = (code: string): LogTone => tones[code] ?? 'info'
 
 /** Arguments made readable: content ids shortened, the turn's owner named. */
-function readableArgs(entry: LogEntry): Record<string, string> {
+function readableArgs(entry: LogEntry, language: Language): Record<string, string> {
   const args: Record<string, string> = { ...entry.args }
+  // A name of the scenario is logged in English ("title") and in its other languages ("title.fr")
+  for (const [key, value] of Object.entries(entry.args ?? {})) {
+    const dot = key.lastIndexOf('.')
+    if (dot > 0) {
+      if (key.slice(dot + 1) === language) args[key.slice(0, dot)] = value
+      delete args[key]
+    }
+  }
   for (const key of ['card', 'from', 'to', 'item', 'diagram', 'token', 'upgrade', 'discipline', 'scenario']) {
     const value = args[key]
     if (value) args[key] = shortId(value)
@@ -186,7 +194,7 @@ export function formatLog(
   translate: (key: string, args: Record<string, string>) => string,
   hasMessage: (key: string) => boolean,
 ): FormattedLog {
-  const args = readableArgs(entry)
+  const args = readableArgs(entry, language)
   // Answers given with a fixed option (yes, no, continue) read in the reader's language.
   const fixed = entry.code === 'answer' && args.answer ? `prompt.${args.answer}` : null
   if (fixed && hasMessage(fixed)) args.answer = translate(fixed, {})
